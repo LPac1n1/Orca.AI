@@ -28,6 +28,13 @@ A especificação em [`docs/`](docs/README.md) manda. Antes de propor ou impleme
 - Nomes do domínio em português (como nos docs). Cite a decisão no código quando ela justificar uma regra: `# D-23`.
 - Toda regra de negócio nova vem com teste. Casos de teste da especificação: `docs/06-roadmap-e-testes.md` §3.
 
+## Banco de dados (`orca.banco`)
+
+- Toda gravação passa por `sessao_como(fabrica, autor)`; o autor é `usuario:<nome>`, `sistema[:<módulo>]` ou `ia:<provedor>`. A auditoria (`orca.auditoria`) registra cada criação/alteração em `evento` e recusa gravação sem autor.
+- **Nunca** `sessao.delete(...)`: use `excluido_em`/`arquivado_em`. Tabelas com `__imutavel__` não se alteram — correção é registro novo. Gatilhos no banco repetem essas proteções.
+- Mudou uma tabela? Gere a migração (`cd backend && python -m alembic revision --autogenerate -m "..."`), troque tipos próprios (`DataHora`, `Data`) por `sa.String` na migração e, depois de operações batch, recrie os gatilhos com `criar_gatilhos`. Os testes de `testes/banco/test_migracao.py` acusam divergências.
+- Datas/horas sempre com fuso (`orca.banco.agora()`).
+
 ## Comandos
 
 O ambiente virtual fica **fora do OneDrive** (para não sincronizar milhares de arquivos):

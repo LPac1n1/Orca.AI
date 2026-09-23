@@ -59,7 +59,7 @@ Orca.AI/
 │   ├── pyproject.toml
 │   ├── testes/                unitários, propriedades, casos de teste completos
 │   └── orca/
-│       ├── dominio/           entidades e regras de negócio puras (sem I/O)
+│       ├── dominio/           tipos, identificadores (CNPJ, EAN) e regras puras (sem I/O)
 │       ├── regras/            perfis, herança, versões, validação
 │       ├── calculo/           dinheiro em centavos, arredondamento, cotações, mão de obra
 │       ├── selecao/           cobertura, classificação, conferência preço × média, resolução
@@ -69,7 +69,8 @@ Orca.AI/
 │       ├── evidencias/        captura, hash, armazenamento, manifesto, validade
 │       ├── ia/                provedores plugáveis e tarefas de IA
 │       ├── documentos/        Excel, PDF, ZIP
-│       ├── auditoria/         eventos, rastro do valor
+│       ├── banco/             tabelas, migrações, gatilhos, sessões com autor, regras gravadas
+│       ├── auditoria/         histórico automático de eventos, rastro do valor
 │       ├── tarefas/           fila, orquestração, grafo incremental
 │       └── api/               endpoints
 ├── frontend/                  React
@@ -154,51 +155,65 @@ Só dados públicos são enviados (D-51). Toda chamada é registrada (tarefa, pr
 
 ## 7. Modelo de dados
 
-Todas as tabelas principais têm `organizacao_id`, para que o mesmo banco possa atender várias OSCs no futuro.
-Tabelas marcadas **(imutável)** têm gatilhos que bloqueiam `UPDATE` e `DELETE`: correções geram registros novos.
+Implementado em `backend/orca/banco/tabelas.py` (etapa 3). Convenções:
+- **Identificadores** gerados pelo programa (UUID em texto), conhecidos antes de gravar.
+- **Dinheiro** em centavos e **horas** em centésimos: sempre inteiros. Um teste recusa qualquer coluna decimal.
+- **Data e hora** sempre com fuso, gravadas em UTC (texto ISO 8601).
+- **Nada é apagado:** todas as tabelas têm gatilho que recusa `DELETE`; as vivas usam exclusão lógica (`excluido_em`) e arquivamento (`arquivado_em`).
+- Tabelas **(imutável)** também recusam `UPDATE`: correção = registro novo.
+- **Histórico automático:** toda criação ou alteração feita pelo programa gera um `evento` (antes, depois, autor, hora). Gravar exige declarar o autor (`usuario:<nome>`, `sistema[:<módulo>]` ou `ia:<provedor>`).
+- **Restrições no próprio banco** (CHECK), além das validações do programa: teto > 0, meses coerentes, margens nos limites, alvo coerente (item *ou* cargo), faixa salarial, e a IA nunca grava uma correspondência 🟢.
+- O projeto pertence a uma organização; tudo abaixo dele herda. Fontes, consultas de CNPJ e arquivos são compartilhados (revisar se houver versão hospedada com várias OSCs).
 
 ### Estrutura do projeto
 | Tabela | Campos principais |
 |---|---|
 | `organizacao` | id, nome, cnpj |
-| `perfil_regras` **(imutável por versão)** | id, organizacao_id, nome, camada, pai_id, versao, conteudo_yaml, criado_em |
-| `projeto` | id, nome, orgao, instrumento, processo, teto_centavos, duracao_meses, cep, data_entrega, perfil_regras_id, status |
-| `orcamento` | id, projeto_id, nome, tipo, base_preco (A/B), limites, perfil_regras_id, status |
-| `lote` | id, orcamento_id, nome |
-| `item` | id, lote_id, descricao, marca, modelo, apresentacao, atributos, ean, catmat, unidade, qtd_planejada, mes_inicio, mes_fim, margem_min, margem_max, travado, substitui_item_id |
-| `cargo` | id, orcamento_id, nome, cbo, postos, regime, jornada_id, horas_planejadas_centesimos, mes_inicio, mes_fim, margem, travado |
+| `perfil_regras` **(imutável)** | id, organizacao_id (vazio só na camada do sistema), nome, nivel, versao, impressao (SHA-256), conteudo_yaml — nome + versão com outro conteúdo é recusado |
+| `projeto` | id, organizacao_id, nome, orgao, instrumento, processo, teto_centavos, duracao_meses, cep, data_entrega, camadas_regras (ids das versões usadas, na ordem), arquivado_em, excluido_em |
+| `orcamento` | id, projeto_id, nome, descricao, tipo (materiais, mao_de_obra, servicos), camada_regras_id (camada própria, opcional), arquivado_em, excluido_em — a regra A/B e os limites vêm das regras |
+| `lote` | id, orcamento_id, nome, excluido_em |
+| `item` | id, lote_id, descricao, categoria, marca, modelo, apresentacao, atributos, ean, catmat, unidade, qtd_planejada, mes_inicio, mes_fim, margem_min/max_percentual, travado, substitui_item_id, excluido_em |
+| `cargo` | id, orcamento_id, nome, cbo, postos, regime, jornada_id, horas_planejadas_centesimos, mes_inicio, mes_fim, margem_min/max_percentual, travado, excluido_em |
 
 ### Pesquisa e evidências
 | Tabela | Campos principais |
 |---|---|
-| `fonte` | id, tipo (loja, empresa, fornecedor, pública), nome, domínio, conector |
-| `empresa` | cnpj, razao_social, nome_fantasia, situacao, data_situacao, consultado_em, provedor |
+| `fonte` | id, tipo (loja, empresa, fornecedor, publica), nome, dominio, catalogo_id, conector |
+| `consulta_cnpj` **(imutável)** | id, cnpj, razao_social, nome_fantasia, situacao, data_situacao, municipio, uf, provedor, consultado_em, dados_brutos — cada consulta fica guardada como estava naquele dia |
 | `comprovante` **(imutável)** | id, cnpj, arquivo_sha256, emitido_em |
-| `observacao` **(imutável)** | id, alvo (item ou cargo), fonte_id, cnpj_vendedor, url, titulo, marca, modelo, apresentacao, ean, preco_centavos, salario_min_centavos, salario_max_centavos, encontrado, disponivel, coletado_em, cep, metodo, evidencia_id, preco_no_html, dados_brutos |
-| `evidencia` **(imutável)** | id, url, capturado_em, metodo, pdf_sha256, png_sha256, html_sha256 |
-| `arquivo` **(imutável)** | sha256, caminho, tipo, tamanho |
-| `correspondencia` **(imutável; nova decisão = novo registro)** | id, item_id, observacao_id, status, motivos, origem (ean, atributos, ia, humano), decidido_por, decidido_em |
-| `grupo_vaga` | id, cargo_id, observacoes (a mesma vaga em várias plataformas) |
+| `arquivo` **(imutável)** | sha256, caminho, tipo_mime, tamanho |
+| `evidencia` **(imutável)** | id, url, capturado_em, metodo, cep, pdf_sha256 (obrigatório), png_sha256, html_sha256 |
+| `observacao` **(imutável)** | id, alvo_tipo, item_id ou cargo_id, fonte_id, cnpj_vendedor, url, titulo, marca, modelo, apresentacao, ean, preco_centavos, salario_min/max_centavos, encontrado, disponivel, coletado_em, cep, metodo, evidencia_id, preco_no_html, dados_brutos, autor |
+| `correspondencia` **(imutável)** | id, item_id, observacao_id, status (verde, amarelo, vermelho), motivos, origem (ean, atributos, ia, humano), autor |
 
-### Cálculo e decisões
+### Cálculo, decisões e histórico
 | Tabela | Campos principais |
 |---|---|
-| `cotacao` **(imutável)** | id, alvo, observacao_1, observacao_2, observacao_3, soma_centavos, media_exibida_centavos, versao_regras, criado_em |
-| `selecao_lojas` **(imutável)** | id, lote_id, classificacao, trio, loja_escolhida, justificativa, tentativas, criado_em |
-| `resolucao` | id, lote_id, tipo (troca de produto, troca de loja), opcoes, escolhida, decidido_por, decidido_em |
-| `execucao_otimizacao` **(imutável)** | id, projeto_id, versao_regras, entradas, solucao, status, diagnostico, verificacao_ok, versao_otimizador, criado_em |
-| `linha_final` **(imutável)** | id, execucao_id, alvo, preco_unitario_centavos, quantidade ou horas, meses, postos, total_centavos |
-| `decisao` **(imutável)** | id, tipo, alvo, valor, usuario, justificativa, criado_em |
-| `evento` **(imutável)** | id, projeto_id, entidade, entidade_id, acao, antes, depois, autor (usuário, sistema, ia), criado_em |
-| `alerta` | id, projeto_id, tipo, severidade, alvo, mensagem, criado_em, resolvido_em |
-| `tarefa` | id, tipo, parametros, status, progresso, erro, datas |
+| `cotacao` **(imutável)** | id, alvo_tipo, item_id ou cargo_id, n, soma_centavos, media_exibida_centavos, impressao_regras, autor |
+| `cotacao_observacao` **(imutável)** | cotacao_id, ordem, observacao_id |
+| `decisao` **(imutável)** | id, tipo, alvo_tipo, alvo_id, valor, justificativa, autor |
+| `alerta` | id, projeto_id, tipo, severidade (info, atencao, problema), alvo, mensagem, resolvido_em |
+| `evento` **(imutável)** | id (sequencial), projeto_id, entidade, entidade_id, acao (criar, alterar, excluir, arquivar), antes, depois, autor, criado_em |
 
-### Catálogos
-| Tabela / arquivo | Conteúdo |
+### Previstas para as próximas etapas
+| Tabela | Etapa |
 |---|---|
-| `catalogo_loja` | lojas, domínios, categorias, conector, observações |
-| `jornada` | descrição, jornada semanal, divisor, fonte legal, revisado_por, revisado_em |
-| `ocupacao_mei` | código, descrição, CNAE, vigência (lista oficial importável) |
+| `selecao_lojas`, `resolucao` | 4 — seleção de lojas e resolução do item acima da média |
+| `execucao_otimizacao`, `linha_final` | 5 — otimização |
+| `grupo_vaga` | 6 — coleta de vagas |
+| `tarefa` | fila de tarefas (coleta, captura, exportação) |
+
+### Catálogos (arquivos versionados no repositório)
+| Arquivo | Conteúdo |
+|---|---|
+| `catalogos/lojas.yaml` | lojas, domínios, categorias, conector, qual preço usar |
+| `catalogos/jornadas.yaml` | jornada semanal, divisor, fonte legal, revisão |
+| `catalogos/atributos.yaml` | atributos críticos por categoria |
+| `catalogos/ocupacoes_mei.csv` | lista oficial de ocupações permitidas ao MEI (a importar) |
+
+### Migrações
+Alembic, em `backend/orca/banco/migracoes/`. Ao abrir o banco, o programa aplica as migrações pendentes e **faz cópia de segurança antes** (API de backup do SQLite). Operações "batch" recriam tabelas e perdem os gatilhos: depois delas, recriá-los com `orca.banco.gatilhos.criar_gatilhos`. Um teste confere que todas as tabelas continuam protegidas e que as migrações correspondem às tabelas do código.
 
 ## 8. Segurança e privacidade
 

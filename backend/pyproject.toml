@@ -11,6 +11,8 @@ license = { text = "AGPL-3.0-only" }
 dependencies = [
     "pydantic>=2.7,<3",
     "pyyaml>=6",
+    "sqlalchemy>=2.0,<3",
+    "alembic>=1.13",
 ]
 
 [project.optional-dependencies]
@@ -23,7 +25,12 @@ dev = [
 include = ["orca*"]
 
 [tool.setuptools.package-data]
-orca = ["regras/*.yaml"]
+orca = [
+    "regras/*.yaml",
+    "banco/migracoes/*.py",
+    "banco/migracoes/*.mako",
+    "banco/migracoes/versions/*.py",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["testes"]
