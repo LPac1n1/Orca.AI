@@ -1,4 +1,4 @@
-"""Monta o conjunto de referência de correspondência (T-11): testes/dados/correspondencia/pares_referencia.csv.
+"""Monta o conjunto de referência de correspondência (T-11): orca/correspondencia/referencia/pares_referencia.csv.
 
 Uso (fora dos testes; acessa a internet com poucas consultas):
     python ferramentas/montar_pares_referencia.py baixar <pasta>
@@ -34,7 +34,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from orca.correspondencia.texto import PALAVRAS_VAZIAS, compacto, normalizar  # noqa: E402
 
-CSV = Path(__file__).resolve().parents[1] / "testes" / "dados" / "correspondencia" / "pares_referencia.csv"
+CSV = Path(__file__).resolve().parents[1] / "orca" / "correspondencia" / "referencia" / "pares_referencia.csv"
 COLUNAS = ["id", "categoria", "loja_a", "titulo_a", "marca_a", "ean_a", "loja_b", "titulo_b", "marca_b", "ean_b",
            "rotulo", "motivo", "origem_titulos", "coletado_em"]
 AGENTE = "Orca.AI/0.1 (github.com/LPac1n1/Orca.AI; montador de orcamentos para OSCs)"

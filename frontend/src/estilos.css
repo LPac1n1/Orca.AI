@@ -174,3 +174,32 @@ details summary { cursor: pointer; color: var(--primaria); font-size: 0.9rem; ma
 .modal-topo { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
 .fechar { background: none; border: none; color: var(--discreto); font-size: 1.5rem; padding: 0 0.3rem; }
 .detalhe h3 { margin-top: 1rem; }
+
+/* Colar link: jeitos de ler a página */
+.modos { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.modos label { display: flex; align-items: center; gap: 0.35rem; border: 1px solid var(--borda); border-radius: 8px; padding: 0.35rem 0.7rem; cursor: pointer; font-size: 0.9rem; }
+.modos label.ativo { border-color: var(--primaria); background: var(--info-fundo); font-weight: 600; }
+.modos input { width: auto; }
+.tarefa.esperando_usuario { border-left-color: var(--primaria); background: var(--info-fundo); border-radius: 0 6px 6px 0; padding: 0.3rem 0.5rem; }
+.tarefa .botoes { margin-top: 0.3rem; }
+
+/* Catálogos da OSC */
+.chips { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; margin-right: 0.4rem; vertical-align: middle; }
+.chip { display: inline-flex; align-items: center; gap: 0.15rem; background: var(--superficie-2); border: 1px solid var(--borda); border-radius: 999px; padding: 0.05rem 0.25rem 0.05rem 0.6rem; font-size: 0.85rem; }
+.chip button { background: none; border: none; color: var(--discreto); padding: 0 0.3rem; font-size: 1rem; line-height: 1; }
+.chip button:hover { color: var(--vermelho); }
+.acrescentar { display: inline-flex; gap: 0.3rem; align-items: center; margin-top: 0.2rem; }
+.acrescentar input { width: 12rem; padding: 0.2rem 0.45rem; font-size: 0.85rem; }
+.grupo-vocabulario { border-top: 1px solid var(--borda); padding: 0.7rem 0; }
+.grupo-vocabulario:first-of-type { border-top: none; }
+.grupo-vocabulario td.valor { width: 11rem; }
+.busca { max-width: 26rem; }
+.tabela select { width: auto; font-size: 0.85rem; padding: 0.2rem 0.4rem; }
+.tabela tr.com-erro td { background: var(--vermelho-fundo); }
+.barra-salvar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; background: var(--superficie); border: 1px solid var(--borda); border-radius: 10px; padding: 0.6rem 0.9rem; margin: 1rem 0; box-shadow: var(--sombra); }
+.barra-salvar.visivel { border-color: var(--primaria); box-shadow: 0 -4px 16px rgba(20, 30, 50, 0.12); }
+.regras-tabela td:first-child { width: 45%; }
+.regras-tabela td:nth-child(2) { width: 30%; }
+.regras-tabela input, .regras-tabela select { width: 100%; }
+details.grupo-vocabulario > summary { color: var(--texto); font-size: 0.95rem; padding: 0.2rem 0; }
+details.grupo-vocabulario[open] > summary { margin-bottom: 0.4rem; }

@@ -25,51 +25,121 @@ function SeloDaOferta({ oferta }: { oferta: Oferta }) {
 
 // --- Colar link -------------------------------------------------------------------------------
 
+type Modo = "sistema" | "janela" | "pdf";
+
+const MODOS: { id: Modo; rotulo: string }[] = [
+  { id: "sistema", rotulo: "O sistema lê a página" },
+  { id: "janela", rotulo: "Abrir numa janela para eu navegar" },
+  { id: "pdf", rotulo: "Enviar o PDF que eu salvei" },
+];
+
 function ColarLink({ alvo, aoTerminar }: { alvo: { tipo: "item" | "cargo"; id: string; nome: string }; aoTerminar: () => void }) {
+  const [modo, setModo] = useState<Modo>("sistema");
   const [url, setUrl] = useState("");
   const [cnpjTexto, setCnpj] = useState("");
   const [preco, setPreco] = useState("");
   const [salMin, setSalMin] = useState("");
   const [salMax, setSalMax] = useState("");
+  const [arquivoPdf, setArquivoPdf] = useState<File | null>(null);
+  const [titulo, setTitulo] = useState("");
+  const [resultado, setResultado] = useState<{ mensagem: string; avisos: string[] } | null>(null);
+  const item = alvo.tipo === "item";
+
+  function valor(texto: string, nome: string): number | null {
+    if (!texto) return null;
+    const centavos = centavosDeTexto(texto);
+    if (!centavos) throw new Error(`${nome} em formato inválido (ex.: 34,50).`);
+    return centavos;
+  }
+
   async function enviar() {
-    if (alvo.tipo === "item") {
-      const preco_centavos = preco ? centavosDeTexto(preco) : null;
-      if (preco && !preco_centavos) throw new Error("Preço em formato inválido (ex.: 34,50).");
-      await api.criar(`/api/itens/${alvo.id}/coletas`, { url: url.trim(), cnpj_vendedor: cnpjTexto || null, preco_centavos });
-    } else {
-      const min = salMin ? centavosDeTexto(salMin) : null;
-      const max = salMax ? centavosDeTexto(salMax) : null;
-      await api.criar(`/api/cargos/${alvo.id}/coletas`, {
-        url: url.trim(), cnpj_empresa: cnpjTexto || null, salario_min_centavos: min, salario_max_centavos: max,
-      });
+    const endereco = url.trim();
+    const preco_centavos = valor(preco, "Preço");
+    const min = valor(salMin, "Salário mínimo");
+    const max = valor(salMax, "Salário máximo");
+    const rota = `/api/${item ? "itens" : "cargos"}/${alvo.id}`;
+    if (modo === "pdf") {
+      if (!arquivoPdf) throw new Error("Escolha o arquivo PDF.");
+      if (item && !preco_centavos) throw new Error("Informe o preço que aparece no PDF.");
+      if (!item && !min && !max) throw new Error("Informe o salário que aparece no PDF.");
+      const dados = new FormData();
+      dados.append("arquivo", arquivoPdf);
+      dados.append("url", endereco);
+      const campos: Record<string, string | number | null> = item
+        ? { preco_centavos, cnpj_vendedor: cnpjTexto || null, titulo: titulo || null }
+        : { salario_min_centavos: min, salario_max_centavos: max, cnpj_empresa: cnpjTexto || null, titulo: titulo || null };
+      Object.entries(campos).forEach(([k, v]) => v !== null && dados.append(k, String(v)));
+      setResultado(await api.enviar(`${rota}/pdf`, dados));
+      return;
     }
+    const corpo = item
+      ? { url: endereco, cnpj_vendedor: cnpjTexto || null, preco_centavos }
+      : { url: endereco, cnpj_empresa: cnpjTexto || null, salario_min_centavos: min, salario_max_centavos: max };
+    await api.criar(`${rota}/${modo === "janela" ? "captura-assistida" : "coletas"}`, corpo);
     aoTerminar();
   }
+
+  if (resultado) {
+    return (
+      <Modal titulo={`PDF recebido — ${alvo.nome}`} aoFechar={aoTerminar}>
+        <Aviso tipo="ok">{resultado.mensagem}</Aviso>
+        {resultado.avisos.length > 0 && <Aviso tipo="atencao"><ul>{resultado.avisos.map((a) => <li key={a}>{a}</li>)}</ul></Aviso>}
+        <div className="acoes"><button onClick={aoTerminar}>Fechar</button></div>
+      </Modal>
+    );
+  }
+
+  const campoValor = item ? (
+    <Campo rotulo="Preço que aparece na página"><input value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="34,50" inputMode="decimal" /></Campo>
+  ) : (
+    <div className="linha-campos">
+      <Campo rotulo="Salário (mínimo da faixa)"><input value={salMin} onChange={(e) => setSalMin(e.target.value)} inputMode="decimal" /></Campo>
+      <Campo rotulo="Salário (máximo da faixa)"><input value={salMax} onChange={(e) => setSalMax(e.target.value)} inputMode="decimal" /></Campo>
+    </div>
+  );
+
   return (
     <Modal titulo={`Colar link — ${alvo.nome}`} aoFechar={aoTerminar}>
+      <div className="modos" role="radiogroup" aria-label="Como ler a página">
+        {MODOS.map((m) => (
+          <label key={m.id} className={modo === m.id ? "ativo" : ""}>
+            <input type="radio" name="modo" checked={modo === m.id} onChange={() => setModo(m.id)} />
+            {m.rotulo}
+          </label>
+        ))}
+      </div>
       <p className="explicacao">
-        O sistema abre a página, guarda a prova (PDF, imagem e página salva, com data e hora), lê {alvo.tipo === "item" ? "o preço, a marca e o código de barras" : "o salário e a empresa"} e confere se o valor aparece mesmo na página.
+        {modo === "sistema" && <>O sistema abre a página sem mostrar janela, guarda a prova (PDF, imagem e página salva, com data e hora), lê {item ? "o preço, a marca e o código de barras" : "o salário e a empresa"} e confere se o valor aparece mesmo na página.</>}
+        {modo === "janela" && <>Para lojas que recusam programas (como Carrefour e Extra) ou que pedem CEP ou verificação. O sistema abre uma janela do navegador nesta página. <strong>Você navega nela</strong>, na mesma aba, até a página certa (resolva o CEP ou a verificação, se aparecer; não entre com a sua conta para ver preço de cliente) e clica em <strong>“Capturar agora”</strong> no quadro Tarefas, ao lado. A prova é guardada do mesmo jeito.</>}
+        {modo === "pdf" && <>Se nem a janela funcionar: abra a página no seu navegador, aperte <strong>Ctrl+P</strong>, escolha <strong>Salvar como PDF</strong> com <strong>cabeçalhos e rodapés</strong> ligados (para sair o endereço e a data) e envie o arquivo aqui. Fica registrado que o PDF foi enviado por você, e o sistema confere se o endereço, o nome e o valor aparecem nele.</>}
       </p>
-      <Formulario rotulo="Ler a página" aoEnviar={enviar} aoCancelar={aoTerminar}>
-        <Campo rotulo={alvo.tipo === "item" ? "Endereço da página do produto" : "Endereço da página da vaga"}>
+      <Formulario rotulo={{ sistema: "Ler a página", janela: "Abrir a janela", pdf: "Enviar o PDF" }[modo]} aoEnviar={enviar} aoCancelar={aoTerminar}>
+        <Campo rotulo={item ? "Endereço da página do produto" : "Endereço da página da vaga"}>
           <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" required autoFocus />
         </Campo>
-        <Campo rotulo={alvo.tipo === "item" ? "CNPJ do vendedor" : "CNPJ da empresa"}
-          ajuda={alvo.tipo === "item" ? "Deixe em branco em loja comum: o sistema lê no rodapé. Em marketplace, informe o do vendedor." : "Se a página não mostrar, informe; sem CNPJ a vaga é descartada (D-46)."}>
+        {modo === "pdf" && (
+          <>
+            <Campo rotulo="Arquivo PDF" ajuda="Até 20 MB.">
+              <input type="file" accept="application/pdf,.pdf" onChange={(e) => setArquivoPdf(e.target.files?.[0] ?? null)} required />
+            </Campo>
+            <Campo rotulo={item ? "Nome do produto, como está na página" : "Título da vaga, como está na página"}
+              ajuda="Usado para conferir se é o mesmo produto. Copie da página.">
+              <input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+            </Campo>
+            {campoValor}
+          </>
+        )}
+        <Campo rotulo={item ? "CNPJ do vendedor" : "CNPJ da empresa"}
+          ajuda={item ? "Deixe em branco em loja comum: o sistema lê no rodapé. Em marketplace, informe o do vendedor." : "Se a página não mostrar, informe; sem CNPJ a vaga é descartada (D-46)."}>
           <input value={cnpjTexto} onChange={(e) => setCnpj(e.target.value)} />
         </Campo>
-        <details>
-          <summary>A página não mostra {alvo.tipo === "item" ? "o preço" : "o salário"} para o sistema?</summary>
-          <p className="discreto pequeno">Informe o valor que você vê. O sistema ainda confere se ele aparece escrito na página.</p>
-          {alvo.tipo === "item" ? (
-            <Campo rotulo="Preço que aparece na página"><input value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="34,50" inputMode="decimal" /></Campo>
-          ) : (
-            <div className="linha-campos">
-              <Campo rotulo="Salário (mínimo da faixa)"><input value={salMin} onChange={(e) => setSalMin(e.target.value)} inputMode="decimal" /></Campo>
-              <Campo rotulo="Salário (máximo da faixa)"><input value={salMax} onChange={(e) => setSalMax(e.target.value)} inputMode="decimal" /></Campo>
-            </div>
-          )}
-        </details>
+        {modo !== "pdf" && (
+          <details>
+            <summary>A página não mostra {item ? "o preço" : "o salário"} para o sistema?</summary>
+            <p className="discreto pequeno">Informe o valor que você vê. O sistema ainda confere se ele aparece escrito na página.</p>
+            {campoValor}
+          </details>
+        )}
       </Formulario>
     </Modal>
   );

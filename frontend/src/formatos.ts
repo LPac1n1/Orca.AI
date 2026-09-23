@@ -62,6 +62,8 @@ export const REGIMES = { mei: "MEI", recibo: "Recibo (RPA)", clt: "CLT" } as con
 export const TIPOS_DE_TAREFA = {
   coletar_item: "Ler página de produto",
   coletar_cargo: "Ler página de vaga",
+  captura_assistida: "Captura com janela",
+  comprovante: "Comprovante da Receita",
   consultar_cnpj: "Consultar CNPJs",
   fechar_teto: "Fechar o teto",
   exportar: "Gerar documentos",

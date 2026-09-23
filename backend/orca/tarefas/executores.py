@@ -3,61 +3,135 @@
 from orca.banco import Cargo, Item, Observacao, Projeto, corresponder, perfil_do_projeto, sessao_como
 from orca.calculo import formatar
 from orca.coleta import (
+    Captura,
     ErroCnpj,
+    comprovante_na_tela,
     registrar_captura,
+    registrar_comprovante,
     registrar_observacao_cargo,
     registrar_observacao_item,
+    registrar_pdf_enviado,
+    url_do_comprovante,
     validar_cnpj,
 )
 from orca.documentos import gerar_pacote, salvar_pacote
+from orca.dominio import formatar_cnpj, normalizar_cnpj
 from orca.fluxo import dossie_do_projeto, estado_do_projeto, execucao_vigente, fechar_teto_do_projeto
+from orca.fluxo.catalogos import catalogo_da_organizacao, sincronizar_pares_de_ean, vocabulario_da_organizacao
 from orca.otimizacao import SemSolucao
-from orca.tarefas.fila import ErroTarefa, Fila, tarefa
+from orca.tarefas.fila import Contexto, ErroTarefa, Fila, TarefaCancelada, tarefa
+
+ESPERA_MAXIMA_S = 1800  # 30 minutos para a pessoa navegar
 
 
-@tarefa("coletar_item")
-def coletar_item(fila: Fila, tarefa_id: str, p: dict) -> dict:
-    """Abre a página (Edge sem janela), guarda a evidência, lê o produto e compara com o item."""
-    ctx = fila.contexto
-    fila.progresso(tarefa_id, 10, "abrindo a página")
-    captura = fila.navegador().capturar(p["url"])
-    fila.progresso(tarefa_id, 70, "guardando a evidência")
-    with sessao_como(ctx.fabrica, "sistema:coleta") as s:
+def registrar_item(ctx: Contexto, p: dict, captura: Captura, autor: str = "sistema:coleta",
+                   avisos_extras: tuple[str, ...] = ()) -> dict:
+    """Guarda a evidência, registra a observação e compara com o item (com o vocabulário da OSC)."""
+    with sessao_como(ctx.fabrica, autor) as s:
         item = s.get(Item, p["item_id"])
         if item is None or item.excluido_em is not None:
             raise ErroTarefa("O item não existe mais.")
-        evidencia = registrar_captura(s, ctx.armazem, captura)
+        organizacao_id = item.lote.orcamento.projeto.organizacao_id
+        so_pdf = not captura.png and not captura.mhtml  # PDF enviado pelo usuário (D-67)
+        evidencia = registrar_pdf_enviado(s, ctx.armazem, captura) if so_pdf else registrar_captura(s, ctx.armazem, captura)
         r = registrar_observacao_item(s, item, captura, evidencia, cnpj_vendedor=p.get("cnpj_vendedor") or None,
-                                      preco_informado=p.get("preco_centavos"), catalogo=ctx.catalogo)
+                                      preco_informado=p.get("preco_centavos"),
+                                      catalogo=catalogo_da_organizacao(s, organizacao_id), avisos_extras=avisos_extras)
         s.flush()
         observacao_id, preco, avisos = r.observacao.id, r.observacao.preco_centavos, list(r.avisos)
+        tem_ean = r.observacao.ean is not None
     status = None
     if preco is not None:
         with sessao_como(ctx.fabrica, "sistema:correspondencia") as s:
-            status = corresponder(s, s.get(Item, p["item_id"]), s.get(Observacao, observacao_id), ctx.vocabulario).status
+            vocabulario = vocabulario_da_organizacao(s, organizacao_id)
+            status = corresponder(s, s.get(Item, p["item_id"]), s.get(Observacao, observacao_id), vocabulario).status
+    if tem_ean:
+        with sessao_como(ctx.fabrica, "sistema:pares") as s:
+            sincronizar_pares_de_ean(s, organizacao_id)  # D-64: mesmo código de barras em outra loja
     mensagem = f"preço {formatar(preco)}" if preco is not None else "preço não encontrado na página"
     return {"observacao_id": observacao_id, "preco_centavos": preco, "correspondencia": status, "avisos": avisos,
             "bloqueio": captura.bloqueio, "mensagem": mensagem}
 
 
-@tarefa("coletar_cargo")
-def coletar_cargo(fila: Fila, tarefa_id: str, p: dict) -> dict:
-    ctx = fila.contexto
-    fila.progresso(tarefa_id, 10, "abrindo a página da vaga")
-    captura = fila.navegador().capturar(p["url"])
-    with sessao_como(ctx.fabrica, "sistema:coleta") as s:
+def registrar_cargo(ctx: Contexto, p: dict, captura: Captura, autor: str = "sistema:coleta",
+                    avisos_extras: tuple[str, ...] = ()) -> dict:
+    with sessao_como(ctx.fabrica, autor) as s:
         cargo = s.get(Cargo, p["cargo_id"])
         if cargo is None or cargo.excluido_em is not None:
             raise ErroTarefa("O cargo não existe mais.")
-        evidencia = registrar_captura(s, ctx.armazem, captura)
+        so_pdf = not captura.png and not captura.mhtml
+        evidencia = registrar_pdf_enviado(s, ctx.armazem, captura) if so_pdf else registrar_captura(s, ctx.armazem, captura)
         r = registrar_observacao_cargo(
             s, cargo, captura, evidencia, cnpj_empresa=p.get("cnpj_empresa") or None,
             salario_min_informado=p.get("salario_min_centavos"), salario_max_informado=p.get("salario_max_centavos"),
+            avisos_extras=avisos_extras,
         )
         s.flush()
+        referencia = r.observacao.salario_min_centavos or r.observacao.salario_max_centavos
         return {"observacao_id": r.observacao.id, "salario_min_centavos": r.observacao.salario_min_centavos,
                 "salario_max_centavos": r.observacao.salario_max_centavos, "avisos": list(r.avisos),
-                "bloqueio": captura.bloqueio}
+                "bloqueio": captura.bloqueio,
+                "mensagem": f"salário {formatar(referencia)}" if referencia else "salário não encontrado na página"}
+
+
+@tarefa("coletar_item")
+def coletar_item(fila: Fila, tarefa_id: str, p: dict) -> dict:
+    """Abre a página (Edge sem janela), guarda a evidência, lê o produto e compara com o item."""
+    fila.progresso(tarefa_id, 10, "abrindo a página")
+    captura = fila.navegador().capturar(p["url"])
+    fila.progresso(tarefa_id, 70, "guardando a evidência")
+    return registrar_item(fila.contexto, p, captura)
+
+
+@tarefa("coletar_cargo")
+def coletar_cargo(fila: Fila, tarefa_id: str, p: dict) -> dict:
+    fila.progresso(tarefa_id, 10, "abrindo a página da vaga")
+    return registrar_cargo(fila.contexto, p, fila.navegador().capturar(p["url"]))
+
+
+def _esperar(fila: Fila, tarefa_id: str, condicao):
+    """Função `pronto` da captura assistida: termina quando `condicao` for verdadeira ou o usuário cancelar."""
+    cancelamento = fila.cancelamento(tarefa_id)
+
+    def pronto(pagina) -> bool:
+        if cancelamento.is_set():
+            raise TarefaCancelada()
+        return condicao(pagina)
+    return pronto
+
+
+@tarefa("captura_assistida")
+def captura_assistida(fila: Fila, tarefa_id: str, p: dict) -> dict:
+    """Captura assistida (C4, D-67): o usuário navega na janela do sistema e clica em “Capturar agora”."""
+    fila.esperar_usuario(tarefa_id, "Abri uma janela do navegador. Navegue nela, na mesma aba, até a página (resolva CEP ou "
+                                    "verificação, se pedir; não entre com a sua conta para ver preço de cliente) e clique em "
+                                    "“Capturar agora” aqui no Orça.AI.")
+    sinal = fila.sinal(tarefa_id)
+    captura = fila.navegador_visivel().capturar_assistido(
+        p["url"], _esperar(fila, tarefa_id, lambda _pagina: sinal.is_set()),
+        tempo_maximo_s=p.get("tempo_maximo_s", ESPERA_MAXIMA_S))
+    fila.progresso(tarefa_id, 70, "guardando a evidência")
+    return (registrar_item if p.get("item_id") else registrar_cargo)(fila.contexto, p, captura)
+
+
+@tarefa("comprovante")
+def comprovante(fila: Fila, tarefa_id: str, p: dict) -> dict:
+    """Comprovante da Receita (D-13, D-14): o usuário resolve a verificação; o sistema salva o comprovante sozinho."""
+    ctx = fila.contexto
+    cnpj = normalizar_cnpj(p["cnpj"])
+    fila.esperar_usuario(tarefa_id, f"Abri a página da Receita com o CNPJ {formatar_cnpj(cnpj)} preenchido. Resolva a "
+                                    "verificação e clique em “Consultar”: o comprovante é salvo sozinho.")
+
+    def comprovante_apareceu(pagina) -> bool:
+        return comprovante_na_tela(pagina.url, pagina.evaluate("document.body ? document.body.innerText : ''"), cnpj)
+
+    captura = fila.navegador_visivel().capturar_assistido(
+        url_do_comprovante(cnpj), _esperar(fila, tarefa_id, comprovante_apareceu),
+        tempo_maximo_s=p.get("tempo_maximo_s", ESPERA_MAXIMA_S))
+    with sessao_como(ctx.fabrica, "sistema:comprovante") as s:
+        registro = registrar_comprovante(s, ctx.armazem, cnpj, captura)
+        s.flush()
+        return {"comprovante_id": registro.id, "cnpj": cnpj, "mensagem": f"comprovante de {formatar_cnpj(cnpj)} salvo"}
 
 
 @tarefa("consultar_cnpj")

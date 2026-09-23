@@ -83,7 +83,7 @@ Regra de dependência: `dominio`, `calculo`, `selecao`, `correspondencia` e `oti
 
 **Grafo incremental:** cada etapa grava o hash das suas entradas. Se as entradas não mudaram, o resultado anterior é reaproveitado. Mudar um item refaz só o que depende dele.
 
-**Fila de tarefas:** uma tabela no SQLite (`tarefa`) e um trabalhador em segundo plano, que executa uma tarefa de cada vez (o Playwright síncrono precisa de uma só thread; o navegador fica aberto entre as tarefas). Tipos: coletar página de item ou de vaga, consultar CNPJs, fechar o teto, exportar. Tarefas longas mostram progresso e podem **pausar esperando o usuário** (captcha, aprovação). Uma tarefa que falha não para a fila; as que estavam rodando quando o programa fechou voltam para a fila. O andamento das tarefas não gera eventos de auditoria (é registro de operação), mas a tarefa guarda quem pediu, quando e o resultado.
+**Fila de tarefas:** uma tabela no SQLite (`tarefa`) e dois trabalhadores em segundo plano, cada um com a sua pista e executando uma tarefa de cada vez (o Playwright síncrono precisa ficar sempre na mesma thread; o navegador fica aberto entre as tarefas). Pista principal, sem janela: coletar página de item ou de vaga, consultar CNPJs, fechar o teto, exportar. Pista assistida, com **janela visível** (D-67): captura assistida e comprovante da Receita — a tarefa fica **esperando o usuário**, que navega na janela e clica em “Capturar agora” (ou o comprovante é reconhecido sozinho); “Cancelar” fecha a espera. Enquanto uma captura assistida espera, a pista principal continua. Uma tarefa que falha não para a fila; as que estavam rodando quando o programa fechou voltam para a fila, menos as assistidas, que são canceladas (a janela fechou). O andamento das tarefas não gera eventos de auditoria (é registro de operação), mas a tarefa guarda quem pediu, quando e o resultado.
 
 **API local e segurança:** o comando `orca` abre `http://localhost:8765` no navegador. O servidor escuta só no próprio computador (127.0.0.1), recusa pedidos com outro nome de endereço (proteção contra *DNS rebinding*) e exige o cabeçalho `X-Orca: 1` em todo pedido que muda dados (proteção contra *CSRF*: outros sites abertos no navegador não conseguem enviá-lo). Os arquivos baixáveis ficam restritos à pasta `exportacoes/`; as evidências são conferidas pela impressão digital a cada leitura.
 
@@ -220,7 +220,17 @@ Implementado em `backend/orca/banco/tabelas.py` (etapa 3). Convenções:
 | Tabela | Etapa |
 |---|---|
 | `selecao_lojas`, `resolucao` | 4 — seleção de lojas e resolução do item acima da média |
-| `tarefa` | fila de tarefas (coleta, captura, exportação) |
+
+### Catálogos e pares da OSC (D-64 a D-66)
+| Tabela | Campos principais |
+|---|---|
+| `catalogo_camada` **(imutável)** | id, organizacao_id, tipo (atributos, lojas), versao, conteudo (só o que a OSC mudou em relação ao catálogo do sistema; `null` retira), impressao (SHA-256), resumo, autor — a versão mais recente vale |
+| `par_referencia` | id, organizacao_id, categoria, titulo_a, marca_a, ean_a, titulo_b, marca_b, ean_b, rotulo (mesmo, diferente), motivo, origem (decisao, ean, usuario), chave (evita repetir um par automático; um par retirado não volta), excluido_em |
+
+### Operação
+| Tabela | Campos principais |
+|---|---|
+| `tarefa` | id, projeto_id, tipo, estado (pendente, rodando, esperando_usuario, concluida, falhou, cancelada), progresso, mensagem, parametros, resultado, autor, iniciada_em, concluida_em — não gera eventos de auditoria |
 
 A duplicidade de vagas (D-49) não tem tabela própria: é calculada a cada seleção (`orca.selecao.agrupar_duplicadas`), e a decisão do usuário nos casos incertos é gravada em `decisao`.
 
@@ -230,7 +240,10 @@ A duplicidade de vagas (D-49) não tem tabela própria: é calculada a cada sele
 | `catalogos/lojas.yaml` | lojas, domínios, categorias, conector, qual preço usar |
 | `catalogos/jornadas.yaml` | jornada semanal, divisor, fonte legal, revisão |
 | `catalogos/atributos.yaml` | atributos críticos por categoria e vocabulário de valores que se excluem |
+| `backend/orca/correspondencia/referencia/pares_referencia.csv` | conjunto de referência da correspondência (T-11), distribuído com o programa |
 | `catalogos/ocupacoes_mei.csv` | lista oficial de ocupações permitidas ao MEI (a importar) |
+
+As edições da OSC nos catálogos de atributos e de lojas não mudam esses arquivos: ficam em `catalogo_camada`, por cima deles.
 
 ### Migrações
 Alembic, em `backend/orca/banco/migracoes/`. Ao abrir o banco, o programa aplica as migrações pendentes e **faz cópia de segurança antes** (API de backup do SQLite). Operações "batch" recriam tabelas e perdem os gatilhos: depois delas, recriá-los com `orca.banco.gatilhos.criar_gatilhos`. Um teste confere que todas as tabelas continuam protegidas e que as migrações correspondem às tabelas do código.

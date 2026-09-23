@@ -27,6 +27,8 @@ export function useDados<T>(caminho: string | null, versao = 0) {
   return { dados, erro, carregando, recarregar };
 }
 
+export const ativa = (t: Tarefa) => t.estado === "pendente" || t.estado === "rodando" || t.estado === "esperando_usuario";
+
 /** Acompanha as tarefas do projeto; avisa quando alguma termina. */
 export function useTarefas(projetoId: string, aoTerminar: () => void, versao: number) {
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
@@ -40,7 +42,7 @@ export function useTarefas(projetoId: string, aoTerminar: () => void, versao: nu
       .then((lista) => {
         if (!ativo) return;
         setTarefas(lista);
-        const emAndamento = new Set(lista.filter((t) => t.estado === "pendente" || t.estado === "rodando").map((t) => t.id));
+        const emAndamento = new Set(lista.filter(ativa).map((t) => t.id));
         const terminou = [...ativas.current].some((id) => !emAndamento.has(id));
         ativas.current = emAndamento;
         if (terminou) aoTerminar();
@@ -51,7 +53,7 @@ export function useTarefas(projetoId: string, aoTerminar: () => void, versao: nu
     };
   }, [projetoId, pulso, versao, aoTerminar]);
 
-  const emAndamento = tarefas.some((t) => t.estado === "pendente" || t.estado === "rodando");
+  const emAndamento = tarefas.some(ativa);
   useEffect(() => {
     if (!emAndamento) return;
     const relogio = setInterval(() => setPulso((n) => n + 1), 1500);

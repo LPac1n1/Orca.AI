@@ -214,6 +214,8 @@ class Navegador:
             resposta = pagina.goto(url, wait_until="domcontentloaded", timeout=self.tempo_limite_ms)
             limite = time.monotonic() + tempo_maximo_s
             while not _pronto(pronto, pagina):
+                if pagina.is_closed():
+                    raise ErroCaptura("A janela foi fechada antes da captura.")
                 if time.monotonic() > limite:
                     raise ErroCaptura(f"A página não ficou pronta em {tempo_maximo_s:.0f} segundos: {url}")
                 pagina.wait_for_timeout(int(intervalo_s * 1000))

@@ -140,3 +140,44 @@ class MesmaVaga(_Entrada):
 
 class Justificativa(_Entrada):
     justificativa: str = Field(min_length=1)
+
+
+class CapturaAssistida(_Entrada):
+    url: str = Field(pattern=r"^https?://")
+    cnpj_vendedor: str | None = None
+    preco_centavos: Annotated[int, Field(gt=0)] | None = None
+
+
+class CapturaAssistidaDeCargo(_Entrada):
+    url: str = Field(pattern=r"^https?://")
+    cnpj_empresa: str | None = None
+    salario_min_centavos: Annotated[int, Field(gt=0)] | None = None
+    salario_max_centavos: Annotated[int, Field(gt=0)] | None = None
+
+
+class PedidoDeComprovante(_Entrada):
+    cnpj: str = Field(min_length=14, max_length=18)
+    projeto_id: str | None = None
+
+
+class CatalogoEditado(_Entrada):
+    """O catálogo como a OSC quer que fique; o sistema grava só a diferença para o do sistema."""
+
+    conteudo: dict[str, Any]
+    resumo: str | None = Field(default=None, max_length=500)
+
+
+class NovoPar(_Entrada):
+    titulo_a: str = Field(min_length=1, max_length=500)
+    titulo_b: str = Field(min_length=1, max_length=500)
+    rotulo: Literal["mesmo", "diferente"]
+    categoria: str | None = None
+    marca_a: str | None = None
+    marca_b: str | None = None
+    motivo: str | None = None
+
+
+class RegrasProprias(_Entrada):
+    """Só o que muda em relação às camadas de cima (vazio = nenhuma regra própria)."""
+
+    conteudo: dict[str, Any]

@@ -1,6 +1,6 @@
 # Conjunto de referência de correspondência
 
-Pares de produtos reais, rotulados, usados para medir o módulo de correspondência (caso T-11, [docs/06](../../../../docs/06-roadmap-e-testes.md)). Critério: **nenhum falso 🟢**; a taxa de 🟡 é medida e registrada.
+Pares de produtos reais, rotulados, usados para medir o módulo de correspondência (caso T-11, [docs/06](../../../../docs/06-roadmap-e-testes.md)). Vai junto com o programa: antes de salvar uma mudança no vocabulário, o sistema roda estes pares (e os da OSC) e recusa qualquer 🟢 errado (D-65). Critério: **nenhum falso 🟢**; a taxa de 🟡 é medida e registrada.
 
 Situação: **364 pares** (60 `mesmo`, 304 `diferente`), coletados em 23/09/2026.
 

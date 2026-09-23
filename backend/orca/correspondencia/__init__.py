@@ -4,6 +4,7 @@ Sem IA e sem acesso a rede ou disco: código de barras, marca, atributos crític
 categoria (medidas e vocabulário) e palavras que sobram. Na dúvida, 🟡.
 """
 
+from orca.correspondencia.avaliacao import Avaliacao, Par, avaliar, pares_do_sistema
 from orca.correspondencia.comparar import (
     Anuncio,
     ComparacaoAtributo,
@@ -19,14 +20,18 @@ from orca.correspondencia.vocabulario import Grupo, Vocabulario, valores_no_text
 __all__ = [
     "LEITORES",
     "Anuncio",
+    "Avaliacao",
     "ComparacaoAtributo",
     "Especificacao",
     "Grupo",
+    "Par",
     "Quantidade",
     "ResultadoCorrespondencia",
     "Situacao",
     "Vocabulario",
+    "avaliar",
     "comparar",
     "normalizar",
+    "pares_do_sistema",
     "valores_no_texto",
 ]

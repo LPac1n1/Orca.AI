@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager, contextmanager
 from datetime import date
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
@@ -28,6 +28,7 @@ from orca.api.config import Configuracao
 from orca.auditoria import ErroAuditoria, historico_do_projeto
 from orca.banco import (
     Cargo,
+    CatalogoCamada,
     ErroCorrespondencia,
     Evidencia,
     ExecucaoOtimizacao,
@@ -36,6 +37,7 @@ from orca.banco import (
     Observacao,
     Orcamento,
     Organizacao,
+    ParReferencia,
     Projeto,
     Tarefa,
     abrir_banco,
@@ -43,18 +45,25 @@ from orca.banco import (
     correspondencia_vigente,
     decidir_correspondencia,
     definir_camadas_do_projeto,
+    perfil_do_orcamento,
     perfil_do_projeto,
     sessao_como,
 )
 from orca.coleta import (
     CATALOGO_PADRAO,
+    LIMITE_PDF,
     Navegador,
+    captura_de_pdf,
     comprovantes_pendentes,
+    ler_atributos_dados,
     ler_catalogo,
+    ler_catalogo_dados,
     ler_jornadas,
     ler_vocabulario,
 )
+from orca.correspondencia import LEITORES, avaliar, pares_do_sistema
 from orca.documentos import Renderizador, conferir
+from orca.dominio import normalizar_cnpj
 from orca.evidencias import ArmazemArquivos, ErroIntegridade
 from orca.fluxo import (
     ErroAcao,
@@ -71,8 +80,11 @@ from orca.fluxo import (
     substituir_item,
     versao_do_sistema,
 )
+from orca.fluxo import catalogos as cat
+from orca.fluxo import regras as rg
 from orca.selecao import ParametrosSelecao
 from orca.tarefas import Contexto, ErroTarefa, Fila
+from orca.tarefas.executores import registrar_cargo, registrar_item
 
 ESTATICO = Path(__file__).parent / "estatico"
 CAMPOS_DA_ESPECIFICACAO = {"descricao", "categoria", "marca", "modelo", "apresentacao", "atributos", "ean", "unidade"}
@@ -107,6 +119,7 @@ def contexto_padrao(config: Configuracao, **trocas) -> Contexto:
         jornadas=ler_jornadas(),
         abrir_navegador=trocas.pop("abrir_navegador", None) or (lambda: Navegador()),
         abrir_renderizador=trocas.pop("abrir_renderizador", None) or (lambda: Renderizador()),
+        abrir_navegador_visivel=trocas.pop("abrir_navegador_visivel", None) or (lambda: Navegador(sem_janela=False)),
         **trocas,
     )
 
@@ -173,6 +186,8 @@ def criar_app(config: Configuracao, contexto: Contexto | None = None, iniciar_tr
     _rotas_de_cadastro(app, servico)
     _rotas_de_pesquisa(app, servico)
     _rotas_de_resultado(app, servico)
+    _rotas_de_captura(app, servico)
+    _rotas_de_catalogos(app, servico)
 
     if (ESTATICO / "index.html").exists():
         app.mount("/", StaticFiles(directory=ESTATICO, html=True), name="interface")
@@ -199,15 +214,18 @@ def _rotas_gerais(app: FastAPI, sv: Servico) -> None:
                 for j in sv.contexto.jornadas.values()]
 
     @app.get("/api/catalogos/categorias")
-    def categorias():
-        v = sv.contexto.vocabulario
+    def categorias(organizacao_id: str | None = None):
+        with sv.sessao() as s:
+            v = cat.vocabulario_da_organizacao(s, organizacao_id)
         return [{"id": c, "atributos": list(v.atributos_da_categoria(c) or ())} for c in v.categorias]
 
     @app.get("/api/catalogos/lojas")
-    def lojas():
+    def lojas(organizacao_id: str | None = None):
+        with sv.sessao() as s:
+            catalogo = cat.catalogo_da_organizacao(s, organizacao_id)
         return [{"id": l.id, "nome": l.nome, "dominio": l.dominio, "tipo": l.tipo, "coleta": l.coleta,
                  "marketplace": l.marketplace, "preco_a_usar": l.preco_a_usar}
-                for l in sv.contexto.catalogo.values()]
+                for l in catalogo.values()]
 
     @app.get("/api/tarefas")
     def tarefas(projeto_id: str | None = None, limite: int = 50):
@@ -426,6 +444,7 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
                 raise HTTPException(404, "Observação não encontrada para este item")
             c = decidir_correspondencia(s, item, obs, dados.status, dados.justificativa)
             s.flush()
+            cat.par_da_decisao(s, c)  # D-64: a decisão ensina o teste de correspondência
             regras = perfil_do_projeto(s, item.lote.orcamento.projeto).regras
             return ap.correspondencia_json(c, regras)
 
@@ -587,9 +606,233 @@ def _rotas_de_resultado(app: FastAPI, sv: Servico) -> None:
     @app.get("/api/projetos/{projeto_id}/regras")
     def regras(projeto_id: str):
         with sv.sessao() as s:
-            perfil = perfil_do_projeto(s, _obter(s, Projeto, projeto_id, "Projeto"))
+            projeto = _obter(s, Projeto, projeto_id, "Projeto")
+            perfil = perfil_do_projeto(s, projeto)
+            orcamentos = [{"id": o.id, "nome": o.nome, "proprias": rg.regras_proprias_do_orcamento(s, o),
+                           "impressao": perfil_do_orcamento(s, o).impressao}
+                          for o in projeto.orcamentos if o.excluido_em is None]
             return {"impressao": perfil.impressao, "camadas": [c.nome for c in perfil.cadeia],
-                    "regras": perfil.regras.model_dump(mode="json"), "origem": dict(perfil.origem)}
+                    "cadeia": [{"nome": c.nome, "nivel": c.nivel, "versao": c.versao} for c in perfil.cadeia],
+                    "regras": perfil.regras.model_dump(mode="json"), "origem": dict(perfil.origem),
+                    "proprias": rg.regras_proprias_do_projeto(s, projeto), "orcamentos": orcamentos}
+
+
+# --- Captura assistida, PDF enviado e comprovantes (D-13, D-67) ------------------------------------------
+
+
+def _rotas_de_captura(app: FastAPI, sv: Servico) -> None:
+    def _tarefa(s: Session, tarefa_id: str) -> Tarefa:
+        t = s.get(Tarefa, tarefa_id)
+        if t is None:
+            raise HTTPException(404, "tarefa não encontrada")
+        return t
+
+    @app.post("/api/tarefas/{tarefa_id}/capturar-agora")
+    def capturar_agora(tarefa_id: str):
+        with sv.sessao() as s:
+            t = _tarefa(s, tarefa_id)
+            if t.tipo != "captura_assistida" or t.estado != "esperando_usuario":
+                raise HTTPException(409, "Esta tarefa não está esperando a captura.")
+        sv.fila.capturar_agora(tarefa_id)
+        return {"ok": True}
+
+    @app.post("/api/tarefas/{tarefa_id}/cancelar")
+    def cancelar(tarefa_id: str):
+        with sv.sessao() as s:
+            _tarefa(s, tarefa_id)
+            t = sv.fila.cancelar(s, tarefa_id)
+            s.flush()
+            return ap.tarefa_json(t)
+
+    @app.post("/api/itens/{item_id}/captura-assistida", status_code=202)
+    def assistida_do_item(item_id: str, dados: e.CapturaAssistida):
+        with sv.sessao() as s:
+            item = _obter(s, Item, item_id, "Item")
+            t = sv.fila.enfileirar(s, "captura_assistida", {"item_id": item.id, **dados.model_dump(exclude_none=True)},
+                                   item.lote.orcamento.projeto_id)
+            s.flush()
+            return ap.tarefa_json(t)
+
+    @app.post("/api/cargos/{cargo_id}/captura-assistida", status_code=202)
+    def assistida_do_cargo(cargo_id: str, dados: e.CapturaAssistidaDeCargo):
+        with sv.sessao() as s:
+            cargo = _obter(s, Cargo, cargo_id, "Cargo")
+            t = sv.fila.enfileirar(s, "captura_assistida", {"cargo_id": cargo.id, **dados.model_dump(exclude_none=True)},
+                                   cargo.orcamento.projeto_id)
+            s.flush()
+            return ap.tarefa_json(t)
+
+    def _ler_pdf(arquivo: UploadFile, url: str, titulo: str | None):
+        if not url.startswith(("http://", "https://")):
+            raise HTTPException(422, "informe o endereço (http:// ou https://) da página salva")
+        conteudo = arquivo.file.read(LIMITE_PDF + 1)
+        return captura_de_pdf(conteudo, url, agora(), titulo)
+
+    @app.post("/api/itens/{item_id}/pdf", status_code=201)
+    def pdf_do_item(item_id: str, arquivo: UploadFile = File(...), url: str = Form(...),
+                    preco_centavos: int | None = Form(None), cnpj_vendedor: str | None = Form(None),
+                    titulo: str | None = Form(None)):
+        """PDF que o usuário salvou da página (lojas que recusam programas, D-67)."""
+        with sv.sessao() as s:
+            _obter(s, Item, item_id, "Item")
+        if preco_centavos is not None and preco_centavos <= 0:
+            raise HTTPException(422, "o preço deve ser maior que zero")
+        captura, avisos = _ler_pdf(arquivo, url, titulo)
+        return registrar_item(sv.contexto, {"item_id": item_id, "preco_centavos": preco_centavos,
+                                            "cnpj_vendedor": cnpj_vendedor}, captura, sv.config.autor, avisos)
+
+    @app.post("/api/cargos/{cargo_id}/pdf", status_code=201)
+    def pdf_do_cargo(cargo_id: str, arquivo: UploadFile = File(...), url: str = Form(...),
+                     salario_min_centavos: int | None = Form(None), salario_max_centavos: int | None = Form(None),
+                     cnpj_empresa: str | None = Form(None), titulo: str | None = Form(None)):
+        with sv.sessao() as s:
+            _obter(s, Cargo, cargo_id, "Cargo")
+        captura, avisos = _ler_pdf(arquivo, url, titulo)
+        return registrar_cargo(sv.contexto, {"cargo_id": cargo_id, "salario_min_centavos": salario_min_centavos,
+                                             "salario_max_centavos": salario_max_centavos, "cnpj_empresa": cnpj_empresa},
+                               captura, sv.config.autor, avisos)
+
+    @app.post("/api/comprovantes", status_code=202)
+    def emitir_comprovante(dados: e.PedidoDeComprovante):
+        """Abre a página da Receita com o CNPJ preenchido; o usuário resolve a verificação (D-13)."""
+        cnpj = normalizar_cnpj(dados.cnpj)
+        with sv.sessao() as s:
+            abertas = s.scalars(select(Tarefa).where(
+                Tarefa.tipo == "comprovante", Tarefa.estado.in_(("pendente", "rodando", "esperando_usuario"))))
+            repetida = next((t for t in abertas if t.parametros.get("cnpj") == cnpj), None)
+            if repetida is not None:
+                return ap.tarefa_json(repetida)
+            t = sv.fila.enfileirar(s, "comprovante", {"cnpj": cnpj}, dados.projeto_id)
+            s.flush()
+            return ap.tarefa_json(t)
+
+
+# --- Catálogos, vocabulário, pares e regras editados pela OSC (D-64 a D-66) -------------------------------
+
+
+def _historico_do_catalogo(s: Session, organizacao_id: str, tipo: str) -> list[dict]:
+    camadas = s.scalars(select(CatalogoCamada).where(CatalogoCamada.organizacao_id == organizacao_id,
+                                                     CatalogoCamada.tipo == tipo).order_by(CatalogoCamada.versao.desc()))
+    return [{"versao": c.versao, "criado_em": ap._data(c.criado_em), "autor": c.autor, "resumo": c.resumo}
+            for c in camadas]
+
+
+def _par_json(par, status: str | None) -> dict:
+    erro = (par.rotulo == "diferente" and status == "verde") or (par.rotulo == "mesmo" and status == "vermelho")
+    return {"id": par.id, "titulo_a": par.titulo_a, "marca_a": par.marca_a, "titulo_b": par.titulo_b,
+            "marca_b": par.marca_b, "categoria": par.categoria, "rotulo": par.rotulo, "origem": par.origem,
+            "motivo": getattr(par, "motivo", None), "status_atual": status, "erro": erro}
+
+
+def _resumo_da_avaliacao(a) -> dict:
+    return {"total": a.total, "contagem": a.contagem, "falsos_verdes": len(a.falsos_verdes),
+            "iguais_recusados": len(a.iguais_recusados)}
+
+
+def _rotas_de_catalogos(app: FastAPI, sv: Servico) -> None:
+    def _org(s: Session, organizacao_id: str) -> Organizacao:
+        return _obter(s, Organizacao, organizacao_id, "Organização")
+
+    @app.get("/api/organizacoes/{organizacao_id}/catalogos/atributos")
+    def atributos(organizacao_id: str):
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            camada = cat.camada_vigente(s, organizacao_id, "atributos")
+            return {"versao": camada.versao if camada else 0, "mudancas": camada.conteudo if camada else {},
+                    "vigente": cat.atributos_da_organizacao(s, organizacao_id), "sistema": ler_atributos_dados(),
+                    "leitores": sorted(LEITORES), "so_por_pessoa": sorted(cat.SO_POR_PESSOA),
+                    "historico": _historico_do_catalogo(s, organizacao_id, "atributos")}
+
+    @app.post("/api/organizacoes/{organizacao_id}/catalogos/atributos/conferir")
+    def conferir_atributos(organizacao_id: str, dados: e.CatalogoEditado):
+        """Roda o teste de correspondência antes e depois da mudança (nada é gravado)."""
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            mudancas = cat.diferenca_de_atributos(ler_atributos_dados(), dados.conteudo)
+            r = cat.avaliar_mudanca_de_atributos(s, organizacao_id, mudancas)
+            mudaram = [
+                {"titulo_a": p.titulo_a, "titulo_b": p.titulo_b, "rotulo": p.rotulo, "origem": p.origem,
+                 "antes": r.antes.resultados.get(p.id), "depois": r.depois.resultados.get(p.id)}
+                for p in pares_do_sistema() + cat.pares_da_organizacao(s, organizacao_id)
+                if r.antes.resultados.get(p.id) != r.depois.resultados.get(p.id)
+            ]
+            return {"aprovada": r.aprovada, "antes": _resumo_da_avaliacao(r.antes),
+                    "depois": _resumo_da_avaliacao(r.depois), "mudancas": mudancas,
+                    "novos_falsos_verdes": [{"titulo_a": p.titulo_a, "titulo_b": p.titulo_b}
+                                            for p in r.novos_falsos_verdes],
+                    "pares_que_mudaram": mudaram}
+
+    @app.put("/api/organizacoes/{organizacao_id}/catalogos/atributos")
+    def salvar_atributos(organizacao_id: str, dados: e.CatalogoEditado):
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            mudancas = cat.diferenca_de_atributos(ler_atributos_dados(), dados.conteudo)
+            camada = cat.salvar_atributos(s, organizacao_id, mudancas, dados.resumo)
+            s.flush()
+            return {"versao": camada.versao, "mudancas": camada.conteudo}
+
+    @app.get("/api/organizacoes/{organizacao_id}/catalogos/lojas")
+    def catalogo_de_lojas(organizacao_id: str):
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            camada = cat.camada_vigente(s, organizacao_id, "lojas")
+            return {"versao": camada.versao if camada else 0, "mudancas": camada.conteudo if camada else {},
+                    "vigente": cat.lojas_da_organizacao(s, organizacao_id), "coletas": list(cat.COLETAS),
+                    "historico": _historico_do_catalogo(s, organizacao_id, "lojas")}
+
+    @app.put("/api/organizacoes/{organizacao_id}/catalogos/lojas")
+    def salvar_lojas(organizacao_id: str, dados: e.CatalogoEditado):
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            mudancas = cat.diferenca_de_lojas(ler_catalogo_dados(), dados.conteudo)
+            camada = cat.salvar_lojas(s, organizacao_id, mudancas, dados.resumo)
+            s.flush()
+            return {"versao": camada.versao, "mudancas": camada.conteudo}
+
+    @app.get("/api/organizacoes/{organizacao_id}/pares")
+    def pares(organizacao_id: str):
+        """Os pares da OSC com o resultado atual da correspondência, e o resumo do teste completo."""
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            vocabulario = cat.vocabulario_da_organizacao(s, organizacao_id)
+            registros = list(s.scalars(select(ParReferencia).where(
+                ParReferencia.organizacao_id == organizacao_id, ParReferencia.excluido_em.is_(None))
+                .order_by(ParReferencia.criado_em.desc())))
+            da_osc = cat.pares_da_organizacao(s, organizacao_id)
+            avaliacao_osc = avaliar(da_osc, vocabulario)
+            avaliacao_sistema = avaliar(pares_do_sistema(), vocabulario)
+            return {"pares": [_par_json(r, avaliacao_osc.resultados.get(r.id)) for r in registros],
+                    "resumo_osc": _resumo_da_avaliacao(avaliacao_osc),
+                    "resumo_sistema": _resumo_da_avaliacao(avaliacao_sistema)}
+
+    @app.post("/api/organizacoes/{organizacao_id}/pares", status_code=201)
+    def novo_par(organizacao_id: str, dados: e.NovoPar):
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            par = cat.adicionar_par(s, organizacao_id, **dados.model_dump())
+            s.flush()
+            status = avaliar([cat.par_de(par)], cat.vocabulario_da_organizacao(s, organizacao_id)).resultados
+            return _par_json(par, status.get(par.id))
+
+    @app.post("/api/pares/{par_id}/retirar")
+    def retirar_par(par_id: str):
+        with sv.sessao() as s:
+            cat.retirar_par(s, _obter(s, ParReferencia, par_id, "Par"))
+            return {"ok": True}
+
+    @app.put("/api/projetos/{projeto_id}/regras")
+    def salvar_regras_do_projeto(projeto_id: str, dados: e.RegrasProprias):
+        with sv.sessao() as s:
+            perfil = rg.salvar_regras_do_projeto(s, _obter(s, Projeto, projeto_id, "Projeto"), dados.conteudo)
+            s.flush()
+            return {"impressao": perfil.impressao}
+
+    @app.put("/api/orcamentos/{orcamento_id}/regras")
+    def salvar_regras_do_orcamento(orcamento_id: str, dados: e.RegrasProprias):
+        with sv.sessao() as s:
+            perfil = rg.salvar_regras_do_orcamento(s, _obter(s, Orcamento, orcamento_id, "Orçamento"), dados.conteudo)
+            s.flush()
+            return {"impressao": perfil.impressao}
 
 
 __all__ = ["Servico", "contexto_padrao", "criar_app"]

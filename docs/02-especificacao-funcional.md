@@ -93,7 +93,7 @@ Diferenças só de texto ("Chamex Papel Sulfite A4 75g – 500 fls" × "Papel Su
 
 Cada resultado é gravado (tabela `correspondencia`, imutável) com o status, a origem e os motivos. Uma decisão do usuário (confirmar ou recusar, com justificativa) é um registro novo; vale o mais recente. O perfil de regras diz se o 🟢 do programa já vale sozinho ou espera confirmação: padrão, **EAN automático** e **atributos com aprovação** (§4 de [05](05-regras-padrao.md)).
 
-**Aprendizado (D-64 a D-66):** cada decisão do usuário vira um par rotulado; pares com o mesmo código de barras em lojas diferentes entram sozinhos. A partir deles, o sistema sugere inclusões no vocabulário e no catálogo de atributos; o usuário aprova depois de ver o efeito no teste de correspondência, e nenhuma mudança que crie um 🟢 errado é aceita. Pares, catálogo de lojas, atributos e vocabulário também podem ser editados diretamente na interface, com a mesma conferência.
+**Aprendizado (D-64 a D-66):** cada decisão do usuário vira um par rotulado; pares com o mesmo código de barras em lojas diferentes entram sozinhos. A partir deles, o sistema sugere inclusões no vocabulário e no catálogo de atributos (Fase 2); o usuário aprova depois de ver o efeito no teste de correspondência, e nenhuma mudança que crie um 🟢 errado é aceita. Pares, catálogo de lojas, atributos e vocabulário também podem ser editados diretamente na interface, com a mesma conferência.
 
 ## 8. Cobertura, lotes e escolha das lojas
 
@@ -206,6 +206,11 @@ Status por item: 🟢 aprovado · 🟡 revisão necessária · 🔴 problema.
 Ações: aprovar, rejeitar, pedir nova pesquisa, trocar produto, trocar fonte, mudar quantidade ou horas, travar linha. Nenhuma ação exige reconstruir o orçamento.
 
 Os **níveis de automação** (automático, automático com aprovação, manual) são definidos por tipo de ação no perfil de regras ([05 §4](05-regras-padrao.md)).
+
+Outras telas:
+- **Colar link**, com três jeitos de ler a página: o sistema lê sozinho; janela do navegador em que o usuário navega e clica em "Capturar agora"; ou PDF salvo pelo usuário (D-67). As capturas com janela e os comprovantes da Receita aparecem no quadro de tarefas, com "Capturar agora" e "Cancelar".
+- **Regras** do projeto: as regras que mais mudam de um edital para outro, com o valor em uso e de onde ele vem (padrão do sistema, projeto, orçamento); a regra A/B de cada orçamento; a lista completa para consulta. Cada gravação é uma versão nova.
+- **Catálogos da OSC** (valem para todos os projetos da OSC): vocabulário, categorias, lojas e pares de exemplo. Mudanças no vocabulário e nas categorias passam por "Conferir e salvar", que mostra o teste de correspondência antes e depois (D-65, D-66).
 
 ## 15. Histórico, auditoria e rastreabilidade
 

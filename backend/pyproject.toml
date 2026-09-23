@@ -46,6 +46,7 @@ orca = [
     "documentos/modelos/*.html",
     "api/estatico/*",
     "api/estatico/assets/*",
+    "correspondencia/referencia/*.csv",
 ]
 
 [tool.pytest.ini_options]

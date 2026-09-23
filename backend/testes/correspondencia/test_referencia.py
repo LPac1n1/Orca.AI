@@ -15,7 +15,7 @@ import pytest
 from orca.coleta import ler_vocabulario
 from orca.correspondencia import Anuncio, Especificacao, comparar
 
-ARQUIVO = Path(__file__).parents[1] / "dados" / "correspondencia" / "pares_referencia.csv"
+ARQUIVO = Path(__file__).parents[2] / "orca" / "correspondencia" / "referencia" / "pares_referencia.csv"
 
 
 @pytest.fixture(scope="module")
@@ -71,3 +71,15 @@ def test_o_mesmo_texto_e_sempre_verde(pares, vocabulario):
         item = Especificacao(p["titulo_a"], p["categoria"], p["marca_a"])
         resultado = comparar(item, Anuncio(p["titulo_a"], p["marca_a"]), vocabulario)
         assert resultado.status.value == "verde", (p["titulo_a"], resultado.motivos)
+
+
+def test_avaliacao_do_pacote_igual_a_do_teste(vocabulario):
+    """O sistema avalia o mesmo conjunto (distribuído com o programa) antes de salvar mudanças no vocabulário."""
+    from orca.correspondencia import avaliar, pares_do_sistema
+
+    pares = pares_do_sistema()
+    assert len(pares) == 364
+    avaliacao = avaliar(pares, vocabulario)
+    assert avaliacao.aprovada and avaliacao.iguais_recusados == ()
+    assert avaliacao.taxa("diferente", "vermelho") >= 0.85
+    assert avaliar(pares, vocabulario, com_ean=True).contagem.get("mesmo:verde") == 60

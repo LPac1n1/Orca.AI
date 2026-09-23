@@ -2,7 +2,9 @@
 
 import io
 import json
+import time
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import httpx
@@ -107,3 +109,58 @@ def cliente_cnpj() -> httpx.Client:
         return httpx.Response(200, json={"razao_social": f"Empresa {cnpj[:8]} Ltda", "situacao_cadastral": "Ativa",
                                          "municipio": "São Paulo", "uf": "SP"})
     return httpx.Client(transport=httpx.MockTransport(responder))
+
+
+def pdf_com_texto(linhas: list[str]) -> bytes:
+    """PDF de uma página com texto de verdade (como o que o navegador imprime), só ASCII."""
+    conteudo = "BT /F1 11 Tf 40 800 Td 14 TL " + " ".join(
+        "(" + linha.replace("\\", "\\\\").replace("(", r"\(").replace(")", r"\)") + ") '" for linha in linhas) + " ET"
+    objetos = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R "
+        "/Resources << /Font << /F1 5 0 R >> >> >>",
+        f"<< /Length {len(conteudo)} >>\nstream\n{conteudo}\nendstream",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    saida, posicoes = b"%PDF-1.4\n", []
+    for n, objeto in enumerate(objetos, 1):
+        posicoes.append(len(saida))
+        saida += f"{n} 0 obj\n{objeto}\nendobj\n".encode("latin-1")
+    xref = len(saida)
+    saida += f"xref\n0 {len(objetos) + 1}\n0000000000 65535 f \n".encode()
+    saida += "".join(f"{p:010d} 00000 n \n" for p in posicoes).encode()
+    saida += f"trailer\n<< /Size {len(objetos) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    return saida
+
+
+class PaginaFalsa:
+    def __init__(self, url: str, texto: str = ""):
+        self.url, self.texto = url, texto
+
+    def evaluate(self, _script: str) -> str:
+        return self.texto
+
+
+class NavegadorVisivelFalso:
+    """A janela visível da captura assistida: o teste faz o papel da pessoa (troca a página, clica)."""
+
+    def __init__(self):
+        self.pagina: PaginaFalsa | None = None
+        self.abertas: list[str] = []
+
+    def capturar_assistido(self, url: str, pronto, cep: str | None = None, tempo_maximo_s: float = 600) -> Captura:
+        self.abertas.append(url)
+        self.pagina = PaginaFalsa(url)
+        limite = time.monotonic() + 10
+        while not pronto(self.pagina):
+            if time.monotonic() > limite:
+                raise TimeoutError("a página não ficou pronta")
+            time.sleep(0.01)
+        final = self.pagina.url
+        if final in VAGAS:
+            return replace(pagina_vaga(final), metodo="C4")
+        if final.split("/")[2].removeprefix("www.") in LOJAS:
+            return replace(pagina_produto(final), metodo="C4")
+        return Captura(url, final, COLETA, "Comprovante", 200, "", (), self.pagina.texto, pdf_valido(final),
+                       b"PNG-" + final.encode(), b"MHTML-" + final.encode(), None, "C4", None)

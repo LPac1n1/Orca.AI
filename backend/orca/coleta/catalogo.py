@@ -31,12 +31,16 @@ def dominio_da_url(url: str) -> str:
     return dominio[4:] if dominio.startswith("www.") else dominio
 
 
-def ler_catalogo(caminho: Path | str = CATALOGO_PADRAO) -> dict[str, LojaCatalogo]:
-    """Entradas do catálogo por domínio. Sem o arquivo, o catálogo fica vazio."""
+def ler_catalogo_dados(caminho: Path | str = CATALOGO_PADRAO) -> dict:
+    """O arquivo de lojas como está (para mesclar com as mudanças da OSC). Sem o arquivo: vazio."""
     caminho = Path(caminho)
     if not caminho.exists():
-        return {}
-    dados = yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
+        return {"lojas": [], "fornecedores_servico": []}
+    return yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
+
+
+def catalogo_de_dados(dados: dict) -> dict[str, LojaCatalogo]:
+    """Entradas do catálogo por domínio."""
     entradas = {}
     for grupo, tipo in (("lojas", "loja"), ("fornecedores_servico", "fornecedor")):
         for d in dados.get(grupo) or []:
@@ -54,9 +58,19 @@ def ler_catalogo(caminho: Path | str = CATALOGO_PADRAO) -> dict[str, LojaCatalog
     return entradas
 
 
+def ler_catalogo(caminho: Path | str = CATALOGO_PADRAO) -> dict[str, LojaCatalogo]:
+    """Entradas do catálogo por domínio. Sem o arquivo, o catálogo fica vazio."""
+    return catalogo_de_dados(ler_catalogo_dados(caminho))
+
+
+def ler_atributos_dados(caminho: Path | str = ATRIBUTOS_PADRAO) -> dict:
+    """O arquivo de atributos e vocabulário como está (para mesclar com as mudanças da OSC)."""
+    return yaml.safe_load(Path(caminho).read_text(encoding="utf-8")) or {}
+
+
 def ler_vocabulario(caminho: Path | str = ATRIBUTOS_PADRAO) -> Vocabulario:
     """Atributos críticos por categoria e vocabulário de valores (catalogos/atributos.yaml)."""
-    return Vocabulario.de_dados(yaml.safe_load(Path(caminho).read_text(encoding="utf-8")) or {})
+    return Vocabulario.de_dados(ler_atributos_dados(caminho))
 
 
 @dataclass(frozen=True)

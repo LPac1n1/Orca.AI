@@ -3,10 +3,11 @@
 export class ErroApi extends Error {}
 
 async function pedir<T>(metodo: string, caminho: string, corpo?: unknown): Promise<T> {
+  const formulario = corpo instanceof FormData;
   const resposta = await fetch(caminho, {
     method: metodo,
-    headers: { "X-Orca": "1", ...(corpo !== undefined ? { "Content-Type": "application/json" } : {}) },
-    body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
+    headers: { "X-Orca": "1", ...(corpo !== undefined && !formulario ? { "Content-Type": "application/json" } : {}) },
+    body: corpo === undefined ? undefined : formulario ? corpo : JSON.stringify(corpo),
   });
   const texto = await resposta.text();
   const dados = texto ? JSON.parse(texto) : null;
@@ -23,6 +24,8 @@ export const api = {
   obter: <T>(caminho: string) => pedir<T>("GET", caminho),
   criar: <T>(caminho: string, corpo: unknown = {}) => pedir<T>("POST", caminho, corpo),
   mudar: <T>(caminho: string, corpo: unknown) => pedir<T>("PATCH", caminho, corpo),
+  trocar: <T>(caminho: string, corpo: unknown) => pedir<T>("PUT", caminho, corpo),
+  enviar: <T>(caminho: string, formulario: FormData) => pedir<T>("POST", caminho, formulario),
 };
 
 export const evidencia = (id: string, tipo: "pdf" | "png" | "mhtml" = "pdf") => `/api/evidencias/${id}/${tipo}`;

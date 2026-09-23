@@ -8,7 +8,7 @@ O Orça.AI pesquisa produtos e vagas, confere se os produtos são idênticos, va
 
 ## Situação
 
-Em construção — **Fase 1**: cálculo, regras, banco local, seleção, otimização do teto, coleta por URL (evidências e CNPJ), correspondência de produtos, documentos (Excel, PDF e pacote ZIP), API local e telas principais prontos. Faltam as telas de captura assistida, catálogos e regras; ainda não há instalador.
+Em construção — **Fase 1** pronta: cálculo, regras, banco local, seleção, otimização do teto, coleta por URL (evidências e CNPJ), captura assistida e PDF enviado para lojas que recusam programas, comprovantes da Receita, correspondência de produtos com catálogos e vocabulário editáveis por OSC, documentos (Excel, PDF e pacote ZIP), API local e interface. Ainda não há instalador; a coleta automática (sem colar links) é a Fase 2.
 
 ## Como usar (versão em desenvolvimento)
 
@@ -16,8 +16,12 @@ Depois de instalar (veja Desenvolvimento), rode `orca`. O sistema abre no navega
 
 1. crie o projeto com o teto e a duração;
 2. cadastre os orçamentos (rubricas), os lotes, os itens (com marca e especificação) e os cargos;
-3. em **Pesquisa e revisão**, cole os links das páginas das lojas e das vagas; o sistema guarda a prova, lê o preço e confere se é o mesmo produto;
-4. consulte os CNPJs, resolva o que estiver apontado, feche o teto e gere os documentos.
+3. em **Pesquisa e revisão**, cole os links das páginas das lojas e das vagas; o sistema guarda a prova, lê o preço e confere se é o mesmo produto. Se a loja recusar programas (como Carrefour e Extra), escolha **abrir numa janela** — você navega e clica em "Capturar agora" — ou envie o PDF da página salvo no seu navegador;
+4. consulte os CNPJs e emita os comprovantes da Receita (em **Documentos**: você resolve a verificação, o sistema salva);
+5. em **Regras**, ajuste o que o edital pede (ex.: regra A ou B em cada orçamento);
+6. resolva o que estiver apontado, feche o teto e gere os documentos.
+
+Em **Catálogos** ficam o vocabulário, as categorias, as lojas e os pares de exemplo da sua OSC. Toda mudança no vocabulário é conferida antes de salvar: se fizer produtos diferentes parecerem iguais, é recusada.
 
 Os dados ficam na pasta `Documentos\Orca.AI` (ou na que você escolher com `orca --pasta`).
 

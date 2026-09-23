@@ -129,6 +129,7 @@ def registrar_observacao_item(
     preco_informado: int | None = None,
     cnpj_vendedor: str | None = None,
     catalogo: Mapping[str, LojaCatalogo] | None = None,
+    avisos_extras: tuple[str, ...] = (),
 ) -> ResultadoColeta:
     """Observação de um produto. O preço informado pelo usuário (captura assistida) também é conferido na página."""
     entrada = (catalogo or {}).get(dominio_da_url(captura.url_final))
@@ -139,7 +140,7 @@ def registrar_observacao_item(
     cnpj, aviso_cnpj = _cnpj_identificado(cnpj_vendedor, cnpjs_pagina, bool(entrada and entrada.marketplace))
     distintos = sorted(set(precos_visiveis(captura.texto_visivel)))
 
-    avisos = []
+    avisos = list(avisos_extras)
     if captura.bloqueio:
         avisos.append(f"possível bloqueio de acesso automático: {captura.bloqueio}; use a captura assistida")
     if preco is None:
@@ -205,6 +206,7 @@ def registrar_observacao_cargo(
     cnpj_empresa: str | None = None,
     salario_min_informado: int | None = None,
     salario_max_informado: int | None = None,
+    avisos_extras: tuple[str, ...] = (),
 ) -> ResultadoColeta:
     """Observação de uma vaga (salário, empresa, local), com os dados da página ou informados pelo usuário."""
     vaga = extrair_vaga("\n".join([captura.html, *captura.html_quadros]))
@@ -216,7 +218,7 @@ def registrar_observacao_cargo(
     cnpjs_pagina = cnpjs_no_texto(captura.texto_visivel)
     cnpj, _ = _cnpj_identificado(cnpj_empresa, cnpjs_pagina, marketplace=False)
 
-    avisos = []
+    avisos = list(avisos_extras)
     if captura.bloqueio:
         avisos.append(f"possível bloqueio de acesso automático: {captura.bloqueio}; use a captura assistida")
     if referencia is None:
@@ -359,3 +361,48 @@ def registrar_comprovante(sessao: Session, armazem: ArmazemArquivos, cnpj: str, 
 
 def _json(dados) -> str:
     return json.dumps(dados, ensure_ascii=False, default=str)
+
+
+# --- PDF salvo pelo usuário (último recurso, D-67) -------------------------------------------------
+
+
+class ErroPdf(ValueError):
+    pass
+
+
+LIMITE_PDF = 20 * 1024 * 1024
+
+
+def captura_de_pdf(pdf: bytes, url: str, momento, titulo: str | None = None) -> tuple[Captura, tuple[str, ...]]:
+    """Lê o texto do PDF salvo pelo usuário e confere se o endereço e o nome do produto aparecem nele."""
+    import io
+
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+
+    if len(pdf) > LIMITE_PDF:
+        raise ErroPdf("O PDF passa de 20 MB.")
+    try:
+        leitor = PdfReader(io.BytesIO(pdf))
+        texto = "\n".join(pagina.extract_text() or "" for pagina in leitor.pages)
+    except (PdfReadError, ValueError, OSError) as e:
+        raise ErroPdf("O arquivo não é um PDF válido.") from e
+    avisos = ["PDF salvo e enviado pelo usuário (D-67): a data da prova é a do envio"]
+    dominio = dominio_da_url(url)
+    if dominio and dominio not in texto.lower().replace("www.", ""):
+        avisos.append(f"o endereço ({dominio}) não aparece no PDF: imprima com cabeçalho e rodapé do navegador ligados")
+    titulo = (titulo or "").strip()
+    if titulo and " ".join(titulo.lower().split()) not in " ".join(texto.lower().split()):
+        avisos.append(f"{SEM_VALIDACAO}: o nome do produto informado não aparece no texto do PDF")
+    if not titulo and leitor.metadata and leitor.metadata.title:
+        titulo = str(leitor.metadata.title)
+    captura = Captura(url, url, momento, titulo, 200, "", (), texto, pdf, b"", b"", None, "C4", None)
+    return captura, tuple(avisos)
+
+
+def registrar_pdf_enviado(sessao: Session, armazem: ArmazemArquivos, captura: Captura) -> Evidencia:
+    """Evidência só com o PDF (sem imagem nem página salva)."""
+    evidencia = Evidencia(url=captura.url_final, capturado_em=captura.capturado_em, metodo="C4", cep=None,
+                          pdf=_arquivo(sessao, armazem, captura.pdf, "application/pdf"))
+    sessao.add(evidencia)
+    return evidencia

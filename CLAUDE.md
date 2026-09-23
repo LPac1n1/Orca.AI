@@ -69,6 +69,9 @@ A API tem documentação em `http://localhost:8765/api/docs`. Pedidos que mudam 
 
 A captura de páginas usa o **Microsoft Edge** do Windows (Playwright, canal `msedge`); não baixe outro navegador. Testes marcados `navegador` usam uma loja sintética servida no próprio computador.
 
+- **Janela visível (D-67):** captura assistida e comprovante da Receita rodam na pista `assistida` da fila (`orca.tarefas.fila`). Nessa janela **quem navega é o usuário**: o sistema só abre a página, espera o sinal ("Capturar agora" ou o comprovante na tela) e captura. Nunca automatize cliques, login ou captcha nela.
+- **Catálogos da OSC (D-64 a D-66):** as edições ficam em `catalogo_camada` (só a diferença para `catalogos/*.yaml`) e os pares em `par_referencia` (`orca.fluxo.catalogos`). Mudança no vocabulário ou nas categorias só é salva se o teste de correspondência (`orca.correspondencia.avaliar`, pares do sistema + da OSC) não criar nenhum 🟢 errado novo.
+
 ## Cuidados
 
 - O repositório é **público**. A pasta `Modelo de Orçamento/` (documentos reais de processos, com nomes de pessoas) está no `.gitignore` e **nunca** deve ser publicada. Dados de teste derivados de casos reais: só preços, produtos e CNPJs de empresas.

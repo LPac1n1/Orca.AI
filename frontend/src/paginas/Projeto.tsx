@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
-import { NavLink, Route, Routes, useParams } from "react-router-dom";
-import { Aviso, Carregando } from "../componentes";
+import { Link, NavLink, Route, Routes, useParams } from "react-router-dom";
+import { api } from "../api";
+import { Aviso, BotaoAcao, Carregando } from "../componentes";
 import { dataHora, reais, TIPOS_DE_TAREFA } from "../formatos";
 import { useDados, useTarefas } from "../ganchos";
 import type { Projeto, Tarefa } from "../tipos";
@@ -9,6 +10,7 @@ import { AbaDocumentos } from "./Documentos";
 import { AbaHistorico } from "./Historico";
 import { AbaPainel } from "./Painel";
 import { AbaPesquisa } from "./Pesquisa";
+import { AbaRegras } from "./Regras";
 import { AbaTeto } from "./Teto";
 
 export interface PropsDaAba {
@@ -17,8 +19,11 @@ export interface PropsDaAba {
   atualizar: () => void; // depois de uma ação: recarrega os dados e as tarefas
 }
 
-function Tarefas({ tarefas }: { tarefas: Tarefa[] }) {
+const PODE_CANCELAR = new Set(["pendente", "esperando_usuario"]);
+
+function Tarefas({ tarefas, atualizar }: { tarefas: Tarefa[]; atualizar: () => void }) {
   const recentes = tarefas.slice(0, 8);
+  const acao = (caminho: string) => async () => { await api.criar(caminho); atualizar(); };
   if (recentes.length === 0) return null;
   return (
     <aside className="tarefas">
@@ -32,7 +37,18 @@ function Tarefas({ tarefas }: { tarefas: Tarefa[] }) {
                 concluida: "feita", falhou: "falhou", cancelada: "cancelada" }[t.estado]}</span>
             </div>
             {t.estado === "rodando" && <div className="barra"><div style={{ width: `${t.progresso}%` }} /></div>}
-            {t.mensagem && <div className={t.estado === "falhou" ? "erro-curto" : "discreto"}>{t.mensagem}</div>}
+            {t.mensagem && <div className={t.estado === "falhou" ? "erro-curto" : t.estado === "esperando_usuario" ? "" : "discreto"}>{t.mensagem}</div>}
+            {Boolean(t.resultado?.bloqueio) && (
+              <div className="erro-curto pequeno">A loja recusou o programa. Cole o link de novo e escolha “Abrir numa janela para eu navegar”.</div>
+            )}
+            {PODE_CANCELAR.has(t.estado) && (
+              <div className="botoes">
+                {t.tipo === "captura_assistida" && t.estado === "esperando_usuario" && (
+                  <BotaoAcao classe="pequeno" aoClicar={acao(`/api/tarefas/${t.id}/capturar-agora`)}>Capturar agora</BotaoAcao>
+                )}
+                <BotaoAcao classe="secundario pequeno" aoClicar={acao(`/api/tarefas/${t.id}/cancelar`)}>Cancelar</BotaoAcao>
+              </div>
+            )}
             {typeof t.parametros.url === "string" && <div className="url">{t.parametros.url}</div>}
             <div className="discreto pequeno">{dataHora(t.concluida_em ?? t.criado_em)}</div>
           </li>
@@ -47,7 +63,7 @@ export function PaginaProjeto() {
   const [versao, setVersao] = useState(0);
   const atualizar = useCallback(() => setVersao((v) => v + 1), []);
   const { dados: projeto, erro } = useDados<Projeto>(`/api/projetos/${id}`, versao);
-  const { tarefas, emAndamento } = useTarefas(id!, atualizar, versao);
+  const { tarefas, emAndamento, atualizar: atualizarTarefas } = useTarefas(id!, atualizar, versao);
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (!projeto) return <Carregando />;
@@ -58,6 +74,7 @@ export function PaginaProjeto() {
     ["pesquisa", "Pesquisa e revisão"],
     ["teto", "Fechar o teto"],
     ["documentos", "Documentos"],
+    ["regras", "Regras"],
     ["historico", "Histórico"],
   ];
   return (
@@ -68,6 +85,7 @@ export function PaginaProjeto() {
           <p className="discreto">
             {projeto.organizacao.nome} · teto {reais(projeto.teto_centavos)} · {projeto.duracao_meses} meses
             {projeto.orgao ? ` · ${projeto.orgao}` : ""}
+            {" · "}<Link to={`/catalogos/${projeto.organizacao.id}`}>catálogos da OSC</Link>
           </p>
         </div>
         {emAndamento && <span className="selo amarelo">trabalhando…</span>}
@@ -85,10 +103,11 @@ export function PaginaProjeto() {
             <Route path="pesquisa" element={<AbaPesquisa {...props} />} />
             <Route path="teto" element={<AbaTeto {...props} />} />
             <Route path="documentos" element={<AbaDocumentos {...props} />} />
+            <Route path="regras" element={<AbaRegras {...props} />} />
             <Route path="historico" element={<AbaHistorico {...props} />} />
           </Routes>
         </div>
-        <Tarefas tarefas={tarefas} />
+        <Tarefas tarefas={tarefas} atualizar={() => { atualizarTarefas(); atualizar(); }} />
       </div>
     </section>
   );

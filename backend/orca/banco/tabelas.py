@@ -447,6 +447,56 @@ class CotacaoObservacao(_ComCriacao, Base):
     observacao: Mapped[Observacao] = relationship()
 
 
+# --- Catálogos e pares da OSC (D-64 a D-66) -------------------------------------
+
+
+class CatalogoCamada(_ComId, _ComCriacao, _ComAutor, Base):
+    """Uma versão das mudanças da OSC num catálogo (atributos e vocabulário, ou lojas).
+
+    Fica por cima do catálogo do sistema; a versão mais recente é a que vale.
+    Nunca muda: cada edição é uma versão nova.
+    """
+
+    __tablename__ = "catalogo_camada"
+    __imutavel__ = True
+    __table_args__ = (
+        UniqueConstraint("organizacao_id", "tipo", "versao"),
+        CheckConstraint(_opcoes("tipo", ("atributos", "lojas")), name="tipo"),
+        CheckConstraint("versao >= 1", name="versao"),
+    )
+
+    organizacao_id: Mapped[str] = mapped_column(ForeignKey("organizacao.id"), index=True)
+    tipo: Mapped[str] = mapped_column(String(20))
+    versao: Mapped[int] = mapped_column(Integer)
+    conteudo: Mapped[dict[str, Any]] = mapped_column(JSON)
+    impressao: Mapped[str] = mapped_column(String(64))
+    resumo: Mapped[str | None] = mapped_column(Text, default=None)  # o que mudou, em palavras
+
+
+class ParReferencia(_ComId, _ComCriacao, _ExclusaoLogica, Base):
+    """Par de produtos rotulado pela OSC: vem das decisões, de códigos de barras iguais ou é escrito à mão."""
+
+    __tablename__ = "par_referencia"
+    __table_args__ = (
+        CheckConstraint(_opcoes("rotulo", ("mesmo", "diferente")), name="rotulo"),
+        CheckConstraint(_opcoes("origem", ("decisao", "ean", "usuario")), name="origem"),
+        UniqueConstraint("chave"),
+    )
+
+    organizacao_id: Mapped[str] = mapped_column(ForeignKey("organizacao.id"), index=True)
+    categoria: Mapped[str | None] = mapped_column(String(50), default=None)
+    titulo_a: Mapped[str] = mapped_column(Text)
+    marca_a: Mapped[str | None] = mapped_column(String(120), default=None)
+    ean_a: Mapped[str | None] = mapped_column(String(14), default=None)
+    titulo_b: Mapped[str] = mapped_column(Text)
+    marca_b: Mapped[str | None] = mapped_column(String(120), default=None)
+    ean_b: Mapped[str | None] = mapped_column(String(14), default=None)
+    rotulo: Mapped[str] = mapped_column(String(10))
+    motivo: Mapped[str | None] = mapped_column(Text, default=None)
+    origem: Mapped[str] = mapped_column(String(10))
+    chave: Mapped[str | None] = mapped_column(String(80), default=None)  # evita repetir o mesmo par automático
+
+
 # --- Otimização ----------------------------------------------------------------
 
 

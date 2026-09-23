@@ -218,7 +218,7 @@ export interface Painel {
 export interface Tarefa {
   id: string;
   projeto_id: string | null;
-  tipo: "coletar_item" | "coletar_cargo" | "consultar_cnpj" | "fechar_teto" | "exportar";
+  tipo: "coletar_item" | "coletar_cargo" | "captura_assistida" | "comprovante" | "consultar_cnpj" | "fechar_teto" | "exportar";
   estado: "pendente" | "rodando" | "esperando_usuario" | "concluida" | "falhou" | "cancelada";
   progresso: number;
   mensagem: string | null;
@@ -303,4 +303,102 @@ export interface Jornada {
 export interface Categoria {
   id: string;
   atributos: string[];
+}
+
+// --- Catálogos da OSC (D-64 a D-66) ---------------------------------------------------------------
+
+/** atributo → grupo → valor → sinônimos */
+export type VocabularioDados = Record<string, Record<string, Record<string, string[]>>>;
+
+export interface AtributosDados {
+  versao?: number;
+  sempre?: string[];
+  categorias: Record<string, string[]>;
+  vocabulario: VocabularioDados;
+}
+
+export interface VersaoDoCatalogo {
+  versao: number;
+  criado_em: string;
+  autor: string;
+  resumo: string | null;
+}
+
+export interface CatalogoDeAtributos {
+  versao: number;
+  mudancas: Record<string, unknown>;
+  vigente: AtributosDados;
+  sistema: AtributosDados;
+  leitores: string[];
+  so_por_pessoa: string[];
+  historico: VersaoDoCatalogo[];
+}
+
+export interface ResumoDoTeste {
+  total: number;
+  contagem: Record<string, number>;
+  falsos_verdes: number;
+  iguais_recusados: number;
+}
+
+export interface ResultadoDoTeste {
+  aprovada: boolean;
+  antes: ResumoDoTeste;
+  depois: ResumoDoTeste;
+  novos_falsos_verdes: { titulo_a: string; titulo_b: string }[];
+  pares_que_mudaram: { titulo_a: string; titulo_b: string; rotulo: string; origem: string; antes: Status; depois: Status }[];
+}
+
+export interface LojaDados {
+  id: string;
+  nome: string;
+  dominio: string;
+  coleta: string;
+  marketplace?: boolean;
+  cep?: string | null;
+  preco_a_usar?: string | null;
+  observacoes?: string | null;
+  [outro: string]: unknown;
+}
+
+export interface CatalogoDeLojas {
+  versao: number;
+  mudancas: Record<string, unknown>;
+  vigente: { lojas: LojaDados[]; fornecedores_servico: LojaDados[]; [outro: string]: unknown };
+  coletas: string[];
+  historico: VersaoDoCatalogo[];
+}
+
+export interface Par {
+  id: string;
+  titulo_a: string;
+  marca_a: string | null;
+  titulo_b: string;
+  marca_b: string | null;
+  categoria: string | null;
+  rotulo: "mesmo" | "diferente";
+  origem: "decisao" | "ean" | "usuario";
+  motivo: string | null;
+  status_atual: Status | null;
+  erro: boolean;
+}
+
+export interface Pares {
+  pares: Par[];
+  resumo_osc: ResumoDoTeste;
+  resumo_sistema: ResumoDoTeste;
+}
+
+// --- Regras -----------------------------------------------------------------------------------------
+
+export type Arvore = { [chave: string]: unknown };
+
+export interface RegrasDoProjeto {
+  impressao: string;
+  camadas: string[];
+  cadeia: { nome: string; nivel: string; versao: number }[];
+  regras: Arvore;
+  origem: Record<string, string>;
+  proprias: Arvore;
+  orcamentos: { id: string; nome: string; proprias: Arvore; impressao: string }[];
 }
