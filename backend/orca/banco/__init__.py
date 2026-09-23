@@ -24,6 +24,7 @@ from orca.banco.tabelas import (
     Organizacao,
     PerfilRegras,
     Projeto,
+    Tarefa,
 )
 from orca.banco.conexao import (  # noqa: E402 — depois das tabelas (a auditoria depende delas)
     abrir_banco,
@@ -79,6 +80,7 @@ __all__ = [
     "Organizacao",
     "PerfilRegras",
     "Projeto",
+    "Tarefa",
     "abrir_banco",
     "agora",
     "anuncio_da_observacao",

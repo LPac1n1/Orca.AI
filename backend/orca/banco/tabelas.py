@@ -18,6 +18,7 @@ from orca.dominio import AlvoTipo, Autor, normalizar_cnpj, normalizar_gtin
 from orca.regras import NIVEIS
 
 ID = String(32)
+ESTADOS_TAREFA = ("pendente", "rodando", "esperando_usuario", "concluida", "falhou", "cancelada")
 
 
 def _opcoes(coluna: str, valores) -> str:
@@ -403,6 +404,9 @@ class Correspondencia(_ComId, _ComCriacao, _ComAutor, Base):
     item: Mapped[Item] = relationship()
     observacao: Mapped[Observacao] = relationship()
 
+    def _projeto_id(self) -> str | None:
+        return self.item._projeto_id() if self.item else None
+
 
 class Cotacao(_ComId, _ComCriacao, _ComAutor, Base):
     """As fontes usadas para um item ou cargo, com a média (docs/03 §2)."""
@@ -529,6 +533,34 @@ class Alerta(_ComId, _ComCriacao, Base):
 
     def _projeto_id(self) -> str | None:
         return self.projeto_id or (self.projeto.id if self.projeto else None)
+
+
+class Tarefa(_ComId, _ComCriacao, _ComAutor, Base):
+    """Trabalho demorado feito em segundo plano: coleta, consulta de CNPJ, otimização, exportação.
+
+    É um registro de operação (andamento, resultado), não dado do orçamento: suas
+    atualizações de andamento não geram eventos (`__auditar__ = False`), mas nunca é apagada.
+    """
+
+    __tablename__ = "tarefa"
+    __auditar__ = False
+    __table_args__ = (
+        CheckConstraint(_opcoes("estado", ESTADOS_TAREFA), name="estado"),
+        CheckConstraint("progresso BETWEEN 0 AND 100", name="progresso"),
+    )
+
+    projeto_id: Mapped[str | None] = mapped_column(ForeignKey("projeto.id"), default=None, index=True)
+    tipo: Mapped[str] = mapped_column(String(40))
+    estado: Mapped[str] = mapped_column(String(20), default="pendente")
+    progresso: Mapped[int] = mapped_column(Integer, default=0)
+    mensagem: Mapped[str | None] = mapped_column(Text, default=None)
+    parametros: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    resultado: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    iniciada_em: Mapped[datetime | None] = mapped_column(DataHora, default=None)
+    concluida_em: Mapped[datetime | None] = mapped_column(DataHora, default=None)
+
+    def _projeto_id(self) -> str | None:
+        return self.projeto_id
 
 
 class Evento(Base):

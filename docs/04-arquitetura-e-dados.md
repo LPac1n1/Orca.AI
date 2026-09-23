@@ -83,7 +83,11 @@ Regra de dependência: `dominio`, `calculo`, `selecao`, `correspondencia` e `oti
 
 **Grafo incremental:** cada etapa grava o hash das suas entradas. Se as entradas não mudaram, o resultado anterior é reaproveitado. Mudar um item refaz só o que depende dele.
 
-**Fila de tarefas:** uma tabela no SQLite e um processo trabalhador. Tarefas longas (coleta, captura, exportação) mostram progresso e podem **pausar esperando o usuário** (captcha, aprovação).
+**Fila de tarefas:** uma tabela no SQLite (`tarefa`) e um trabalhador em segundo plano, que executa uma tarefa de cada vez (o Playwright síncrono precisa de uma só thread; o navegador fica aberto entre as tarefas). Tipos: coletar página de item ou de vaga, consultar CNPJs, fechar o teto, exportar. Tarefas longas mostram progresso e podem **pausar esperando o usuário** (captcha, aprovação). Uma tarefa que falha não para a fila; as que estavam rodando quando o programa fechou voltam para a fila. O andamento das tarefas não gera eventos de auditoria (é registro de operação), mas a tarefa guarda quem pediu, quando e o resultado.
+
+**API local e segurança:** o comando `orca` abre `http://localhost:8765` no navegador. O servidor escuta só no próprio computador (127.0.0.1), recusa pedidos com outro nome de endereço (proteção contra *DNS rebinding*) e exige o cabeçalho `X-Orca: 1` em todo pedido que muda dados (proteção contra *CSRF*: outros sites abertos no navegador não conseguem enviá-lo). Os arquivos baixáveis ficam restritos à pasta `exportacoes/`; as evidências são conferidas pela impressão digital a cada leitura.
+
+**Configuração:** `%APPDATA%\Orca.AI\config.json` guarda a pasta de dados, o nome de quem usa (vira `usuario:<nome>` no histórico) e a porta. `orca --pasta … --usuario … --porta …` muda esses valores.
 
 ## 4. Pasta de dados
 

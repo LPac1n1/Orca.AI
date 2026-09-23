@@ -14,7 +14,7 @@ from sqlalchemy import event, inspect
 from sqlalchemy.orm import Session
 
 from orca.banco.base import Base, agora
-from orca.banco.tabelas import Evento
+from orca.banco.tabelas import Cargo, Decisao, Evento, Item, Lote, Orcamento, Projeto
 from orca.dominio import Autor
 
 
@@ -62,7 +62,14 @@ def _identificador(obj: Base) -> str:
     return "/".join(str(parte) for parte in chave)
 
 
-def _projeto(obj: Base) -> str | None:
+_ALVOS_DE_DECISAO = {"projeto": Projeto, "orcamento": Orcamento, "lote": Lote, "item": Item, "cargo": Cargo}
+
+
+def _projeto(obj: Base, sessao: Session) -> str | None:
+    if isinstance(obj, Decisao):  # a decisão aponta para o alvo pelo id
+        classe = _ALVOS_DE_DECISAO.get(obj.alvo_tipo)
+        alvo = sessao.get(classe, obj.alvo_id) if classe else None
+        return alvo._projeto_id() if alvo is not None else None
     metodo = getattr(obj, "_projeto_id", None)
     return metodo() if metodo else None
 
@@ -83,6 +90,9 @@ def _auditar(sessao: Session, _contexto, _instancias) -> None:
         for o in sessao.dirty
         if isinstance(o, Base) and not isinstance(o, Evento) and sessao.is_modified(o, include_collections=False)
     ]
+    sem_evento = [o for o in novos + alterados if not getattr(type(o), "__auditar__", True)]
+    novos = [o for o in novos if o not in sem_evento]
+    alterados = [o for o in alterados if o not in sem_evento]
     if sessao.deleted:
         nomes = sorted({type(o).__tablename__ for o in sessao.deleted})
         raise ErroAuditoria(
@@ -112,7 +122,7 @@ def _auditar(sessao: Session, _contexto, _instancias) -> None:
             imutavel = getattr(type(obj), "__imutavel__", False)
             sessao.add(
                 Evento(
-                    projeto_id=_projeto(obj),
+                    projeto_id=_projeto(obj, sessao),
                     entidade=type(obj).__tablename__,
                     entidade_id=_identificador(obj),
                     acao="criar",
@@ -128,7 +138,7 @@ def _auditar(sessao: Session, _contexto, _instancias) -> None:
                 continue
             sessao.add(
                 Evento(
-                    projeto_id=_projeto(obj),
+                    projeto_id=_projeto(obj, sessao),
                     entidade=type(obj).__tablename__,
                     entidade_id=_identificador(obj),
                     acao=_acao(antes, depois),

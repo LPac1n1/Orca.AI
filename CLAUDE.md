@@ -51,6 +51,14 @@ cd backend && /c/Users/leopa/.venvs/orca-ai/Scripts/python -m pytest
 cd backend && ORCA_TESTES_REDE=1 /c/Users/leopa/.venvs/orca-ai/Scripts/python -m pytest -m rede
 ```
 
+Para abrir o sistema (API local; a interface entra na etapa 9.3):
+
+```bash
+/c/Users/leopa/.venvs/orca-ai/Scripts/orca
+```
+
+A API tem documentação em `http://localhost:8765/api/docs`. Pedidos que mudam dados precisam do cabeçalho `X-Orca: 1`.
+
 A captura de páginas usa o **Microsoft Edge** do Windows (Playwright, canal `msedge`); não baixe outro navegador. Testes marcados `navegador` usam uma loja sintética servida no próprio computador.
 
 ## Cuidados

@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 from playwright.sync_api import sync_playwright
 from pypdf import PdfReader, PdfWriter
+from pypdf.errors import PdfReadError
 
 from orca.calculo import formatar, formatar_exato, formatar_horas
 from orca.documentos.conformidade import Conferencia, resumo_da_conformidade
@@ -144,10 +145,17 @@ class Renderizador:
 
 
 def juntar_pdfs(partes: list[bytes]) -> bytes:
-    """Junta PDFs na ordem dada (capa da cotação + páginas capturadas + comprovantes)."""
+    """Junta PDFs na ordem dada (capa da cotação + páginas capturadas + comprovantes).
+
+    Uma parte ilegível não impede as outras: ela fica fora da junção, mas o arquivo
+    original continua na pasta da cotação (a capa lista cada evidência).
+    """
     escritor = PdfWriter()
     for parte in partes:
-        escritor.append(PdfReader(io.BytesIO(parte)))
+        try:
+            escritor.append(PdfReader(io.BytesIO(parte)))
+        except (PdfReadError, ValueError, OSError):
+            continue
     saida = io.BytesIO()
     escritor.write(saida)
     return saida.getvalue()

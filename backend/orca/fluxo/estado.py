@@ -72,6 +72,7 @@ class EstadoLote:
     retiradas: set[str]  # lojas retiradas pelo usuário (Saída 2, D-23)
     analise: AnaliseLote | SemTrio | None
     aguardando_aprovacao: dict[str, int] = field(default_factory=dict)  # item → nº de 🟢 por atributos a confirmar
+    correspondencias: dict[tuple[str, str], Correspondencia] = field(default_factory=dict)  # (item, observação)
 
 
 @dataclass
@@ -217,7 +218,7 @@ def _estado_do_lote(
         usadas |= {(loja_id, item_id): obs for item_id, (_, obs) in ofertas.items()}
     retiradas = lojas_retiradas(sessao, lote)
     analise = analisar_lote(itens_lote, lojas, ParametrosSelecao.de_regras(regras), excluir=retiradas) if lojas else None
-    return EstadoLote(lote, itens, itens_lote, lojas, usadas, retiradas, analise, dict(aguardando))
+    return EstadoLote(lote, itens, itens_lote, lojas, usadas, retiradas, analise, dict(aguardando), correspondencias)
 
 
 # --- Cargos --------------------------------------------------------------------------------------

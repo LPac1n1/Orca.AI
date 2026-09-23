@@ -106,3 +106,15 @@ def test_otimizacao_doc(com_evidencias):
     assert dossie.otimizacao.status == "otima" and dossie.otimizacao.total_centavos == dossie.total_centavos
     assert any(a.para.endswith("h/mês") for a in dossie.otimizacao.alteracoes)
     assert otimizacao_doc(problema, None).status == "sem_otimizacao"
+
+
+def test_juntar_pdfs_ignora_parte_ilegivel():
+    import io
+
+    from pypdf import PdfReader
+
+    from caso_documentos import pdf_sintetico
+    from orca.documentos import juntar_pdfs
+
+    junto = juntar_pdfs([pdf_sintetico("a"), b"%PDF-quebrado", pdf_sintetico("b")])
+    assert len(PdfReader(io.BytesIO(junto)).pages) == 2
