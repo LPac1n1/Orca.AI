@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<p><strong>{{ orcamento.nome }}</strong> · lote {{ lote.nome }} · quantidade {{ linha.quantidade }} {{ linha.unidade }} por mês, {{ linha.meses }} {{ "mês" if linha.meses == 1 else "meses" }}</p>
+<table>
+  <tr><th>Orçamento</th><th>Loja</th><th class="n">Preço unit.</th><th>Produto na página</th><th>Evidência</th></tr>
+  {% for f in linha.fontes %}
+  {% set loja = lote.lojas[loop.index0] %}
+  <tr>
+    <td class="c">{{ loop.index }}</td>
+    <td>{{ loja.empresa.nome }}<div class="nota">CNPJ {{ loja.empresa.cnpj|cnpj }}{% if loja.empresa.situacao %} · {{ loja.empresa.situacao }}{% endif %}</div></td>
+    <td class="n">{{ f.preco_centavos|reais }}</td>
+    <td>{{ f.titulo_na_pagina or "—" }}</td>
+    <td>{% if f.evidencia %}<div class="url">{{ f.evidencia.url }}</div><div class="nota">capturada em {{ f.evidencia.coletado_em|datahora }} ({{ f.evidencia.metodo }})</div>
+        {% for a in f.evidencia.arquivos %}<div class="hash">{{ a.tipo }}: {{ a.sha256 }}</div>{% endfor %}
+        {% else %}<span class="problema">Não foi possível validar automaticamente: sem evidência</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+<div class="caixa">
+  Média: ({{ linha.precos|map("reais")|join(" + ") }}) ÷ {{ linha.fontes|length }} = {{ linha.media_exata|exato }} → <strong>{{ linha.media_exibida|reais }}</strong><br>
+  Preço final: <strong>{{ linha.preco_final_centavos|reais }}</strong>
+  {% if linha.dentro_da_media is none %}(média, regra A){% elif linha.dentro_da_media %}<span class="ok">dentro da média</span>{% else %}<span class="problema">acima da média</span>{% endif %}
+</div>
+<p class="nota">Nas páginas seguintes: a página de cada loja, capturada pelo Orça.AI (com data, hora, endereço e impressão digital no cabeçalho), e os comprovantes da Receita das empresas, quando emitidos.</p>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<div class="caixa">
+  Regras usadas: impressão digital <span class="hash">{{ projeto.impressao_regras or "—" }}</span><br>
+  Arredondamento comercial ao centavo: 3ª casa 5 ou mais sobe, menos de 5 desce (D-21). Dinheiro calculado em centavos inteiros, sem aproximações.
+</div>
+{% for o in dossie.orcamentos %}
+<h2>{{ o.nome }}</h2>
+{% for lote in o.lotes %}
+<h3>Lote {{ lote.nome }} — regra {{ lote.base_preco_final }}</h3>
+<table>
+  <tr><th>Item</th><th>Preços (orçamentos 1, 2, 3…)</th><th class="n">Média exata</th><th class="n">Média</th><th class="n">Preço final</th><th>Conferência</th></tr>
+  {% for linha in lote.linhas %}
+  <tr>
+    <td>{{ linha.nome }}</td>
+    <td>({{ linha.precos|map("reais")|join(" + ") }}) ÷ {{ linha.fontes|length }}</td>
+    <td class="n">{{ linha.media_exata|exato }}</td>
+    <td class="n">{{ linha.media_exibida|reais }}</td>
+    <td class="n">{{ linha.preco_final_centavos|reais }}</td>
+    <td>{% if linha.dentro_da_media is none %}preço = média arredondada{% elif linha.comparar_com == "media_exata" %}{{ linha.fontes|length }} × {{ linha.preco_final_centavos|reais }} = {{ (linha.preco_final_centavos * linha.fontes|length)|reais }} {{ "≤" if linha.dentro_da_media else ">" }} soma {{ linha.cotacao.soma|reais }}{% else %}{{ linha.preco_final_centavos|reais }} {{ "≤" if linha.dentro_da_media else ">" }} {{ linha.media_exibida|reais }}{% endif %}
+      {% if linha.dentro_da_media == false %}<span class="problema">acima da média</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p class="nota">Total no projeto = preço final × quantidade por mês × meses. Total do lote: {{ lote.total_no_projeto|reais }}.</p>
+{% endfor %}
+{% for c in o.cargos %}
+<h3>{{ c.nome }} ({{ c.regime|regime }}) — jornada legal {{ c.jornada_semanal_horas }} h semanais</h3>
+<ul>{% for m in c.memoria %}<li>{{ m }}</li>{% endfor %}</ul>
+{% if c.horas_mes_centesimos != c.horas_planejadas_centesimos %}<p class="nota">Horas por mês ajustadas pela otimização: {{ c.horas_planejadas_centesimos|horas }} → {{ c.horas_mes_centesimos|horas }}.</p>{% endif %}
+{% endfor %}
+{% endfor %}
+
+<h2>Otimização do teto</h2>
+<p>Situação: <strong>{{ otimizacao_texto }}</strong> · total {{ dossie.otimizacao.total_centavos|reais }} · teto {{ projeto.teto_centavos|reais }}{% if dossie.otimizacao.versao %} · {{ dossie.otimizacao.versao }}{% endif %}</p>
+{% if dossie.otimizacao.alteracoes %}
+<table>
+  <tr><th>Linha ajustada</th><th class="n">Planejado</th><th class="n">Final</th></tr>
+  {% for a in dossie.otimizacao.alteracoes %}<tr><td>{{ a.nome }}</td><td class="n">{{ a.de }}</td><td class="n">{{ a.para }}</td></tr>{% endfor %}
+</table>
+{% else %}<p>Nenhuma linha precisou ser ajustada.</p>{% endif %}
+<p>Verificação independente (refaz todas as contas sem o otimizador):
+{% if dossie.otimizacao.verificacao %}<span class="problema">problemas</span></p><ul>{% for v in dossie.otimizacao.verificacao %}<li>{{ v }}</li>{% endfor %}</ul>
+{% else %}<span class="ok">sem problemas</span></p>{% endif %}
+{% endblock %}

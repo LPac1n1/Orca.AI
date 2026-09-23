@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block conteudo %}
+{% for lote in orcamento.lotes %}
+<h2>Lote {{ lote.nome }}</h2>
+<p class="nota">{% if lote.base_preco_final == "B" %}Preço final: o preço real da loja de menor total (Orçamento 1: {{ lote.lojas[0].empresa.nome }}, CNPJ {{ lote.lojas[0].empresa.cnpj|cnpj }}), sem misturar lojas (D-20, D-22).{% else %}Preço final: a média dos orçamentos, arredondada (regra A, D-20, D-21).{% endif %}</p>
+<table>
+  <tr><th>Item</th><th class="c">Unid.</th><th class="n">Preço final</th><th class="n">Qtd./mês</th><th class="n">Meses</th><th class="n">Total no projeto</th></tr>
+  {% for linha in lote.linhas %}
+  <tr><td>{{ linha.nome }}</td><td class="c">{{ linha.unidade }}</td><td class="n">{{ linha.preco_final_centavos|reais }}</td>
+      <td class="n">{{ linha.quantidade }}</td><td class="n">{{ linha.meses }}</td><td class="n">{{ linha.total_no_projeto|reais }}</td></tr>
+  {% endfor %}
+  <tr class="total"><td colspan="5">Total do lote</td><td class="n">{{ lote.total_no_projeto|reais }}</td></tr>
+</table>
+{% endfor %}
+{% if orcamento.cargos %}
+<h2>Mão de obra</h2>
+<table>
+  <tr><th>Cargo</th><th>Regime</th><th class="n">Horas/mês</th><th class="n">Valor-hora</th><th class="n">Valor mensal</th><th class="n">Postos</th><th class="n">Meses</th><th class="n">Total</th></tr>
+  {% for c in orcamento.cargos %}
+  <tr><td>{{ c.nome }}</td><td>{{ c.regime|regime }}</td><td class="n">{{ c.horas_mes_centesimos|horas }}</td><td class="n">{{ c.valor_hora_centavos|reais }}</td>
+      <td class="n">{{ c.valor_mensal_centavos|reais }}</td><td class="n">{{ c.postos }}</td><td class="n">{{ c.meses }}</td><td class="n">{{ c.total_no_projeto|reais }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+<div class="caixa"><span class="grande">Total do orçamento {{ orcamento.nome }}: {{ orcamento.total_no_projeto|reais }}</span></div>
+{% endblock %}

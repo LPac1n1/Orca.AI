@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<p>Conferência de cada regra no orçamento pronto. <span class="ok">OK</span> = cumprida;
+<span class="atencao">ATENÇÃO</span> = precisa de alguém olhar; <span class="problema">PROBLEMA</span> = o orçamento não está pronto para ser entregue.
+Conferido em {{ hoje|data }}.</p>
+<table>
+  <tr><th style="width:34%">Regra</th><th style="width:13%">Situação</th><th>Detalhes</th></tr>
+  {% for c in conferencias %}
+  <tr>
+    <td>{{ c.regra }}</td>
+    <td class="{{ c.situacao }}">{{ situacoes[c.situacao] }}</td>
+    <td>{% if c.detalhes %}<ul>{% for d in c.detalhes %}<li>{{ d }}</li>{% endfor %}</ul>{% else %}—{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

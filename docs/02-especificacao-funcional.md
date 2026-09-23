@@ -238,7 +238,7 @@ Não seguem o modelo de uma secretaria específica (D-07); contêm a informaçã
 | Saída | Formato | Conteúdo |
 |---|---|---|
 | Grade comparativa | Excel (com fórmulas) e PDF | Por orçamento: itens, quantidades, os 3 orçamentos com preço unitário, total e fornecedor com CNPJ, média unitária e média do total |
-| Orçamentos 1, 2, 3 e final | PDF | Cada um com todos os itens de uma fonte; o final com preços, quantidades e totais |
+| Orçamentos 1, 2, 3 e final | PDF | Cada um com todos os itens de uma fonte; o final com preços, quantidades e totais. Os orçamentos 1, 2 e 3 dizem que foram montados pelo Orça.AI a partir das páginas das lojas (não são documentos emitidos pelas lojas) e mostram a página e a data de cada preço |
 | Plano de aplicação | Excel | Linhas com valor unitário, quantidade, meses, total; totais por rubrica e do projeto |
 | Recursos públicos | Excel | Valor total, concedente e contrapartida |
 | Cronograma físico-financeiro | Excel | Valor de cada linha em cada mês, totais mensais e acumulados |
@@ -251,16 +251,22 @@ Não seguem o modelo de uma secretaria específica (D-07); contêm a informaçã
 
 ```
 <PROJETO>_<AAAA-MM-DD>/
-├── 00_RESUMO/            resumo.pdf, conformidade.pdf
+├── 00_RESUMO/            resumo.pdf, conformidade.pdf, pesquisa.pdf
 ├── 01_ORCAMENTOS/        <orçamento>/ Orcamento_1.pdf, Orcamento_2.pdf, Orcamento_3.pdf,
-│                         Orcamento_Final.pdf, grade_comparativa.xlsx
-├── 02_COTACOES/          <orçamento>/<nn>_<item>/ cotacao.pdf, fonte_1.(pdf|png|html), ...
-├── 03_VAGAS/             <cargo>/ cotacao.pdf, vaga_1.(pdf|png|html), ...
+│                         Orcamento_Final.pdf, grade_comparativa.xlsx, grade_comparativa.pdf
+├── 02_COTACOES/          <orçamento>/<nn>_<item>/ cotacao.pdf, fonte_1.(pdf|png|mhtml), ...
+├── 03_VAGAS/             <cargo>/ cotacao.pdf, vaga_1.(pdf|png|mhtml), ...
 ├── 04_CNPJ/              <cnpj>_<razão social>.pdf
 ├── 05_PLANO/             plano_aplicacao.xlsx (recursos, aplicação, cronogramas)
 ├── 06_MEMORIA_CALCULO/   memoria_calculo.pdf, otimizacao.json
 └── 07_AUDITORIA/         historico.pdf, historico.json, manifesto.json (SHA-256 de todos os arquivos)
 ```
+
+Detalhes da etapa 8:
+- `cotacao.pdf` junta a capa da cotação (fontes, preços, média, preço final, endereço, data e impressão digital de cada página), as páginas capturadas e os comprovantes da Receita das empresas.
+- As planilhas têm **fórmulas vivas** (totais, médias arredondadas, preço final, conferência preço × média, subtotais, cronogramas). Um teste recalcula as fórmulas e confere que dão exatamente os valores do sistema.
+- Nomes de pastas e arquivos sem acentos nem símbolos, para abrir em qualquer computador.
+- O pacote é gravado em `exportacoes/<projeto>/<data_hora>.zip` e nunca sobrescreve um anterior. Ao montar, cada evidência é conferida pela impressão digital: um arquivo alterado impede o pacote.
 
 ## 19. Fora do escopo (por enquanto)
 

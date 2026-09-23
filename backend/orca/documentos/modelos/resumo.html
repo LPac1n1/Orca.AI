@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<div class="caixa">
+  <table>
+    <tr><th>Teto do projeto</th><td class="n grande">{{ projeto.teto_centavos|reais }}</td></tr>
+    <tr><th>Total do orçamento</th><td class="n grande">{{ dossie.total_centavos|reais }}</td></tr>
+    <tr><th>Diferença para o teto</th><td class="n">{{ (projeto.teto_centavos - dossie.total_centavos)|reais }}</td></tr>
+    <tr><th>Duração</th><td class="n">{{ projeto.duracao_meses }} meses</td></tr>
+    {% if projeto.data_entrega %}<tr><th>Entrega prevista</th><td class="n">{{ projeto.data_entrega|data }}</td></tr>{% endif %}
+    <tr><th>Otimização</th><td class="n">{{ otimizacao_texto }}</td></tr>
+  </table>
+</div>
+
+<h2>Orçamentos (rubricas)</h2>
+<table>
+  <tr><th>Orçamento</th><th>Tipo</th><th class="n">Linhas</th><th class="n">Total no projeto</th></tr>
+  {% for o in dossie.orcamentos %}
+  <tr><td>{{ o.nome }}</td><td>{{ tipos[o.tipo] }}</td>
+      <td class="n">{{ contar_linhas(o) }}</td>
+      <td class="n">{{ o.total_no_projeto|reais }}</td></tr>
+  {% endfor %}
+  <tr class="total"><td colspan="3">Total</td><td class="n">{{ dossie.total_centavos|reais }}</td></tr>
+</table>
+
+<h2>Conformidade</h2>
+<p><span class="ok">{{ contagem.ok }} ok</span> · <span class="atencao">{{ contagem.atencao }} atenção</span> · <span class="problema">{{ contagem.problema }} problema</span> (detalhes em conformidade.pdf)</p>
+<ul>
+{% for c in conferencias if c.situacao != "ok" %}
+  <li><span class="{{ c.situacao }}">{{ situacoes[c.situacao] }}</span> — {{ c.regra }}</li>
+{% endfor %}
+</ul>
+
+<h2>Como este pacote está organizado</h2>
+<table>
+  <tr><td>00_RESUMO</td><td>este resumo, a conformidade e o relatório de pesquisa</td></tr>
+  <tr><td>01_ORCAMENTOS</td><td>por rubrica: orçamentos 1, 2, 3 e final, e a grade comparativa (Excel e PDF)</td></tr>
+  <tr><td>02_COTACOES</td><td>por item: a cotação e as páginas capturadas de cada loja (PDF, imagem e página salva)</td></tr>
+  <tr><td>03_VAGAS</td><td>por cargo: a cotação e as vagas capturadas</td></tr>
+  <tr><td>04_CNPJ</td><td>comprovantes de inscrição e situação cadastral da Receita</td></tr>
+  <tr><td>05_PLANO</td><td>plano de aplicação, recursos e cronogramas (Excel, com fórmulas)</td></tr>
+  <tr><td>06_MEMORIA_CALCULO</td><td>memória de cálculo e a solução da otimização</td></tr>
+  <tr><td>07_AUDITORIA</td><td>histórico de alterações e manifesto com a impressão digital (SHA-256) de cada arquivo</td></tr>
+</table>
+<p class="nota">Gerado pelo Orça.AI {{ projeto.versao_sistema }} em {{ projeto.gerado_em|datahora }} (horário de Brasília).
+Impressão digital das regras usadas: <span class="hash">{{ projeto.impressao_regras or "—" }}</span></p>
+{% endblock %}

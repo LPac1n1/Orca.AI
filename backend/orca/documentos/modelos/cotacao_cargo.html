@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<p><strong>{{ cargo.nome }}</strong> · regime {{ cargo.regime|regime }} · {{ cargo.postos }} {{ "posto" if cargo.postos == 1 else "postos" }} · {{ cargo.meses }} meses</p>
+<table>
+  <tr><th>Vaga</th><th>Empresa</th><th class="n">Salário considerado</th><th>Anúncio</th><th>Evidência</th></tr>
+  {% for v in cargo.vagas %}
+  <tr>
+    <td class="c">{{ loop.index }}</td>
+    <td>{{ v.empresa.nome }}<div class="nota">CNPJ {{ v.empresa.cnpj|cnpj }}{% if v.empresa.situacao %} · {{ v.empresa.situacao }}{% endif %}</div></td>
+    <td class="n">{{ v.salario_centavos|reais }}</td>
+    <td>{{ v.descricao or "—" }}{% if v.plataforma %}<div class="nota">{{ v.plataforma }}</div>{% endif %}</td>
+    <td>{% if v.evidencia %}<div class="url">{{ v.evidencia.url }}</div><div class="nota">capturada em {{ v.evidencia.coletado_em|datahora }}</div>
+        {% for a in v.evidencia.arquivos %}<div class="hash">{{ a.tipo }}: {{ a.sha256 }}</div>{% endfor %}
+        {% else %}<span class="problema">Não foi possível validar automaticamente: sem evidência</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+<div class="caixa"><ul>{% for m in cargo.memoria %}<li>{{ m }}</li>{% endfor %}</ul></div>
+<p class="nota">Faixa salarial: considerado o menor valor (D-46). Sem encargos (D-44). Divisor = jornada semanal legal × 5 (D-42).</p>
+{% endblock %}

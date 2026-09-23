@@ -8,7 +8,7 @@ O Orça.AI pesquisa produtos e vagas, confere se os produtos são idênticos, va
 
 ## Situação
 
-Em construção — **Fase 1**: cálculo, regras, banco local, seleção, otimização do teto, coleta por URL (evidências e CNPJ) e correspondência de produtos prontos. Ainda não há versão para uso.
+Em construção — **Fase 1**: cálculo, regras, banco local, seleção, otimização do teto, coleta por URL (evidências e CNPJ), correspondência de produtos e documentos (Excel, PDF e pacote ZIP) prontos. Ainda não há versão para uso.
 
 ## Documentação
 

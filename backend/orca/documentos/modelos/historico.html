@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<p>Cada criação ou alteração, com autor, data e hora (horário de Brasília). Nada é apagado: registros imutáveis e exclusão lógica (princípio 6). A versão completa, com os valores antes e depois, está em historico.json.</p>
+{% if dossie.eventos %}
+<table>
+  <tr><th>Data e hora</th><th>Autor</th><th>Registro</th><th>Ação</th><th>Identificador</th></tr>
+  {% for e in dossie.eventos %}
+  <tr><td>{{ e.criado_em|datahora }}</td><td>{{ e.autor }}</td><td>{{ e.entidade }}</td><td>{{ e.acao }}</td><td class="hash">{{ e.entidade_id }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}<p>Sem eventos registrados neste dossiê.</p>{% endif %}
+{% endblock %}

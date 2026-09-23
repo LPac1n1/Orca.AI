@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block conteudo %}
+{% for lote in orcamento.lotes %}
+{% if not loop.first %}<div class="quebra"></div>{% endif %}
+<h2>Lote {{ lote.nome }}</h2>
+<p class="nota">{% if lote.base_preco_final == "B" %}Regra B: o preço final é o da loja de menor total (Orçamento 1) e precisa estar dentro da média ({{ "média exata, sem arredondar" if lote.linhas and lote.linhas[0].comparar_com == "media_exata" else "média exibida" }}).{% else %}Regra A: o preço final é a média arredondada.{% endif %}
+&nbsp;Orçamentos em ordem de total (D-26). Quantidades finais do período (D-25).</p>
+<table>
+  <tr>
+    <th rowspan="2">Item</th><th rowspan="2" class="n">Qtd.</th>
+    {% for loja in lote.lojas %}<th colspan="2" class="c">Orçamento {{ loop.index }}<br><span class="nota">{{ loja.empresa.nome }}<br>CNPJ {{ loja.empresa.cnpj|cnpj }}</span></th>{% endfor %}
+    <th rowspan="2" class="n">Média unit.</th><th rowspan="2" class="n">Média do total</th><th rowspan="2" class="n">Preço final</th><th rowspan="2" class="n">Total final</th><th rowspan="2">Situação</th>
+  </tr>
+  <tr>{% for loja in lote.lojas %}<th class="n">Unit.</th><th class="n">Total</th>{% endfor %}</tr>
+  {% for linha in lote.linhas %}
+  <tr>
+    <td>{{ linha.nome }}</td><td class="n">{{ linha.quantidade }}</td>
+    {% for f in linha.fontes %}<td class="n">{{ f.preco_centavos|reais }}</td><td class="n">{{ (f.preco_centavos * linha.quantidade)|reais }}</td>{% endfor %}
+    <td class="n">{{ linha.media_exibida|reais }}</td><td class="n">{{ linha.media_dos_totais|reais }}</td>
+    <td class="n">{{ linha.preco_final_centavos|reais }}</td><td class="n">{{ linha.total_final|reais }}</td>
+    <td>{% if linha.dentro_da_media is none %}média (regra A){% elif linha.dentro_da_media %}<span class="ok">dentro da média</span>{% else %}<span class="problema">ACIMA DA MÉDIA</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  <tr class="total">
+    <td colspan="2">Total</td>
+    {% for loja in lote.lojas %}<td></td><td class="n">{{ loja.total_centavos|reais }}</td>{% endfor %}
+    <td></td><td></td><td></td><td class="n">{{ lote.total_final|reais }}</td><td></td>
+  </tr>
+</table>
+{% endfor %}
+{% endblock %}

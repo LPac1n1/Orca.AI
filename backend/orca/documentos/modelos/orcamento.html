@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<p class="nota">Orçamento montado pelo Orça.AI a partir das páginas da loja, capturadas nas datas indicadas
+(evidências na pasta 02_COTACOES). Não é um documento emitido pela loja. Preços sem frete, para qualquer comprador,
+preço unitário (D-15, D-60 a D-63). Quantidades finais do período (D-25).</p>
+{% for lote in orcamento.lotes %}
+{% set loja = lote.lojas[posicao] %}
+<h2>Lote {{ lote.nome }} — Orçamento {{ posicao + 1 }}</h2>
+<p><strong>{{ loja.empresa.nome }}</strong> · CNPJ {{ loja.empresa.cnpj|cnpj }}</p>
+<table>
+  <tr><th>Item</th><th class="c">Unid.</th><th class="n">Qtd.</th><th class="n">Preço unit.</th><th class="n">Total</th><th>Página</th></tr>
+  {% for linha in lote.linhas %}
+  {% set fonte = linha.fontes[posicao] %}
+  <tr>
+    <td>{{ linha.nome }}{% if fonte.titulo_na_pagina %}<div class="nota">{{ fonte.titulo_na_pagina }}</div>{% endif %}</td>
+    <td class="c">{{ linha.unidade }}</td>
+    <td class="n">{{ linha.quantidade }}</td>
+    <td class="n">{{ fonte.preco_centavos|reais }}</td>
+    <td class="n">{{ (fonte.preco_centavos * linha.quantidade)|reais }}</td>
+    <td>{% if fonte.evidencia %}<div class="url">{{ fonte.evidencia.url }}</div><div class="nota">capturada em {{ fonte.evidencia.coletado_em|datahora }}</div>{% else %}<span class="problema">sem evidência</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  <tr class="total"><td colspan="4">Total do lote</td><td class="n">{{ loja.total_centavos|reais }}</td><td></td></tr>
+</table>
+{% endfor %}
+{% endblock %}

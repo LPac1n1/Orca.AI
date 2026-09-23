@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<p>Todas as lojas e vagas consideradas, inclusive as que ficaram de fora, com o motivo. As fontes são escolhidas por critério objetivo (menor total), nunca para subir a média (princípio 7).</p>
+{% for o in dossie.orcamentos %}
+<h2>{{ o.nome }}</h2>
+{% for lote in o.lotes %}
+<h3>Lote {{ lote.nome }}</h3>
+<table>
+  <tr><th>Loja</th><th>CNPJ</th><th class="n">Total do lote</th><th>Resultado</th></tr>
+  {% for loja in lote.lojas %}<tr><td>{{ loja.empresa.nome }}</td><td>{{ loja.empresa.cnpj|cnpj }}</td><td class="n">{{ loja.total_centavos|reais }}</td><td class="ok">Orçamento {{ loop.index }}</td></tr>{% endfor %}
+  {% for loja in lote.demais_elegiveis %}<tr><td>{{ loja.empresa.nome }}</td><td>{{ loja.empresa.cnpj|cnpj }}</td><td class="n">{{ loja.total_centavos|reais }}</td><td>completa, fora do trio (total maior)</td></tr>{% endfor %}
+  {% for nome, motivo in lote.descartadas %}<tr><td>{{ nome }}</td><td>—</td><td class="n">—</td><td class="atencao">descartada: {{ motivo }}</td></tr>{% endfor %}
+</table>
+{% if lote.justificativa %}<p class="nota">{{ lote.justificativa }}</p>{% endif %}
+{% endfor %}
+{% for c in o.cargos %}
+<h3>{{ c.nome }}</h3>
+<table>
+  <tr><th>Empresa</th><th>CNPJ</th><th class="n">Salário considerado</th><th>Vaga</th><th>Resultado</th></tr>
+  {% for v in c.vagas %}<tr><td>{{ v.empresa.nome }}</td><td>{{ v.empresa.cnpj|cnpj }}</td><td class="n">{{ v.salario_centavos|reais }}</td>
+    <td>{{ v.descricao }}{% if v.plataforma %} ({{ v.plataforma }}){% endif %}{% if v.evidencia %}<div class="url">{{ v.evidencia.url }}</div>{% endif %}</td><td class="ok">escolhida</td></tr>{% endfor %}
+  {% for vaga, motivo in c.descartadas %}<tr><td colspan="3">{{ vaga }}</td><td></td><td class="atencao">descartada: {{ motivo }}</td></tr>{% endfor %}
+</table>
+{% endfor %}
+{% endfor %}
+{% endblock %}
