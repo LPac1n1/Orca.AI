@@ -1,0 +1,94 @@
+# Caso real (T-03): grade comparativa de um termo de fomento estadual, SP, 2026.
+# Só preços, produtos e CNPJs de empresas (CLAUDE.md). O plano usou os preços do
+# Orçamento 1 (loja de menor total) e a secretaria apontou 14 itens acima da média.
+# "media_informada" e "media_total_informada" são os valores que estavam na grade.
+
+lojas:
+  lepok: {nome: Lepok Distribuição e Logística Ltda, cnpj: 19.576.717/0001-04}
+  kalunga: {nome: Kalunga SA, cnpj: 43.283.811/0001-50}
+  supricorp: {nome: Supricorp Suprimentos Ltda, cnpj: 54.651.716/0011-50}
+  carrefour: {nome: Carrefour Comércio e Indústria Ltda, cnpj: 45.543.915/0001-81}
+  tenda: {nome: Tenda Atacado, cnpj: 01.157.555/0011-86}
+  atacadao: {nome: Atacadão S.A., cnpj: 75.315.333/0001-09}
+  janko: {nome: Mercado Janko Comercio de Produtos Naturais Ltda - ME, cnpj: 54.464.999/0001-59}
+  nutricao: {nome: NUTRIÇÃO E SAÚDE LTDA - ME, cnpj: 17.304.540/0001-61}
+  bonanca: {nome: Bonança Produtos Alimentícios e Cestas Básicas Ltda, cnpj: 70.175.336/0001-70}
+  fd: {nome: F&D Solutions Ltda, cnpj: 42.274.849/0001-01}
+  ongsys: {nome: Ongsys Sistemas Ltda, cnpj: 29.335.055/0001-34}
+  ekloos: {nome: Instituto Ekloos, cnpj: 11.285.430/0001-13}
+
+# Itens apontados na diligência (preço do plano acima da média da grade).
+diligencia:
+  - Folha sulfite 500 Folhas
+  - Grampo 5000 Unidades
+  - Lápis preto 4 Unidades
+  - Suco de uva 1L
+  - Café 500g
+  - Café solúvel 100g
+  - Pão de forma Integral 400g
+  - Bisnaguinha 300g
+  - Manteiga com sal 1Kg
+  - Geleia de morango 320g
+  - Maionese 250g
+  - Sardinha com tomate 125g
+  - Água sanitária 5L
+  - Desinfetante 5L
+
+lotes:
+  - rubrica: Material Pedagógico e Escritório
+    nome: Papelaria
+    lojas: [lepok, kalunga, supricorp]          # na ordem da grade (Orçamentos 1, 2, 3)
+    itens:
+      - {nome: Bloco de notas 4 Cores, qtd: 1, precos: ["17,10", "18,20", "17,49"], media_informada: "17,60"}
+      - {nome: Pasta sanfonada 12 Divisórias, qtd: 1, precos: ["19,10", "25,90", "23,90"], media_informada: "22,97"}
+      - {nome: Folha sulfite 500 Folhas, qtd: 2, precos: ["34,50", "34,50", "33,90"], media_informada: "34,30"}
+      - {nome: Grampeador de mesa 26/6, qtd: 1, precos: ["14,80", "24,90", "18,69"], media_informada: "19,46"}
+      - {nome: Grampo 5000 Unidades, qtd: 1, precos: ["11,20", "9,90", "9,59"], media_informada: "10,23"}
+      - {nome: Perfurador 4 Furos, qtd: 1, precos: ["116,40", "109,90", "136,69"], media_informada: "121,00"}
+      - {nome: Lápis preto 4 Unidades, qtd: 2, precos: ["7,95", "8,60", "6,90"], media_informada: "7,82", media_total_informada: "15,63"}
+      - {nome: Clips 100 Unidades, qtd: 5, precos: ["3,40", "3,90", "2,99"], media_informada: "3,43"}
+      - {nome: Caneta esferográfica 50 Unidades, qtd: 1, precos: ["39,50", "46,80", "39,90"], media_informada: "42,07"}
+    totais_informados: ["320,00", "341,30", "342,81"]
+
+  - rubrica: Alimentação
+    nome: Principal
+    lojas: [carrefour, tenda, atacadao]
+    itens:
+      - {nome: Suco de uva 1L, qtd: 20, precos: ["9,49", "7,99", "8,79"], media_informada: "8,76", media_total_informada: "175,13"}
+      - {nome: Sucos de laranja 900ml, qtd: 20, precos: ["9,90", "14,90", "12,90"], media_informada: "12,57", media_total_informada: "251,33"}
+      - {nome: Leite 1L, qtd: 20, precos: ["5,89", "6,59", "7,29"], media_informada: "6,59"}
+      - {nome: Café 500g, qtd: 10, precos: ["32,09", "26,99", "27,98"], media_informada: "29,02"}
+      - {nome: Café solúvel 100g, qtd: 6, precos: ["25,99", "26,55", "20,90"], media_informada: "24,48"}
+      - {nome: Água de coco 1L, qtd: 20, precos: ["8,99", "11,99", "10,98"], media_informada: "10,65", media_total_informada: "213,07"}
+      - {nome: Pão de forma 480g, qtd: 20, precos: ["7,19", "7,89", "7,89"], media_informada: "7,66", media_total_informada: "153,13"}
+      - {nome: Pão de forma Integral 400g, qtd: 10, precos: ["6,99", "4,99", "7,49"], media_informada: "6,49"}
+      - {nome: Bisnaguinha 300g, qtd: 10, precos: ["7,69", "7,99", "7,29"], media_informada: "7,66", media_total_informada: "76,57"}
+      - {nome: Manteiga com sal 1Kg, qtd: 2, precos: ["15,29", "12,90", "15,85"], media_informada: "14,68"}
+      - {nome: Geleia de morango 320g, qtd: 7, precos: ["20,69", "17,90", "22,90"], media_informada: "20,50", media_total_informada: "143,48"}
+      - {nome: Maionese 250g, qtd: 10, precos: ["8,69", "5,99", "7,39"], media_informada: "7,36", media_total_informada: "73,57"}
+      - {nome: Sardinha com tomate 125g, qtd: 20, precos: ["5,79", "5,79", "5,15"], media_informada: "5,58", media_total_informada: "111,53"}
+    totais_informados: ["1.830,95", "1.873,00", "1.878,90"]   # sem a banana chips (lote separado)
+
+  - rubrica: Alimentação
+    nome: Banana chips
+    lojas: [janko, nutricao, bonanca]
+    itens:
+      - {nome: Banana Chips Salgada 100g, qtd: 1, precos: ["8,76", "9,90", "12,89"], media_informada: "10,52"}
+
+  - rubrica: Limpeza + utensílios
+    nome: Limpeza
+    lojas: [carrefour, tenda, atacadao]
+    itens:
+      - {nome: Água sanitária 5L, qtd: 5, precos: ["15,56", "16,30", "12,70"], media_informada: "14,85", media_total_informada: "74,27"}
+      - {nome: Desinfetante 5L, qtd: 2, precos: ["24,49", "20,90", "19,99"], media_informada: "21,79", media_total_informada: "43,59"}
+      - {nome: Sabão em pó 1,6Kg, qtd: 3, precos: ["15,99", "16,40", "16,48"], media_informada: "16,29"}
+      - {nome: Detergente 500mL, qtd: 10, precos: ["1,89", "2,25", "2,35"], media_informada: "2,16", media_total_informada: "21,63"}
+      - {nome: Álcool 1L, qtd: 5, precos: ["9,19", "8,49", "9,90"], media_informada: "45,97", media_total_informada: "45,97"}
+      - {nome: Sacos de Lixo 50L 50 Unidades, qtd: 5, precos: ["11,99", "22,90", "14,98"], media_informada: "16,62", media_total_informada: "83,12"}
+    totais_informados: ["299,55", "351,95", "300,82"]
+
+  - rubrica: Sistema de gestão de dados
+    nome: Sistema
+    lojas: [fd, ongsys, ekloos]
+    itens:
+      - {nome: Sistema de gestão de dados, qtd: 1, precos: ["270,92", "299,00", "490,00"], media_informada: "353,31"}

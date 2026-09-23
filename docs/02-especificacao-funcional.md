@@ -128,6 +128,13 @@ Se nenhuma saída resolver, o sistema informa o motivo e sugere pesquisar mais l
 
 Nunca se troca uma das outras duas lojas do trio para subir a média (D-27).
 
+### 9.3 Conferência de uma grade pronta
+Uma grade feita fora do sistema (ex.: planilha) pode ser conferida antes do envio. O sistema recalcula a média unitária, a média do total e os totais de cada linha, e aponta:
+- valores informados que não batem com o cálculo (ex.: média unitária R$ 45,97 no lugar de R$ 9,19);
+- preços do plano acima da média — a mesma conferência que a secretaria faz.
+
+No caso real de 2026 (caso de teste T-03), essa conferência encontra exatamente os 14 itens da diligência e um erro de média que a secretaria não apontou.
+
 ## 10. Mão de obra
 
 ### 10.1 Cargos
