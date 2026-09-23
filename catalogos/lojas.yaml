@@ -1,0 +1,174 @@
+# Catálogo de lojas — rascunho inicial (Fase 0)
+# Levantamento em 23/09/2026 (docs/07-levantamento-lojas.md).
+# Camadas de coleta (docs/04 §5.1):
+#   C0 = dados estruturados/API | C1 = página da loja (acesso simples ou navegador)
+#   C2 = descoberta por buscador | C3 = agente de IA | C4 = captura assistida
+#   proposta = cotação por e-mail com o fornecedor
+# "precos_na_pagina" lista os preços encontrados; "preco_a_usar" segue as
+# decisões D-60 a D-63 (docs/01): preço normal, sem Pix, sem clube/assinatura,
+# promoção aberta a todos vale, sempre o preço unitário.
+
+versao: 1
+verificado_em: 2026-09-23
+
+lojas:
+  - id: atacadao
+    nome: Atacadão
+    dominio: www.atacadao.com.br
+    categorias: [alimentos, bebidas, limpeza, descartaveis, papelaria]
+    plataforma: vtex
+    coleta: C0
+    endpoints:
+      busca_texto: /api/catalog_system/pub/products/search?ft={termo}
+      busca_ean: /api/catalog_system/pub/products/search?fq=alternateIds_Ean:{ean}
+      regiao_por_cep: /api/checkout/pub/regions?country=BRA&postalCode={cep}
+    ean: api
+    cnpj_site: null            # vendedor "ATACADAO SA" na API; CNPJ a obter pelos dados abertos
+    cep: regiao_por_cep
+    acesso_simples: ok
+    precos_na_pagina: [preco_unitario]
+    observacoes: Melhor caso. Evidência (PDF) capturada pelo navegador na página do produto.
+
+  - id: carrefour_mercado
+    nome: Carrefour Mercado
+    dominio: mercado.carrefour.com.br
+    categorias: [alimentos, bebidas, limpeza, descartaveis]
+    plataforma: vtex
+    coleta: C1
+    modo: navegador            # API recusa acesso simples (503)
+    ean: jsonld
+    cnpj_site: [45.543.915/0736-50, 45.543.915/0846-95]
+    cep: pede_cep
+    acesso_simples: bloqueado_na_api
+    precos_na_pagina: [preco_de, preco_por]     # "de R$ 29,89 por R$ 25,29"
+    preco_a_usar: preco_por                      # D-62
+
+  - id: extra_mercado
+    nome: Extra Mercado
+    dominio: www.extramercado.com.br
+    categorias: [alimentos, bebidas, limpeza, descartaveis]
+    plataforma: propria_nextjs
+    coleta: C1
+    modo: navegador
+    ean: dados_da_pagina       # __NEXT_DATA__
+    cnpj_site: [47.508.411/0001-56]
+    cep: a_verificar
+    acesso_simples: parcial    # busca e produtos carregam por JavaScript
+    precos_na_pagina: [preco_normal, preco_clube_extra]
+    preco_a_usar: preco_normal                   # D-61; o JSON-LD traz o preço do clube
+    observacoes: "JSON-LD traz o preço Clube Extra (exige cadastro)."
+
+  - id: tenda_atacado
+    nome: Tenda Atacado
+    dominio: www.tendaatacado.com.br
+    categorias: [alimentos, bebidas, limpeza, descartaveis]
+    plataforma: propria_nextjs
+    coleta: C1
+    modo: acesso_simples       # dados embutidos em __NEXT_DATA__ e microdados
+    ean: nao_encontrado
+    cnpj_site: [01.157.555/0011-86]
+    cep: a_verificar
+    acesso_simples: ok
+    precos_na_pagina: [preco_unitario, preco_atacado]   # atacado: a partir de 4 un.
+    preco_a_usar: preco_unitario                         # D-63
+
+  - id: kalunga
+    nome: Kalunga
+    dominio: www.kalunga.com.br
+    categorias: [papelaria, escritorio, informatica, limpeza, descartaveis]
+    plataforma: propria
+    coleta: C1
+    modo: acesso_simples
+    busca: /busca/1?q={termo}
+    ean: nao_exibido           # só código interno
+    cnpj_site: [43.283.811/0001-50]
+    cep: a_verificar
+    acesso_simples: ok
+    precos_na_pagina: [preco_normal, parcelado, preco_assinante]
+    preco_a_usar: preco_normal                   # D-61
+    observacoes: Indica "Produto indisponível". Títulos bem estruturados.
+
+  - id: gimba
+    nome: Gimba (Supricorp Suprimentos)
+    dominio: www.gimba.com.br
+    categorias: [papelaria, escritorio, alimentos, limpeza, descartaveis]
+    plataforma: propria
+    coleta: C1
+    modo: navegador            # preço normal não aparece no HTML simples
+    ean: nao_exibido
+    cnpj_site: [54.651.716/0011-50]
+    cep: a_verificar
+    acesso_simples: parcial
+    precos_na_pagina: [preco_pix, preco_normal, leve_mais_pague_menos]
+    preco_a_usar: preco_normal                   # D-60, D-63
+    observacoes: "Preço em destaque e JSON-LD = preço Pix (-3%)."
+
+  - id: lepok
+    nome: Lepok
+    dominio: www.lepok.com.br
+    categorias: [papelaria, escritorio, informatica]
+    plataforma: propria
+    coleta: C1
+    modo: navegador
+    busca: /busca/1?q={termo}
+    ean: a_verificar
+    cnpj_site: [19.576.717/0001-04]
+    cep: a_verificar
+    acesso_simples: parcial    # produtos carregam por JavaScript
+    observacoes: Detalhar na Fase 2.
+
+  - id: amazon
+    nome: Amazon
+    dominio: www.amazon.com.br
+    categorias: [papelaria, escritorio, informatica, limpeza, alimentos]
+    plataforma: propria
+    coleta: C1
+    modo: navegador            # acesso simples bloqueado (HTTP 202 sem conteúdo)
+    ean: nao_exibido
+    cnpj_site: por_vendedor    # "Enviado / Vendido por"; terceiros: página do vendedor
+    marketplace: true
+    acesso_simples: bloqueado
+
+  - id: mercado_livre
+    nome: Mercado Livre
+    dominio: www.mercadolivre.com.br
+    categorias: [geral]
+    plataforma: propria
+    coleta: C4                 # exige login até no navegador comum; API de busca bloqueada
+    marketplace: true
+    cnpj_site: por_vendedor    # 03.007.331/0001-41 é da plataforma
+    acesso_simples: bloqueado
+
+  - id: shopee
+    nome: Shopee
+    dominio: shopee.com.br
+    categorias: [geral]
+    plataforma: propria
+    coleta: C4                 # não mostra resultados sem login
+    marketplace: true
+    cnpj_site: por_vendedor    # muitos vendedores sem CNPJ
+    acesso_simples: bloqueado
+
+fornecedores_servico:
+  - id: ongsys
+    nome: Ongsys Sistemas
+    dominio: site.ongsys.com.br
+    categorias: [sistema_de_gestao]
+    coleta: C1
+    pagina_precos: /precos
+    cnpj_site: null            # obter pelos dados abertos
+    precos_na_pagina: [preco_de, preco_por]      # "de R$ 399 por R$ 299/mês"
+    preco_a_usar: preco_por                      # D-62
+
+  - id: ongfacil
+    nome: OngFácil
+    dominio: www.ongfacil.org.br
+    categorias: [sistema_de_gestao]
+    coleta: C1
+    modo: navegador_com_rolagem   # preços em quadros (iframes) que só carregam ao rolar a página
+    pagina_precos: /registre-se
+    cnpj_site: null            # obter pelos dados abertos
+    precos_na_pagina:          # verificados em 23/09/2026
+      mensalidade: {gratuito: 0.00, prata: 320.00, ouro: 490.00}
+      implantacao: {prata: {a_vista: 1700.00, parcelado: "6x 315.00"}, ouro: {a_vista: 2000.00, parcelado: "6x 370.00"}}
+    observacoes: Implantação é opcional e cobrada à parte; o item precisa dizer se inclui ou não.

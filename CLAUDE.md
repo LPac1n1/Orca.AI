@@ -1,0 +1,47 @@
+# CLAUDE.md — Orca.AI
+
+Montador de orçamentos para OSCs. O usuário (Leonardo, OSC CPIS 26 de Julho, São Paulo) constrói o sistema com o Claude Code e não é programador: responda em **português do Brasil**, em linguagem simples.
+
+## Fonte da verdade
+
+A especificação em [`docs/`](docs/README.md) manda. Antes de propor ou implementar algo, leia o trecho relevante. Decisões têm códigos (`D-xx`, premissas `P-xx`) em [`docs/01-decisoes.md`](docs/01-decisoes.md). Se algo não estiver decidido, **pergunte** em vez de assumir. Se uma decisão mudar, atualize os docs no mesmo commit.
+
+## Princípios invioláveis (docs/README.md)
+
+1. Nada é inventado: nenhum preço, produto, vaga, CNPJ, URL ou evidência. Sem evidência: *"Não foi possível validar automaticamente."*
+2. Todo número é rastreável até evidência, regra (com versão) e decisão humana.
+3. A IA propõe, o algoritmo confere e calcula, o humano aprova. A IA nunca é origem de número.
+4. A IA pode rebaixar confiança, nunca aumentar.
+5. Preços encontrados nunca são alterados.
+6. Nada é apagado (registros imutáveis, eventos só de acréscimo).
+7. Fontes escolhidas por critério objetivo; nunca para subir média.
+8. Nenhuma substituição silenciosa.
+9. Custo zero: nada essencial depende de serviço pago.
+
+## Convenções de código
+
+- Python 3.12, pacote `orca` em `backend/orca/`; testes em `backend/testes/` (pytest + hypothesis).
+- **Dinheiro sempre em centavos (`int`)**. Valores exatos intermediários em `fractions.Fraction`. **Nunca `float`** em dinheiro, horas ou médias.
+- Horas em **centésimos de hora** (`int`): 91,5 h = 9150.
+- Arredondamento só pela função oficial (`orca.calculo.arredondamento`), nos pontos que a regra define (D-21, D-43).
+- Módulos do núcleo (`dominio`, `calculo`, `selecao`, `correspondencia`, `otimizacao`) **não acessam rede nem disco**.
+- Nomes do domínio em português (como nos docs). Cite a decisão no código quando ela justificar uma regra: `# D-23`.
+- Toda regra de negócio nova vem com teste. Casos de teste da especificação: `docs/06-roadmap-e-testes.md` §3.
+
+## Comandos
+
+O ambiente virtual fica **fora do OneDrive** (para não sincronizar milhares de arquivos):
+
+```bash
+# instalar (uma vez)
+python -m venv /c/Users/leopa/.venvs/orca-ai
+/c/Users/leopa/.venvs/orca-ai/Scripts/python -m pip install -e "backend[dev]"
+# testes
+cd backend && /c/Users/leopa/.venvs/orca-ai/Scripts/python -m pytest
+```
+
+## Cuidados
+
+- O repositório é **público**. A pasta `Modelo de Orçamento/` (documentos reais de processos, com nomes de pessoas) está no `.gitignore` e **nunca** deve ser publicada. Dados de teste derivados de casos reais: só preços, produtos e CNPJs de empresas.
+- Não fazer commit nem push sem o usuário pedir. Trabalho novo em branch própria; junção ao `main` com aprovação do usuário.
+- Ao consultar sites de lojas: poucas requisições, sem login, sem aceitar cookies, sem contornar captcha.

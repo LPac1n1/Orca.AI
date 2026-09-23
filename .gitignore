@@ -1,0 +1,39 @@
+# Documentos reais de projetos (dados de processos, nomes de pessoas).
+# Nunca publicar: servem só como referência local.
+Modelo de Orçamento/
+
+# Dados gerados pelo sistema (pasta de dados local; dados de teste ficam em backend/testes/dados/)
+/dados/
+/evidencias/
+/exportacoes/
+*.sqlite
+*.sqlite-*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Segredos e configurações locais
+.env
+.env.*
+*.local.yaml
+
+# Sistema operacional e editores
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

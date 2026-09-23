@@ -1,0 +1,160 @@
+# 05 — Regras padrão
+
+## 1. Perfil de regras padrão do sistema
+
+Camadas seguintes (OSC → secretaria/edital → projeto → orçamento) declaram **só o que muda**. Cada parâmetro cita a decisão de origem ([01](01-decisoes.md)).
+
+```yaml
+perfil: padrao-sistema
+versao: 1
+
+fontes:
+  fontes_por_cotacao: 3                    # D-10
+  lojas_virtuais: permitidas               # D-11
+  validade_dias: 180                       # D-12
+  aviso_vencimento_dias: 30
+  cnpjs_distintos_na_cotacao: true         # P-03
+  marketplace:                             # D-16
+    permitido: true
+    cnpj_considerado: vendedor
+    um_vendedor_por_orcamento_comparativo: true
+    descartar_sem_cnpj_vendedor: true
+  fontes_alternativas:                     # D-18
+    atas_registro_preco: false
+    painel_de_precos: false
+    caged: false
+    convencao_coletiva: false
+
+preco_referencia:                          # D-15, D-60 a D-63
+  frete: excluir
+  desconto_pix: ignorar                    # D-60 — usar o preço normal
+  cupom: ignorar                           # D-61
+  clube_assinatura_ou_login: ignorar       # D-61
+  promocao_aberta_a_todos: usar            # D-62 — vale o preço atual ("por")
+  preco_por_quantidade: ignorar            # D-63 — sempre o preço unitário
+  cep: do_projeto
+
+produto:
+  equivalencia: mesma_marca_modelo_apresentacao   # D-17
+  exige_ean_igual: false                           # true = só 🟢 com EAN igual
+  atributos_criticos: catalogos/atributos.yaml     # ver §3
+
+evidencia:
+  por_fonte: [pdf, png, html]
+  cabecalho_pdf: [url, data_hora, cep, sha256]
+  pdf_por_cotacao: true
+  comprovante_receita: obrigatorio         # D-13
+  reaproveitar_comprovante_dias: 30        # D-14
+  cnpj_ativo_obrigatorio: true
+
+cnpj:
+  provedores: [opencnpj, brasilapi]
+  aceita_alfanumerico: true                # D-19
+
+calculo:
+  base_preco_final: B                      # D-20 — A: média arredondada | B: loja de menor total
+  arredondamento: comercial                # D-21
+  casas_decimais: 2
+  comparar_com: media_exata                # P-02 — media_exata | media_exibida
+  misturar_lojas_no_final: false           # D-22
+  resolucao_item_acima_da_media: [trocar_produto, trocar_loja]   # D-23 — o usuário escolhe
+  lotes_dentro_do_orcamento: permitido     # D-24
+  comparativos_usam_quantidades_finais: true   # D-25
+  orcamento_1: menor_total                 # D-26
+
+teto:
+  nivel: projeto                           # D-30
+  exato: true
+  limites_por_orcamento: {}                # ex.: {"Mão de obra": {max_percentual: 70}}
+
+otimizacao:                                # D-32
+  margem_quantidade: {min: -0.20, max: 0.20}
+  margem_horas: {min: -0.20, max: 0.20}
+  meses: definidos_pelo_usuario
+  manter_loja_escolhida_menor_total: true  # C3
+  manter_classificacao: true               # C4
+  objetivo: [menos_linhas_alteradas, menor_desvio_relativo]
+
+mao_de_obra:
+  fontes_por_cotacao: 3                    # D-40
+  valor_referencia: media                  # D-41
+  divisor: jornada_semanal_x5              # D-42
+  tabela_jornadas: catalogos/jornadas.yaml # ver §2
+  sequencia_arredondamento: [media, valor_hora, valor_mensal]   # D-43
+  horas_casas_decimais: 2
+  encargos: false                          # D-44
+  regime_padrao: [mei_se_permitido, recibo]   # D-45
+  formula_por_regime: {mei: padrao, recibo: padrao, clt: padrao}
+  faixa_salarial: menor_valor              # D-46
+  vaga_sem_salario: descartar
+  empresa_nao_identificada: descartar
+  empresas_distintas_na_cotacao: true      # P-04
+  mesmo_municipio: false                   # D-47
+  idade_maxima_vaga_dias: null
+  escolha: tres_menores_salarios           # D-48
+  plataformas: [catho, indeed, infojobs, vagas_com, google_jobs, linkedin_assistido]
+
+desembolso:
+  padrao: parcela_unica_mes_1              # P-06
+```
+
+## 2. Tabela de jornadas (divisor mensal = jornada semanal × 5)
+
+**Revisada e aprovada pelo usuário em 23/09/2026.** Versão em dados: [`catalogos/jornadas.yaml`](../catalogos/jornadas.yaml). Cada nova linha ou alteração precisa de nova revisão (o sistema registra quem revisou e quando). Profissões fora da tabela usam a regra geral e geram alerta 🟡.
+
+| Enquadramento | Exemplos | Jornada semanal máxima | Divisor | Fonte legal |
+|---|---|---|---|---|
+| Regra geral | coordenador(a), orientador(a) ou educador(a) social, oficineiro(a), auxiliar administrativo, auxiliar de serviços gerais, cozinheiro(a), designer, pedagogo(a), nutricionista, psicólogo(a)¹, enfermeiro(a)¹ | 44 h | 220 | Constituição, art. 7º, XIII; CLT, art. 58 |
+| Assistente social | — | 30 h | 150 | Lei 8.662/1993, art. 5º-A (incluído pela Lei 12.317/2010) |
+| Fisioterapeuta; terapeuta ocupacional | — | 30 h | 150 | Lei 8.856/1994 |
+| Técnico(a) em radiologia | — | 24 h | 120 | Lei 7.394/1985, art. 14 |
+| Jornalista | — | 5 h/dia (30 h) | 150 | CLT, art. 303 |
+| Telefonista; operador(a) de telemarketing | — | 6 h/dia (36 h) | 180 | CLT, art. 227; NR-17, Anexo II |
+
+¹ Sem lei federal que fixe jornada menor (há projetos de lei em tramitação). Revisar se a situação mudar.
+
+Profissões com regra controversa (ex.: médico, advogado empregado) ficam **fora** da tabela inicial até revisão.
+
+## 3. Atributos críticos por categoria
+
+Além de **marca, modelo e apresentação** (sempre obrigatórios, D-17):
+
+```yaml
+papel:        [formato, gramatura, folhas_por_pacote]
+caneta:       [cor, espessura_ponta, unidades_por_embalagem]
+papelaria:    [dimensoes, unidades_por_embalagem]
+alimento:     [peso_ou_volume_liquido, tipo, sabor]
+bebida:       [volume, tipo, sabor]
+limpeza:      [volume, concentracao, fragrancia]
+descartavel:  [capacidade, unidades_por_embalagem]
+eletronico:   [modelo_exato, voltagem]
+servico:      [escopo, periodicidade, unidade_de_cobranca]
+```
+
+O catálogo pode ser ampliado pelo usuário e compartilhado.
+
+## 4. Níveis de automação padrão
+
+| Ação | Nível padrão |
+|---|---|
+| Correspondência por EAN igual | Automático |
+| Correspondência por atributos (todos presentes e iguais) | Automático com aprovação |
+| IA rebaixa uma correspondência | Automático |
+| Promover 🟡 para 🟢 | Manual |
+| Classificar lojas e escolher trio e loja do Orçamento 1 | Automático (com justificativa) |
+| Resolver item acima da média (troca de produto ou de loja) | Automático com aprovação: o sistema calcula as opções, o usuário escolhe |
+| Bloquear fonte com CNPJ não ativo | Automático |
+| Descartar vaga duplicada (casos claros) | Automático |
+| Descartar vaga duplicada (casos incertos) | Automático com aprovação |
+| Sugerir quantidade, horas ou enquadramento de cargo | Automático com aprovação |
+| Refazer pesquisa vencida | Automático com aprovação |
+| Otimizar para fechar o teto | Automático com aprovação |
+| Perfil de regras sugerido a partir do edital | Manual (confirmação regra a regra) |
+| Aprovação final do orçamento | Manual |
+
+## 5. MEI
+
+- Regime padrão do cargo: **MEI, se a ocupação for permitida**; senão **Recibo (RPA)** (D-45).
+- A lista de ocupações permitidas vem da Resolução CGSN nº 140/2018, Anexo XI, importada como tabela (`catalogos/ocupacoes_mei.csv`) e atualizável.
+- Profissões regulamentadas de natureza intelectual (ex.: assistente social, psicólogo) não são permitidas ao MEI. O sistema usa Recibo e avisa.
+- Aviso fixo na memória de cálculo: contratar por Recibo ou MEI uma função contínua, com horário fixo, pode caracterizar vínculo de emprego. Recomenda-se confirmar com a contabilidade da OSC.

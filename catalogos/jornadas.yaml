@@ -1,0 +1,62 @@
+# Tabela de jornadas por cargo (docs/05-regras-padrao.md §2).
+# Divisor mensal = jornada semanal máxima × 5 (D-42).
+# Toda linha nova ou alterada precisa de nova revisão humana (revisado_por, revisado_em).
+# Cargos fora da tabela usam "regra_geral" e geram alerta de revisão.
+
+versao: 1
+fator_divisor: 5
+
+jornadas:
+  - id: regra_geral
+    descricao: Regra geral (CLT)
+    exemplos: [coordenador(a), orientador(a) ou educador(a) social, oficineiro(a),
+               auxiliar administrativo, auxiliar de serviços gerais, cozinheiro(a),
+               designer, pedagogo(a), nutricionista, psicólogo(a), enfermeiro(a)]
+    jornada_semanal_horas: 44
+    divisor_mensal: 220
+    fonte_legal: Constituição Federal, art. 7º, XIII; CLT, art. 58
+    observacao: Psicólogo(a) e enfermeiro(a) sem lei federal que fixe jornada menor (há projetos de lei em tramitação).
+    revisado_por: LPac1n1
+    revisado_em: 2026-09-23
+
+  - id: assistente_social
+    descricao: Assistente social
+    jornada_semanal_horas: 30
+    divisor_mensal: 150
+    fonte_legal: Lei 8.662/1993, art. 5º-A (incluído pela Lei 12.317/2010)
+    revisado_por: LPac1n1
+    revisado_em: 2026-09-23
+
+  - id: fisioterapeuta_terapeuta_ocupacional
+    descricao: Fisioterapeuta; terapeuta ocupacional
+    jornada_semanal_horas: 30
+    divisor_mensal: 150
+    fonte_legal: Lei 8.856/1994
+    revisado_por: LPac1n1
+    revisado_em: 2026-09-23
+
+  - id: tecnico_radiologia
+    descricao: Técnico(a) em radiologia
+    jornada_semanal_horas: 24
+    divisor_mensal: 120
+    fonte_legal: Lei 7.394/1985, art. 14
+    revisado_por: LPac1n1
+    revisado_em: 2026-09-23
+
+  - id: jornalista
+    descricao: Jornalista
+    jornada_semanal_horas: 30          # 5 h/dia
+    divisor_mensal: 150
+    fonte_legal: CLT, art. 303
+    revisado_por: LPac1n1
+    revisado_em: 2026-09-23
+
+  - id: telefonista_telemarketing
+    descricao: Telefonista; operador(a) de telemarketing
+    jornada_semanal_horas: 36          # 6 h/dia
+    divisor_mensal: 180
+    fonte_legal: CLT, art. 227; NR-17, Anexo II
+    revisado_por: LPac1n1
+    revisado_em: 2026-09-23
+
+# Fora da tabela até revisão: médico, advogado empregado (regras controversas).
