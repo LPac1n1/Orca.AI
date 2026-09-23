@@ -443,6 +443,60 @@ class CotacaoObservacao(_ComCriacao, Base):
     observacao: Mapped[Observacao] = relationship()
 
 
+# --- Otimização ----------------------------------------------------------------
+
+
+class ExecucaoOtimizacao(_ComId, _ComCriacao, _ComAutor, Base):
+    """Uma execução do otimizador: entradas, resultado, verificação e versões (docs/03 §4.6)."""
+
+    __tablename__ = "execucao_otimizacao"
+    __imutavel__ = True
+    __table_args__ = (CheckConstraint(_opcoes("status", ("otima", "viavel", "sem_solucao")), name="status"),)
+
+    projeto_id: Mapped[str] = mapped_column(ForeignKey("projeto.id"), index=True)
+    impressao_regras: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(12))
+    teto_centavos: Mapped[int] = mapped_column(Integer)
+    total_centavos: Mapped[int | None] = mapped_column(Integer, default=None)
+    verificacao_ok: Mapped[bool] = mapped_column(Boolean)
+    versao_otimizador: Mapped[str] = mapped_column(String(40))
+    entradas: Mapped[dict[str, Any]] = mapped_column(JSON)
+    resultado: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+    projeto: Mapped[Projeto] = relationship()
+
+    def _projeto_id(self) -> str | None:
+        return self.projeto_id or (self.projeto.id if self.projeto else None)
+
+
+class LinhaFinal(_ComId, _ComCriacao, Base):
+    """Linha do orçamento final de uma execução (preço × quantidade ou valor mensal × meses × postos)."""
+
+    __tablename__ = "linha_final"
+    __imutavel__ = True
+    __table_args__ = (
+        CheckConstraint(_opcoes("alvo_tipo", ("item", "cargo")), name="alvo"),
+        CheckConstraint("meses >= 1 AND total_centavos >= 0", name="valores"),
+    )
+
+    execucao_id: Mapped[str] = mapped_column(ForeignKey("execucao_otimizacao.id"), index=True)
+    linha_id: Mapped[str] = mapped_column(String(64))
+    alvo_tipo: Mapped[str] = mapped_column(String(10))
+    preco_unitario_centavos: Mapped[int | None] = mapped_column(Integer, default=None)
+    quantidade: Mapped[int | None] = mapped_column(Integer, default=None)
+    valor_hora_centavos: Mapped[int | None] = mapped_column(Integer, default=None)
+    horas_centesimos: Mapped[int | None] = mapped_column(Integer, default=None)
+    valor_mensal_centavos: Mapped[int | None] = mapped_column(Integer, default=None)
+    postos: Mapped[int | None] = mapped_column(Integer, default=None)
+    meses: Mapped[int] = mapped_column(Integer)
+    total_centavos: Mapped[int] = mapped_column(Integer)
+
+    execucao: Mapped[ExecucaoOtimizacao] = relationship()
+
+    def _projeto_id(self) -> str | None:
+        return self.execucao._projeto_id() if self.execucao else None
+
+
 # --- Decisões, alertas e auditoria -------------------------------------------
 
 

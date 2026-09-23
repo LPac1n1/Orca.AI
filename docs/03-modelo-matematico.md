@@ -129,11 +129,16 @@ Exemplo de divisibilidade: itens a R$ 12,50, R$ 7,50 e R$ 25,00, todos múltiplo
 
 **Sugestões:** o otimizador roda de novo relaxando um grupo de cada vez (ex.: margem do item 7 para ±30%, destravar uma linha, desligar C4, mudar o limite de uma rubrica) e informa a **menor mudança** que resolve. Também pode sugerir troca de produto ou de loja (D-23).
 
+### 4.5.1 O que os testes mostraram
+- **Com poucas linhas ajustáveis, o teto exato costuma ser impossível.** Preços com um divisor comum (ex.: todos múltiplos de R$ 2,50) só alcançam alguns totais. Mesmo a mão de obra, cujo valor mensal anda em passos de ~R$ 0,23, pode não acertar um centavo específico quando há só uma ou duas linhas livres. O otimizador demonstra isso e a força bruta confirma.
+- **Com um projeto real, fecha rápido.** No plano real de 2026 (30 linhas de material em 5 lotes, 7 cargos, teto de R$ 150.000,00), o otimizador fecha o centavo em menos de 1 segundo — tanto com os divisores antigos (nenhuma alteração) quanto com o divisor legal (sobe horas e quantidades dentro dos ±20%).
+- **Prioridade do usuário** (item 3 do §4.4): cada linha tem um `custo_alteracao` (padrão 1). Um custo maior faz o otimizador evitar mexer naquela linha.
+
 ### 4.6 Verificação independente
 
 Depois de resolver, uma rotina separada e simples **recalcula tudo do zero**: médias, arredondamentos, valores mensais, totais, teto, C3, C4 e a conferência preço × média. O resultado precisa bater exatamente; se não bater, é erro e nada é exportado.
 
-Ficam gravados: entradas, versão das regras, versão do otimizador, solução e resultado da verificação.
+Ficam gravados (tabelas `execucao_otimizacao` e `linha_final`): entradas, impressão das regras, versão do otimizador, solução ou diagnóstico e resultado da verificação. As linhas finais só são gravadas se a verificação passou.
 
 ## 5. Algoritmo de escolha de lojas e resolução (Regra B)
 

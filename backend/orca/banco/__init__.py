@@ -14,8 +14,10 @@ from orca.banco.tabelas import (
     Decisao,
     Evento,
     Evidencia,
+    ExecucaoOtimizacao,
     Fonte,
     Item,
+    LinhaFinal,
     Lote,
     Observacao,
     Orcamento,
@@ -32,6 +34,7 @@ from orca.banco.conexao import (  # noqa: E402 — depois das tabelas (a auditor
     revisao_mais_nova,
     sessao_como,
 )
+from orca.banco.execucoes import registrar_execucao
 from orca.banco.perfis import (
     camada_de,
     definir_camada_do_orcamento,
@@ -55,8 +58,10 @@ __all__ = [
     "Decisao",
     "Evento",
     "Evidencia",
+    "ExecucaoOtimizacao",
     "Fonte",
     "Item",
+    "LinhaFinal",
     "Lote",
     "Observacao",
     "Orcamento",
@@ -75,6 +80,7 @@ __all__ = [
     "perfil_do_orcamento",
     "perfil_do_projeto",
     "registrar_camada",
+    "registrar_execucao",
     "revisao_atual",
     "revisao_mais_nova",
     "sessao_como",

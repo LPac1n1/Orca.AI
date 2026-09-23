@@ -198,6 +198,15 @@ def analisar_lote(
                 )
             )
     n_completas = len([lc for lc in classificacao if lc.loja.id not in excluir])
+    no_trio = {lc.loja.id for lc in trio} | {l.id for l, _ in puladas}
+    raizes_trio = {cnpj_raiz(lc.loja.cnpj) for lc in trio if lc.loja.cnpj}
+    demais = tuple(
+        lc
+        for lc in classificacao
+        if lc.loja.id not in excluir
+        and lc.loja.id not in no_trio
+        and not (p.cnpjs_distintos and lc.loja.cnpj and cnpj_raiz(lc.loja.cnpj) in raizes_trio)
+    )
     return AnaliseLote(
         trio=tuple(trio),
         linhas=tuple(linhas),
@@ -205,4 +214,5 @@ def analisar_lote(
         descartadas=tuple(descartadas),
         justificativa=_justificativa(trio, len(itens), n_completas),
         parametros=p,
+        demais_elegiveis=demais,
     )

@@ -114,6 +114,8 @@ class AnaliseLote:
     descartadas: tuple[tuple[Loja, str], ...]
     justificativa: str
     parametros: ParametrosSelecao = field(repr=False)
+    # Lojas completas que ficaram fora do trio, em ordem (para manter a classificação, C4).
+    demais_elegiveis: tuple[LojaClassificada, ...] = ()
 
     @property
     def escolhida(self) -> Loja:

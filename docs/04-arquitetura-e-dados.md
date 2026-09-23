@@ -195,12 +195,13 @@ Implementado em `backend/orca/banco/tabelas.py` (etapa 3). Convenções:
 | `decisao` **(imutável)** | id, tipo, alvo_tipo, alvo_id, valor, justificativa, autor |
 | `alerta` | id, projeto_id, tipo, severidade (info, atencao, problema), alvo, mensagem, resolvido_em |
 | `evento` **(imutável)** | id (sequencial), projeto_id, entidade, entidade_id, acao (criar, alterar, excluir, arquivar), antes, depois, autor, criado_em |
+| `execucao_otimizacao` **(imutável)** | id, projeto_id, impressao_regras, status (otima, viavel, sem_solucao), teto_centavos, total_centavos, verificacao_ok, versao_otimizador, entradas, resultado, autor |
+| `linha_final` **(imutável)** | id, execucao_id, linha_id, alvo_tipo, preco_unitario_centavos e quantidade (material) ou valor_hora, horas, valor_mensal e postos (cargo), meses, total_centavos |
 
 ### Previstas para as próximas etapas
 | Tabela | Etapa |
 |---|---|
 | `selecao_lojas`, `resolucao` | 4 — seleção de lojas e resolução do item acima da média |
-| `execucao_otimizacao`, `linha_final` | 5 — otimização |
 | `grupo_vaga` | 6 — coleta de vagas |
 | `tarefa` | fila de tarefas (coleta, captura, exportação) |
 

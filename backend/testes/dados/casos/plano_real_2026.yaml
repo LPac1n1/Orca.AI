@@ -1,0 +1,21 @@
+# Caso real (plano de aplicação, 2026): teto R$ 150.000,00. Só dados de empresas e salários
+# de anúncios de vagas (CLAUDE.md). Materiais: ver grade_real_2026.yaml.
+# O plano usava divisores 180/120 (jornadas 36 h e 24 h); a regra atual é jornada legal × 5.
+
+teto: "150.000,00"
+
+meses_por_lote:
+  Papelaria: 10
+  Principal: 10
+  Banana chips: 10
+  Limpeza: 10
+  Sistema: 12
+
+cargos:
+  - {nome: Coordenador de projetos, salarios: ["4.001,00", "5.000,00", "6.001,00"], horas: "91", meses: 12, postos: 1, jornada_antiga: 36, jornada_legal: 44}
+  - {nome: Assistente Social, salarios: ["2.001,00", "3.001,00", "3.001,00"], horas: "40", meses: 10, postos: 3, jornada_antiga: 24, jornada_legal: 30}
+  - {nome: Psicólogo, salarios: ["2.001,00", "2.001,00", "3.001,00"], horas: "90", meses: 10, postos: 1, jornada_antiga: 36, jornada_legal: 44}
+  - {nome: Auxiliar de serviços gerais, salarios: ["2.001,00", "2.001,00", "2.001,00"], horas: "90", meses: 10, postos: 1, jornada_antiga: 36, jornada_legal: 44}
+  - {nome: Auxiliar Administrativo, salarios: ["2.001,00", "2.001,00", "3.001,00"], horas: "90", meses: 12, postos: 1, jornada_antiga: 36, jornada_legal: 44}
+  - {nome: Orientador socioeducativo, salarios: ["2.000,00", "2.173,61", "2.326,00"], horas: "60", meses: 10, postos: 3, jornada_antiga: 36, jornada_legal: 44}
+  - {nome: Designer Gráfico, salarios: ["2.001,00", "2.001,00", "2.001,00"], horas: "70", meses: 10, postos: 1, jornada_antiga: 36, jornada_legal: 44}
