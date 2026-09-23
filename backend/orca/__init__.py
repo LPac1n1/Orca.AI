@@ -1,4 +1,4 @@
-"""Orca.AI — montador de orçamentos para projetos sociais de OSCs.
+"""Orça.AI — montador de orçamentos para projetos sociais de OSCs.
 
 Especificação: docs/ na raiz do repositório.
 """

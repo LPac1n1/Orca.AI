@@ -1,4 +1,4 @@
-# Orca.AI — Especificação
+# Orça.AI — Especificação
 
 **Situação:** Fase 0 (especificação). Nada foi implementado ainda.
 **Última atualização:** 22/09/2026

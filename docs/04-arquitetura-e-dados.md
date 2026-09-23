@@ -53,7 +53,7 @@ Node.js (já instalado) é usado só no desenvolvimento, para compilar a interfa
 ## 3. Organização do código
 
 ```
-Orca.AI/
+Orca.AI/                       ← repositório (sem "ç": limite do GitHub)
 ├── docs/                      ← esta especificação
 ├── backend/
 │   ├── pyproject.toml

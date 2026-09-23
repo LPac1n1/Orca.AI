@@ -8,8 +8,8 @@ perdem os gatilhos. Depois delas, chame `criar_gatilhos` de novo. Um teste
 confere que todas as tabelas continuam protegidas.
 """
 
-MENSAGEM_APAGAR = "Orca.AI: registros nunca são apagados (use exclusão lógica)"
-MENSAGEM_IMUTAVEL = "Orca.AI: registro imutável (crie um novo em vez de alterar)"
+MENSAGEM_APAGAR = "Orça.AI: registros nunca são apagados (use exclusão lógica)"
+MENSAGEM_IMUTAVEL = "Orça.AI: registro imutável (crie um novo em vez de alterar)"
 
 
 def sql_gatilhos(tabela: str, imutavel: bool) -> list[str]:

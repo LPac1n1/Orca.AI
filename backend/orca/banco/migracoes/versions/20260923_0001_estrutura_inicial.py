@@ -364,4 +364,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    raise NotImplementedError("O Orca.AI não desfaz migrações; restaure a cópia de segurança.")
+    raise NotImplementedError("O Orça.AI não desfaz migrações; restaure a cópia de segurança.")

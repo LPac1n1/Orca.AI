@@ -1,7 +1,7 @@
 perfil: padrao-sistema
 camada: sistema
 versao: 1
-descricao: Perfil padrão do Orca.AI. As camadas seguintes declaram só o que muda.
+descricao: Perfil padrão do Orça.AI. As camadas seguintes declaram só o que muda.
 
 fontes:
   fontes_por_cotacao: 3                    # D-10

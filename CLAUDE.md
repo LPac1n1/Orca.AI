@@ -1,4 +1,6 @@
-# CLAUDE.md — Orca.AI
+# CLAUDE.md — Orça.AI
+
+O nome do sistema é **Orça.AI** (com "ç") em tudo que as pessoas leem. Sem "ç" só onde é obrigatório: repositório `Orca.AI`, pacote Python `orca`, distribuição `orca-ai`.
 
 Montador de orçamentos para OSCs. O usuário (Leonardo, OSC CPIS 26 de Julho, São Paulo) constrói o sistema com o Claude Code e não é programador: responda em **português do Brasil**, em linguagem simples.
 

@@ -86,7 +86,7 @@ def _auditar(sessao: Session, _contexto, _instancias) -> None:
     if sessao.deleted:
         nomes = sorted({type(o).__tablename__ for o in sessao.deleted})
         raise ErroAuditoria(
-            f"Registros nunca são apagados no Orca.AI ({', '.join(nomes)}). "
+            f"Registros nunca são apagados no Orça.AI ({', '.join(nomes)}). "
             "Use a exclusão lógica (preencher excluido_em)."
         )
     if any(isinstance(o, Evento) for o in sessao.dirty if sessao.is_modified(o)):
