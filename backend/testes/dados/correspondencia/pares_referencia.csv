@@ -1,0 +1,11 @@
+id,loja_a,titulo_a,ean_a,loja_b,titulo_b,ean_b,rotulo,motivo,origem_titulos,coletado_em
+1,carrefour_mercado,Café Pilão Torrado E Moído Tradicional Almofada 500g,7896089012019,extra_mercado,Café Torrado e Moído Tradicional Pilão Pacote 500g,7896089012019,mesmo,mesmo EAN; textos diferentes (almofada × pacote),pagina,2026-09-23
+2,carrefour_mercado,Café Pilão Torrado E Moído Tradicional Almofada 500g,7896089012019,carrefour_mercado,Café Torrado e Moído Pilão Extra Forte Vácuo 500 g,,diferente,variante: tradicional × extra forte,pagina,2026-09-23
+3,atacadao,Café Pilão Cafeteria Italiano 500g,7896089015164,atacadao,Café em Grãos Pilão Espresso 500g,7896089015232,diferente,EANs diferentes; variante Italiano × Espresso em grãos,api,2026-09-23
+4,atacadao,Café Pilão Cafeteria Italiano 500g,7896089015164,atacadao,Café Bulnez Tradicional 500g,7897042200467,diferente,marca diferente,api,2026-09-23
+5,carrefour_mercado,Café Torrado e Moído a Vácuo Espresso Pilão Cafeteria Pacote 500 g,,atacadao,Café em Grãos Pilão Espresso 500g,7896089015232,diferente,moído × grãos,pagina+api,2026-09-23
+6,kalunga,"Papel Sulfite A3, 75g, 297mmx420mm, Chamex - PT 500 FL",,kalunga,papel sulfite a3 90g 297x420mm chamex pt 500 fl,,diferente,gramatura 75 g × 90 g,pagina+endereco,2026-09-23
+7,kalunga,papel sulfite a4 75g 210mmx297mm alcalino chamex pt 300 fl,,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,diferente,300 × 500 folhas,endereco+pagina,2026-09-23
+8,kalunga,papel sulfite a4 75g 210mmx297mm caixa com 10 resmas 5000 folhas chamex cx 5000 fl,,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,diferente,apresentação: caixa com 5000 × pacote com 500,endereco+pagina,2026-09-23
+9,atacadao,Papel Sulfite Paper One A4 75g 500 folhas,,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,diferente,marca diferente (Paper One × Chamex),api+pagina,2026-09-23
+10,kalunga,"Papel Sulfite A3, 75g, 297mmx420mm, Chamex - PT 500 FL",,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,diferente,formato A3 × A4,pagina,2026-09-23

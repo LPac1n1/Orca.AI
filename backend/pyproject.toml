@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orca-ai"
+version = "0.1.0"
+description = "Montador de orçamentos para projetos sociais de OSCs"
+requires-python = ">=3.12"
+license = { text = "AGPL-3.0-only" }
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "hypothesis>=6",
+    "pyyaml>=6",
+]
+
+[tool.setuptools.packages.find]
+include = ["orca*"]
+
+[tool.pytest.ini_options]
+testpaths = ["testes"]
+addopts = "-q"
