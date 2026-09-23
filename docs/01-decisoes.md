@@ -85,6 +85,15 @@ Todas foram tomadas em 22/09/2026, salvo indicação. Decisões marcadas **(conf
 | D-62 | **Promoção aberta a todos** ("de R$ X por R$ Y"): vale o preço atual (Y), que fica registrado na evidência. **(configurável)** | Proposta aceita |
 | D-63 | **Preço por quantidade** (atacado, "leve mais, pague menos"): usa-se sempre o **preço unitário**. Assim o preço não muda quando o otimizador ajusta quantidades. **(configurável)** | Proposta aceita |
 
+## Aprendizado e acesso às lojas (decididas em 23/09/2026)
+
+| Código | Decisão | Origem |
+|---|---|---|
+| D-64 | **Pares rotulados alimentados pelo uso:** cada confirmação ou recusa de correspondência feita pelo usuário vira um par rotulado do conjunto de referência; pares com o mesmo código de barras em lojas diferentes entram como "mesmo produto" sem precisar de rótulo. Só dados públicos do produto (título, marca, código de barras, loja). | Proposta aceita |
+| D-65 | **Catálogo de atributos e vocabulário evoluem por sugestão:** o sistema sugere inclusões a partir das decisões (ex.: um sabor novo, um sinônimo); o usuário aprova. Antes da aprovação, o teste de correspondência (T-11) roda com todos os pares e mostra o efeito; mudança que crie qualquer 🟢 errado é barrada. As mudanças ficam numa camada da OSC, com versão, por cima do catálogo do sistema, e podem ser compartilhadas. | Proposta aceita |
+| D-66 | **Edição fácil pelo usuário:** pares, catálogo de lojas, atributos e vocabulário podem ser vistos, editados e ampliados pela interface, sem mexer em arquivos. Toda edição passa pela mesma conferência (T-11) e fica no histórico. | Usuário |
+| D-67 | **Lojas que recusam acesso automático** (ex.: a busca do Carrefour e do Extra recusa o navegador sem janela, 23/09/2026): o sistema não se disfarça, não resolve captcha e não entra em contas por conta própria. Camadas, em ordem: página do produto pelo link (C1); link achado pelo código de barras num buscador (C2, opcional); **captura assistida** numa janela visível em que **quem navega é o usuário** (C4), com fila para fazer todas de uma vez; PDF salvo pelo usuário no próprio navegador e enviado ao sistema, com conferência do endereço e do preço. Se nada funcionar, a loja fica de fora e o dossiê registra "não pesquisada: acesso bloqueado". Lojas de acesso aberto têm prioridade, e o sistema avisa antes quantas capturas assistidas o orçamento vai exigir. | Proposta aceita |
+
 ## Premissas assumidas (não discutidas; revisar se necessário)
 
 | Código | Premissa |

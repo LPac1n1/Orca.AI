@@ -107,9 +107,9 @@ Pode ficar dentro do OneDrive ou do Google Drive para backup automático. O sist
 | C1 | Busca do próprio site da loja (via Playwright) | Lojas sem dados estruturados de busca |
 | C2 | Descoberta: SerpApi (plano grátis, opcional) | Achar lojas e URLs; **não é evidência** |
 | C3 | Agente de IA com navegador (opcional) | Sites difíceis; toda ação gravada |
-| C4 | **Captura assistida:** o usuário navega na janela do sistema e clica "capturar para o item X" | Login, CEP, captcha, bloqueio, LinkedIn |
+| C4 | **Captura assistida:** o usuário navega na janela do sistema e clica "capturar para o item X"; ou envia o PDF da página salvo no próprio navegador (D-67) | Login, CEP, captcha, bloqueio, LinkedIn |
 
-A evidência é sempre a página da loja, capturada pelo navegador do sistema (C1, C3, C4) ou aberta por ele depois de uma descoberta (C0, C2).
+A evidência é sempre a página da loja, capturada pelo navegador do sistema (C1, C3, C4) ou aberta por ele depois de uma descoberta (C0, C2). Na janela visível da C4 quem navega é o usuário: o sistema não usa a janela para escapar de bloqueios nem se disfarça (D-67).
 
 ### 5.2 Contrato de um conector
 
@@ -242,3 +242,4 @@ Alembic, em `backend/orca/banco/migracoes/`. Ao abrir o banco, o programa aplica
 - Código no GitHub, licença AGPL-3.0 (D-03).
 - Primeiras versões: instalação por script. Depois: instalador para Windows.
 - Perfis de regras e catálogo de lojas podem ser compartilhados como arquivos, e futuramente por um repositório comunitário.
+- Catálogo de atributos e vocabulário em camadas, como as regras: sistema (arquivo versionado no repositório) → OSC (edições e sugestões aprovadas, gravadas no banco com versão). Os pares rotulados das decisões ficam no banco e se somam ao conjunto de referência do repositório no teste de correspondência (D-64 a D-66).

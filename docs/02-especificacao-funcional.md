@@ -68,6 +68,7 @@ O sistema mantém um **catálogo de lojas** por categoria (papelaria, supermerca
 - Todas as pesquisas usam o **CEP do projeto**, sem frete, com o preço de referência das decisões D-60 a D-63: preço normal (sem Pix), para qualquer comprador (sem clube, assinatura ou cupom), promoção aberta a todos vale, e sempre o preço unitário.
 - Cada loja do catálogo diz **qual dos preços da página** corresponde a essa regra. Os dados estruturados da própria loja às vezes trazem o preço especial (ex.: Pix ou clube), por isso não são aceitos sem essa indicação.
 - Conteúdo que só carrega ao rolar a página (inclusive quadros incorporados) é carregado antes da captura.
+- **Lojas que recusam acesso automático** (D-67): página do produto pelo link; link achado pelo código de barras num buscador; captura assistida numa janela em que o usuário navega (em fila); ou PDF salvo pelo usuário e enviado. Sem nada disso, a loja fica de fora e o dossiê registra o motivo. Antes de começar, o sistema avisa quantas capturas assistidas serão necessárias.
 
 ### 6.3 Resultado de cada tentativa
 Cada tentativa gera uma **observação**, encontrada ou não: loja, CNPJ do vendedor, URL, título, marca, modelo, apresentação, EAN, preço (centavos), disponibilidade, data e hora, CEP, método de coleta e evidência. "Não encontrado" também fica registrado, porque prova que a loja foi pesquisada.
@@ -91,6 +92,8 @@ Etapas:
 Diferenças só de texto ("Chamex Papel Sulfite A4 75g – 500 fls" × "Papel Sulfite A4 75g Chamex 500 folhas") não impedem 🟢.
 
 Cada resultado é gravado (tabela `correspondencia`, imutável) com o status, a origem e os motivos. Uma decisão do usuário (confirmar ou recusar, com justificativa) é um registro novo; vale o mais recente. O perfil de regras diz se o 🟢 do programa já vale sozinho ou espera confirmação: padrão, **EAN automático** e **atributos com aprovação** (§4 de [05](05-regras-padrao.md)).
+
+**Aprendizado (D-64 a D-66):** cada decisão do usuário vira um par rotulado; pares com o mesmo código de barras em lojas diferentes entram sozinhos. A partir deles, o sistema sugere inclusões no vocabulário e no catálogo de atributos; o usuário aprova depois de ver o efeito no teste de correspondência, e nenhuma mudança que crie um 🟢 errado é aceita. Pares, catálogo de lojas, atributos e vocabulário também podem ser editados diretamente na interface, com a mesma conferência.
 
 ## 8. Cobertura, lotes e escolha das lojas
 

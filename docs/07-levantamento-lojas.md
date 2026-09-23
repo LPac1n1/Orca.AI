@@ -31,6 +31,7 @@
 6. **Conteúdo escondido:** na OngFácil, os preços só carregam quando a página é rolada. A primeira leitura não os encontrou. O coletor precisa rolar a página inteira antes de capturar, e o levantamento de cada loja é revisado por uma pessoa.
 7. **Serviços com mais de um valor:** a OngFácil cobra mensalidade e, à parte, uma implantação opcional. A especificação do item precisa dizer o que está incluído (atributos `escopo` e `periodicidade`, [05 §3](05-regras-padrao.md)).
 8. **Ressalva:** os testes com navegador usaram um navegador comum. O navegador automatizado do sistema pode ser detectado com mais facilidade por alguns sites. Isso será confirmado na Fase 2, loja por loja.
+   - *Confirmado em 23/09/2026 (etapa 7):* a **busca** do Carrefour e do Extra recusa o navegador do sistema sem janela (código 403), e outras lojas VTEX recusam programas ("Scripts are not allowed"). Com a **janela visível**, as duas buscas abriram normalmente, com preços e links de produtos. Conclusão (D-67): nessas lojas a busca é feita pelo usuário na captura assistida; a página do produto, com o link, continua podendo ser capturada pelo sistema.
 
 ## 3. Perguntas geradas pelo levantamento (respondidas em 23/09/2026)
 

@@ -33,7 +33,8 @@ Objetivo: um orçamento completo e defensável, com coleta **semiautomática** (
 - Conectores C0 (VTEX, JSON-LD) e C1 (busca do site) para as lojas do levantamento.
 - Busca pelo item mais raro primeiro; busca por EAN.
 - Conectores de vagas (Catho primeiro; depois Indeed, InfoJobs, Vagas.com); Google Jobs pelo plano grátis da SerpApi (opcional).
-- Janela de captura assistida (C4), inclusive para LinkedIn.
+- Janela de captura assistida (C4), inclusive para LinkedIn; link de loja achado pelo código de barras num buscador (C2, D-67).
+- Sugestões automáticas para o vocabulário e o catálogo de atributos a partir das decisões, aprovadas pelo usuário depois do teste de correspondência (D-65).
 - IA opcional: extração, atributos, julgamento 🟡, alternativas de produto, enquadramento de cargo.
 - Busca automática de alternativas para a Saída 1 e de novas lojas para a Saída 2.
 - Alertas de validade com nova pesquisa em um clique.
@@ -56,7 +57,7 @@ Objetivo: um orçamento completo e defensável, com coleta **semiautomática** (
 6. ✅ `evidencias` + coleta por URL + CNPJ — captura com o Edge (PDF com cabeçalho, imagem, MHTML, SHA-256), leitura de produto e vaga (JSON-LD), conferência do preço na página, CNPJ do vendedor, situação cadastral (OpenCNPJ, BrasilAPI), comprovante da Receita por captura assistida, fila de comprovantes, validade com alertas, nova pesquisa, vagas repetidas. A janela da captura assistida ganha botões na etapa 9.
 7. ✅ `correspondencia` sem IA — cascata EAN → marca → atributos (medidas e vocabulário) → palavras que sobram; decisões gravadas; confirmação humana; nível de automação do perfil.
 8. `documentos` — Excel, PDF, ZIP.
-9. API e interface.
+9. API e interface — inclui a fila de captura assistida e o envio de PDF salvo pelo usuário (D-67), a gravação dos pares rotulados a partir das decisões (D-64) e as telas para ver e editar pares, catálogo de lojas, atributos e vocabulário, com o teste de correspondência rodando antes de salvar (D-66).
 
 O núcleo de cálculo e otimização vem primeiro porque é o que torna o orçamento defensável e não depende de como os dados foram coletados.
 
