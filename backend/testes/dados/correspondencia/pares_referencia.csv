@@ -1,11 +1,365 @@
-id,loja_a,titulo_a,ean_a,loja_b,titulo_b,ean_b,rotulo,motivo,origem_titulos,coletado_em
-1,carrefour_mercado,Café Pilão Torrado E Moído Tradicional Almofada 500g,7896089012019,extra_mercado,Café Torrado e Moído Tradicional Pilão Pacote 500g,7896089012019,mesmo,mesmo EAN; textos diferentes (almofada × pacote),pagina,2026-09-23
-2,carrefour_mercado,Café Pilão Torrado E Moído Tradicional Almofada 500g,7896089012019,carrefour_mercado,Café Torrado e Moído Pilão Extra Forte Vácuo 500 g,,diferente,variante: tradicional × extra forte,pagina,2026-09-23
-3,atacadao,Café Pilão Cafeteria Italiano 500g,7896089015164,atacadao,Café em Grãos Pilão Espresso 500g,7896089015232,diferente,EANs diferentes; variante Italiano × Espresso em grãos,api,2026-09-23
-4,atacadao,Café Pilão Cafeteria Italiano 500g,7896089015164,atacadao,Café Bulnez Tradicional 500g,7897042200467,diferente,marca diferente,api,2026-09-23
-5,carrefour_mercado,Café Torrado e Moído a Vácuo Espresso Pilão Cafeteria Pacote 500 g,,atacadao,Café em Grãos Pilão Espresso 500g,7896089015232,diferente,moído × grãos,pagina+api,2026-09-23
-6,kalunga,"Papel Sulfite A3, 75g, 297mmx420mm, Chamex - PT 500 FL",,kalunga,papel sulfite a3 90g 297x420mm chamex pt 500 fl,,diferente,gramatura 75 g × 90 g,pagina+endereco,2026-09-23
-7,kalunga,papel sulfite a4 75g 210mmx297mm alcalino chamex pt 300 fl,,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,diferente,300 × 500 folhas,endereco+pagina,2026-09-23
-8,kalunga,papel sulfite a4 75g 210mmx297mm caixa com 10 resmas 5000 folhas chamex cx 5000 fl,,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,diferente,apresentação: caixa com 5000 × pacote com 500,endereco+pagina,2026-09-23
-9,atacadao,Papel Sulfite Paper One A4 75g 500 folhas,,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,diferente,marca diferente (Paper One × Chamex),api+pagina,2026-09-23
-10,kalunga,"Papel Sulfite A3, 75g, 297mmx420mm, Chamex - PT 500 FL",,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,diferente,formato A3 × A4,pagina,2026-09-23
+id,categoria,loja_a,titulo_a,marca_a,ean_a,loja_b,titulo_b,marca_b,ean_b,rotulo,motivo,origem_titulos,coletado_em
+1,alimento,carrefour_mercado,Café Pilão Torrado E Moído Tradicional Almofada 500g,Pilão,7896089012019,extra_mercado,Café Torrado e Moído Tradicional Pilão Pacote 500g,Pilão,7896089012019,mesmo,mesmo EAN; textos diferentes (almofada × pacote),pagina,2026-09-23
+2,alimento,carrefour_mercado,Café Pilão Torrado E Moído Tradicional Almofada 500g,Pilão,7896089012019,carrefour_mercado,Café Torrado e Moído Pilão Extra Forte Vácuo 500 g,Pilão,,diferente,variante: tradicional × extra forte,pagina,2026-09-23
+3,alimento,atacadao,Café Pilão Cafeteria Italiano 500g,Pilão,7896089015164,atacadao,Café em Grãos Pilão Espresso 500g,Pilão,7896089015232,diferente,EANs diferentes; variante Italiano × Espresso em grãos,api,2026-09-23
+4,alimento,atacadao,Café Pilão Cafeteria Italiano 500g,Pilão,7896089015164,atacadao,Café Bulnez Tradicional 500g,Bulnez,7897042200467,diferente,marca diferente,api,2026-09-23
+5,alimento,carrefour_mercado,Café Torrado e Moído a Vácuo Espresso Pilão Cafeteria Pacote 500 g,Pilão,,atacadao,Café em Grãos Pilão Espresso 500g,Pilão,7896089015232,diferente,moído × grãos,pagina+api,2026-09-23
+6,papel,kalunga,"Papel Sulfite A3, 75g, 297mmx420mm, Chamex - PT 500 FL",Chamex,,kalunga,papel sulfite a3 90g 297x420mm chamex pt 500 fl,,,diferente,gramatura 75 g × 90 g,pagina+endereco,2026-09-23
+7,papel,kalunga,papel sulfite a4 75g 210mmx297mm alcalino chamex pt 300 fl,Chamex,,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,,diferente,300 × 500 folhas,endereco+pagina,2026-09-23
+8,papel,kalunga,papel sulfite a4 75g 210mmx297mm caixa com 10 resmas 5000 folhas chamex cx 5000 fl,Chamex,,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,,diferente,apresentação: caixa com 5000 × pacote com 500,endereco+pagina,2026-09-23
+9,papel,atacadao,Papel Sulfite Paper One A4 75g 500 folhas,Paper One,,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,,diferente,marca diferente (Paper One × Chamex),api+pagina,2026-09-23
+10,papel,kalunga,"Papel Sulfite A3, 75g, 297mmx420mm, Chamex - PT 500 FL",Chamex,,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,,diferente,formato A3 × A4,pagina,2026-09-23
+11,papel,kalunga,"Papel Sulfite A4, 75g, 210mmx297mm, Chamex - PT 500 FL",Chamex,7891173023001,amazon,"Chamex - Papel Sulfite, A4, 75g, 500 folhas",,,mesmo,"mesma marca, formato, gramatura e nº de folhas",pagina,2026-09-23
+12,papel,atacadao,Papel Sulfite Chamex A4 75g 500 folhas,Chamex,7891173023001,kalunga,"Papel Sulfite A4, 75g, 210mmx297mm, Chamex - PT 500 FL",Chamex,7891173023001,mesmo,"mesma marca, formato, gramatura e nº de folhas",api+pagina,2026-09-23
+13,alimento,atacadao,Achocolatado em Pó Nescau 730g,Nescau,7891000338162,openfoodfacts,Achocolatado Pó Nescau Pacote 730g Embalagem Econômica,NESCAU,7891000338162,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+14,alimento,atacadao,Filtro de Papel para Café Melitta nº102 30 un,Melitta,7891021001885,openfoodfacts,filtro de papel 30 un,melitta,7891021001885,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+15,alimento,atacadao,Filtro de Papel para Café Melitta Nº 103 30 un,Melitta,7891021001946,openfoodfacts,filtro de papel Melitta,Melitta,7891021001946,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+16,alimento,atacadao,Café Melitta Sabor da Fazenda Vácuo 500g,Melitta,7891021005517,openfoodfacts,Café Torrado E Moído Melitta Sabor Da Fazenda Caixa 500g,MELITTA,7891021005517,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+17,alimento,atacadao,Café Gourmet Melitta Mogiana 250g,Melitta,7891021005562,openfoodfacts,Café Melitta Regiões Mogiana 250 g,Melitta,7891021005562,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+18,alimento,atacadao,Café Gourmet Melitta Cerrado 250g,Melitta,7891021005609,openfoodfacts,Café Melitta Regiões 250 g,Melitta,7891021005609,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+19,alimento,atacadao,Café Melitta Extraforte Vácuo 250g,Melitta,7891021006927,openfoodfacts,Café Torrado E Moído Extraforte Melitta Caixa 250g,MELITTA,7891021006927,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+20,alimento,atacadao,Café Melitta Extraforte Vácuo 500g,Melitta,7891021006934,openfoodfacts,Café Torrado E Moído Extraforte Melitta Caixa 500g,MELITTA,7891021006934,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+21,alimento,atacadao,Café Solúvel Melitta Tradicional 50g,Melitta,7891021007429,openfoodfacts,Café Solúvel Granulado Tradicional Melitta Sachê 50g,MELITTA,7891021007429,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+22,alimento,atacadao,Café com Leite Melitta Solúvel 200g,Melitta,7891021007573,openfoodfacts,CAFÉ COM LEITE 200g,Melitta,7891021007573,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+23,bebida,atacadao,Suco Del Valle Morango e Manga 1L,Del Valle,7894900664034,openfoodfacts,Suco De Manga E Morango,Del Valle,7894900664034,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+24,bebida,atacadao,Suco Misto Maguary Morango 200ml,Maguary,7896000597670,openfoodfacts,Suco de morango 200ml,maguary,7896000597670,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+25,alimento,atacadao,Biscoito Marilan Cracker Manteiga 300g,Marilan,7896003740172,openfoodfacts,Biscoito Cream Cracker Manteiga 300g,Marilan,7896003740172,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+26,alimento,atacadao,Biscoito Marilan Leite 300g,Marilan,7896003740240,openfoodfacts,Biscoito doce sabor leite 3 x 100g,Marilan,7896003740240,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+27,alimento,atacadao,Café 3 Corações Tradicional 500g,3 Corações,7896005800010,openfoodfacts,Café Torrado E Moído Tradicional 3 Corações Pacote 500g,3 CORACOES,7896005800010,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+28,alimento,atacadao,Café 3 Corações Vácuo 500g,3 Corações,7896005800188,openfoodfacts,Café Torrado E Moído A Vácuo Tradicional 3 Corações Pacote 500g,3 CORACOES,7896005800188,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+29,alimento,atacadao,Café 3 Corações Descafeinado Vácuo 250g,3 Corações,7896005800577,openfoodfacts,3 corações descafeinado,,7896005800577,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+30,alimento,atacadao,Café 3 Corações Extra Forte 500g,3 Corações,7896005801529,openfoodfacts,Café Torrado E Moído Extraforte 3 Corações Pacote 500g,3 CORACOES,7896005801529,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+31,alimento,atacadao,Café 3 Corações Extra Forte Vácuo 500g,3 Corações,7896005801826,openfoodfacts,Café Torrado E Moído A Vácuo Extraforte 3 Corações Pacote 500g,3 CORACOES,7896005801826,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+32,alimento,atacadao,Cappuccino 3 Corações Classic 20g,3 Corações,7896005802373,openfoodfacts,Cappuccino Solúvel Classic 3 Corações Sachê 20g,3 CORACOES,7896005802373,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+33,alimento,atacadao,Café Cappuccino 3 Corações Classic 100g,3 Corações,7896005804513,openfoodfacts,Cappuccino Solúvel Classic 3 Corações Sachê 100g,3 CORACOES,7896005804513,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+34,alimento,atacadao,Café Solúvel 3 Corações Liofilizado 50g,3 Corações,7896005807651,openfoodfacts,100% Arábica Café Solúvel Liofilizado,3 Corações,7896005807651,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+35,alimento,atacadao,Café Cappuccino 3 Corações Zero Lactose 180g,3 Corações,7896005808016,openfoodfacts,Cappuccino Solúvel Zero Lactose 3 Corações Balance Pote 180g,3 CORACOES,7896005808016,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+36,alimento,atacadao,Feijão Camil Branco 500g,Camil,7896006748885,openfoodfacts,Feijão Branco Tipo 1 Camil Pacote 500g,CAMIL,7896006748885,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+37,alimento,atacadao,Feijão Camil Fradinho 500g,Camil,7896006749295,openfoodfacts,Feijão Fradinho Tipo 1 Camil Pacote 500g,CAMIL,7896006749295,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+38,alimento,atacadao,Feijão Pronto Camil Carioca 380g,Camil,7896006797920,openfoodfacts,Feijão Carioca Temperado Cozido Camil 380g,CAMIL,7896006797920,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+39,alimento,atacadao,"Café em Cápsulas Melitta Ristretto 10x5,3g",Melitta,7896035700014,openfoodfacts,Café cápsulas Melitta Espresso Ristretto,Melitta,7896035700014,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+40,alimento,atacadao,Arroz Urbano Basmati 1kg,Urbano,7896038300129,openfoodfacts,URBANO - Arroz Basmati Urbano 1 kg,Urbano,7896038300129,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+41,alimento,atacadao,Flocão de Arroz Urbano 500g,Urbano,7896038360192,openfoodfacts,Flocão de arroz 500g,Urbano,7896038360192,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+42,alimento,atacadao,Café Gourmet 3 Corações Cerrado Mineiro 250g,3 Corações,7896045101658,openfoodfacts,Gourmet Cerrado Mineiro 250 g,3 corações,7896045101658,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+43,alimento,atacadao,Café 3 Corações Tradicional - Vácuo 500g,3 Corações,7896045102440,openfoodfacts,Café 3 Corações Tradicional 500 g,3 Corações,7896045102440,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+44,alimento,atacadao,Café Solúvel 3 Corações 40g,3 Corações,7896045103003,openfoodfacts,3 corações café tradicional,,7896045103003,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+45,alimento,atacadao,Achocolatado em Pó 3 Corações Chocolatto 900g,3 Corações,7896045115372,openfoodfacts,Achocolatado Chocolatto,3 corações,7896045115372,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+46,alimento,atacadao,Barra de Proteína 3 Corações Cappuccino Classic 50g,3 Corações,7896045115471,openfoodfacts,Barrinha De Cereal De Cappucino,3 Corações,7896045115471,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+47,alimento,atacadao,Barra de Proteína 3 Corações Cappuccino Chocolate 50g,3 Corações,7896045115686,openfoodfacts,Barra De Proteína De Chocolate,Três Corações,7896045115686,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+48,alimento,atacadao,Barra de Proteína 3 Corações Cappuccino Caramelo Salgado 50g,3 Corações,7896045115709,openfoodfacts,Barra De Proteína Caramelo Salgado,3 Corações,7896045115709,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+49,alimento,atacadao,Café Pilão Vácuo 500g,Pilão,7896089011357,openfoodfacts,Café Pilão 500g,Pilão,7896089011357,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+50,alimento,atacadao,Café Pilão Almofada 250g,Pilão,7896089011982,openfoodfacts,Café Torrado E Moído Tradicional Pilão Pacote 250g,PILAO,7896089011982,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+51,alimento,atacadao,Café Pilão Almofada 500g,Pilão,7896089012019,openfoodfacts,Café Torrado E Moído Tradicional Pilão Pacote 500g,PILAO,7896089012019,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+52,alimento,atacadao,Café Pilão Vácuo 250g,Pilão,7896089012637,openfoodfacts,Pilao Traditional Coffee 250 g,Pilão,7896089012637,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+53,alimento,atacadao,"Café em Cápsulas Pilão Espresso 7 Tradicional 10x5,2g",Pilão,7896089088403,openfoodfacts,Cápsula Pilão 7,,7896089088403,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+54,alimento,atacadao,Café Solúvel Pilão 40g,Pilão,7896089088656,openfoodfacts,Pilão Solúvel,Pilão,7896089088656,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+55,limpeza,atacadao,Detergente Líquido Ypê Neutro 500ml,Ypê,7896098900208,openfoodfacts,Lava-louças Ypê Neutro 500ml,Ypê,7896098900208,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+56,alimento,atacadao,Feijão Kicaldo Vermelho 1kg,Kicaldo,7896116900845,openfoodfacts,Feijão Vermelho 1 kg,Kicaldo,7896116900845,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+57,alimento,atacadao,Achocolatado em Pó Italac 400g,Italac,7898080640833,openfoodfacts,Achocolatado Italac,Italac,7898080640833,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+58,alimento,atacadao,Leite Condensado Italac Integral 395g,Italac,7898080642646,openfoodfacts,Leite Condensado Integral Italac 395g,Italac,7898080642646,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+59,bebida,atacadao,Energético sem Açúcar Baly Morango e Pêssego 473ml,Baly,7898080665416,openfoodfacts,Energético Baly,Baly,7898080665416,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+60,bebida,atacadao,Energético sem Açúcar Gamer Baly Morango e Pêssego 473ml,Baly,7898080665898,openfoodfacts,Redragon Energy drink - energético,Baly,7898080665898,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+61,alimento,atacadao,Macarrão Grano Duro Paganini Penne Rigate 500g,Paganini,7898152990132,openfoodfacts,Penne Rigate,Paganini,7898152990132,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+62,alimento,atacadao,Macarrão Grano Duro Paganini Fettuccine Nidi 500g,Paganini,7898152992174,openfoodfacts,PAGANINI Macarrão Fettuccine Nidi 500g,Paganini,7898152992174,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+63,bebida,atacadao,Suco Del Valle Uva 200ml,Del Valle,7898341430203,openfoodfacts,Bebida Adoçada Uva Del Valle Nutri Caixa 200ml,DEL VALLE,7898341430203,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+64,alimento,atacadao,Mousse Swift Chocolate ao Leite 80g,Swift,7899567235740,openfoodfacts,Mousse De Chocolate Ao Leite,Swift,7899567235740,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+65,alimento,atacadao,Donuts Swift Doce de leite 140g,Swift,7899567237386,openfoodfacts,Donuts doce de leite,Swift,7899567237386,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+66,alimento,atacadao,Arroz Branco Swift 170g,Swift,7899567239526,openfoodfacts,Arroz Branco,Swift,7899567239526,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+67,alimento,atacadao,Feijão Carioca Swift 220g,Swift,7908625604777,openfoodfacts,Feijão Carioca,Swift,7908625604777,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+68,alimento,atacadao,Feijão Tropeiro Swift 500g,Swift,7908625605071,openfoodfacts,Feijão Tropeiro,Swift,7908625605071,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+69,bebida,atacadao,Energético Red Bull Maçã Edition Sem Açúcar 250ml,Red Bull,9002490290450,openfoodfacts,The Maçã Edition Sugarfree 250ml,Red Bull,9002490290450,mesmo,mesmo código de barras; nomes escritos de outro jeito,api+off,2026-09-23
+70,alimento,atacadao,Café Pilão Vácuo 500g,Pilão,7896089011357,atacadao,Café Descafeinado Pilão Vácuo 250g,Pilão,7896089012118,diferente,500g × 250g descafeinado,api,2026-09-23
+71,alimento,atacadao,"Café em Cápsula Pilão Brasil 10x5,2g",Pilão,7896089015058,atacadao,"Café em Cápsula Pilão Espresso Clássico 9 10x5,2g",Pilão,7896089088274,diferente,brasil × 9 classico espresso,api,2026-09-23
+72,alimento,atacadao,Café Pilão Almofada 500g,Pilão,7896089012019,atacadao,Café Solúvel Pilão 100g,Pilão,7896089088489,diferente,500g almofada × 100g soluvel,api,2026-09-23
+73,alimento,atacadao,Café em Grãos Pilão Espresso 500g,Pilão,7896089015232,atacadao,Café Pilão Cafeteria Espresso 500g,Pilão,7896089015171,diferente,graos × cafeteria,api,2026-09-23
+74,alimento,atacadao,Café Pilão Vácuo 500g,Pilão,7896089011357,atacadao,Café Solúvel Pilão 40g,Pilão,7896089088656,diferente,500g vacuo × 40g soluvel,api,2026-09-23
+75,alimento,atacadao,Café Pilão Tradicional 500g,Pilão,7896089013795,atacadao,Café Pilão Vácuo 250g,Pilão,7896089012637,diferente,500g tradicional × 250g vacuo,api,2026-09-23
+76,alimento,atacadao,Café Pilão Cafeteria Espresso 500g,Pilão,7896089015171,atacadao,Café Pilão Tradicional Doy 500g,Pilão,7896089013634,diferente,cafeteria espresso × doy tradicional,api,2026-09-23
+77,alimento,atacadao,"Café em Cápsulas Pilão Splendente 10x5,2g",Pilão,56548964,atacadao,"Café em Cápsulas Pilão Cafeteria Espresso 5 10x5,2g",Pilão,7896089088458,diferente,splendente × 5 cafeteria espresso,api,2026-09-23
+78,alimento,atacadao,Café Pilão A Vácuo 1kg,Pilão,60449923,atacadao,Café em Grãos Pilão Espresso 1kg,Pilão,7896089012101,diferente,vacuo × espresso graos,api,2026-09-23
+79,alimento,atacadao,Café Pilão Vácuo 500g,Pilão,7896089011357,atacadao,Café Pilão Solúvel 50g,Pilão,7896089025491,diferente,500g vacuo × 50g soluvel,api,2026-09-23
+80,alimento,atacadao,Café em Grãos Pilão Espresso 500g,Pilão,7896089015232,atacadao,Café Pilão Tradicional 500g,Pilão,7896089013795,diferente,espresso graos × tradicional,api,2026-09-23
+81,alimento,atacadao,Café Pilão Almofada 250g,Pilão,7896089011982,atacadao,Café Pilão Tradicional Doy 250g,Pilão,7896089013641,diferente,almofada × doy tradicional,api,2026-09-23
+82,alimento,atacadao,Café Pilão Cafeteria Espresso 500g,Pilão,7896089015171,atacadao,Café Pilão Almofada Tradicional 500g,Pilão,7896089012712,diferente,cafeteria espresso × almofada tradicional,api,2026-09-23
+83,alimento,atacadao,Café Pilão Cafeteria Italiano 500g,Pilão,7896089015164,atacadao,Café Pilão Extra Forte 500g,Pilão,7896089013603,diferente,cafeteria italiano × extra forte,api,2026-09-23
+84,alimento,atacadao,Café Melitta Tradicional 250g,Melitta,57171916,atacadao,Café Gourmet Melitta Torra da Rainha 250g,Melitta,7896348301809,diferente,tradicional × gourmet rainha torra,api,2026-09-23
+85,alimento,atacadao,"Café em Cápsulas Melitta Audacce 10x5,3g",Melitta,7896035700052,atacadao,"Café em Cápsulas Melitta Ristretto 10x5,3g",Melitta,7896035700014,diferente,audacce × ristretto,api,2026-09-23
+86,alimento,atacadao,"Café em Cápsulas Melitta Lungo 10x5,3g",Melitta,7896348301090,atacadao,"Café em Cápsulas Melitta Ristretto 10x5,3g",Melitta,7896035700014,diferente,lungo × ristretto,api,2026-09-23
+87,alimento,atacadao,Café Melitta Descafeinado Vácuo 250g,Melitta,7896348301724,atacadao,Café Melitta Terras Capixabas 250g,Melitta,7896348301441,diferente,descafeinado vacuo × capixabas terras,api,2026-09-23
+88,alimento,atacadao,Café Melitta Extraforte Vácuo 500g,Melitta,7891021006934,atacadao,Café Melitta Sabor da Fazenda Vácuo 500g,Melitta,7891021005517,diferente,extraforte × fazenda sabor,api,2026-09-23
+89,alimento,atacadao,Café Solúvel Melitta Cremoso 150g,Melitta,7896348301489,atacadao,Café Solúvel Melitta Descafeinado 40g,Melitta,7896348300918,diferente,150g cremoso × 40g descafeinado,api,2026-09-23
+90,alimento,atacadao,Café Melitta Tradicional 500g,Melitta,7891021060738,atacadao,Café Melitta Sabor da Fazenda Vácuo 500g,Melitta,7891021005517,diferente,tradicional × fazenda sabor vacuo,api,2026-09-23
+91,alimento,atacadao,Café em Cápsulas Melitta Marcato 50g,Melitta,7896035700021,atacadao,Café em Cápsulas Melitta Staccato 50g,Melitta,7896035700045,diferente,marcato × staccato,api,2026-09-23
+92,alimento,atacadao,Café Melitta Descafeinado Vácuo 250g,Melitta,7896348301724,atacadao,Café Gourmet Melitta Cerrado 250g,Melitta,7891021005609,diferente,descafeinado vacuo × cerrado gourmet,api,2026-09-23
+93,alimento,atacadao,Café Melitta Extraforte 250g,Melitta,57170951,atacadao,Café Gourmet Melitta Sul de Minas 250g,Melitta,7891021005586,diferente,extraforte × gourmet minas sul,api,2026-09-23
+94,alimento,atacadao,Café Melitta Extraforte Vácuo 250g,Melitta,7891021006927,atacadao,Café Gourmet Melitta Cerrado 250g,Melitta,7891021005609,diferente,extraforte vacuo × cerrado gourmet,api,2026-09-23
+95,alimento,atacadao,Café Melitta Terras Capixabas 250g,Melitta,7896348301441,atacadao,Café Gourmet Melitta Mogiana 250g,Melitta,7891021005562,diferente,capixabas terras × gourmet mogiana,api,2026-09-23
+96,alimento,atacadao,Café Solúvel Melitta Tradicional 200g,Melitta,7891021007177,atacadao,Café Solúvel Melitta Descafeinado 40g,Melitta,7896348300918,diferente,200g tradicional × 40g descafeinado,api,2026-09-23
+97,alimento,atacadao,Café Solúvel 3 Corações Tradicional 100g,3 Corações,7896005800669,atacadao,Café Solúvel 3 Corações Descafeinado 50g,3 Corações,7896005800706,diferente,100g tradicional × 50g descafeinado,api,2026-09-23
+98,alimento,atacadao,Café Solúvel 3 Corações Tradicional 100g,3 Corações,7896005800669,atacadao,Café Solúvel 3 Corações Descafeinado 40g,3 Corações,7896045113293,diferente,100g tradicional × 40g descafeinado,api,2026-09-23
+99,alimento,atacadao,Café em Cápsulas 3 Corações Descafeinado 10x5g,3 Corações,7896045112685,atacadao,Café 3 Corações Descafeinado Vácuo 250g,3 Corações,7896005800577,diferente,10x5g capsulas × 250g vacuo,api,2026-09-23
+100,alimento,atacadao,Café Solúvel 3 Corações Liofilizado 40g,3 Corações,7896045113316,atacadao,Café Solúvel 3 Corações Descafeinado 50g,3 Corações,7896005800706,diferente,40g liofilizado × 50g descafeinado,api,2026-09-23
+101,alimento,atacadao,Café 3 Corações Tradicional 250g,3 Corações,7896005800027,atacadao,Café Gourmet 3 Corações Dark 250g,3 Corações,7896045106851,diferente,tradicional × dark gourmet,api,2026-09-23
+102,alimento,atacadao,Café Solúvel 3 Corações 200g,3 Corações,7896005800676,atacadao,Café Solúvel 3 Corações 50g,3 Corações,7896005800652,diferente,200g × 50g,api,2026-09-23
+103,alimento,atacadao,Café 3 Corações Tradicional 250g,3 Corações,7896005800027,atacadao,Café Gourmet 3 Corações Cerrado Mineiro 250g,3 Corações,7896045101658,diferente,tradicional × cerrado gourmet mineiro,api,2026-09-23
+104,alimento,atacadao,Café Solúvel 3 Corações Liofilizado 40g,3 Corações,7896045113316,atacadao,Café Solúvel 3 Corações Liofilizado 50g,3 Corações,7896005807651,diferente,40g × 50g,api,2026-09-23
+105,alimento,atacadao,Café Solúvel 3 Corações Tradicional 100g,3 Corações,7896005800669,atacadao,Café Solúvel 3 Corações 40g,3 Corações,7896045103003,diferente,100g tradicional × 40g,api,2026-09-23
+106,alimento,atacadao,"Café em Cápsulas 3 Corações Espresso Colômbia 10x5,6g",3 Corações,7896045113972,atacadao,"Café em Cápsulas 3 Corações Máximo Intensidade 10x5,6g",3 Corações,7896045113880,diferente,colombia espresso × intensidade maximo,api,2026-09-23
+107,alimento,atacadao,Café Solúvel 3 Corações 200g,3 Corações,7896005800676,atacadao,Café Solúvel 3 Corações 40g,3 Corações,7896045103003,diferente,200g × 40g,api,2026-09-23
+108,alimento,atacadao,Café 3 Corações Tradicional 500g,3 Corações,7896005800010,atacadao,Café Solúvel 3 Corações 200g,3 Corações,7896005800676,diferente,500g tradicional × 200g soluvel,api,2026-09-23
+109,alimento,atacadao,Café 3 Corações Tradicional 250g,3 Corações,7896005800027,atacadao,Café 3 Corações Tradicional 500g,3 Corações,7896005800010,diferente,250g × 500g,api,2026-09-23
+110,alimento,atacadao,Café 3 Corações Vácuo 500g,3 Corações,7896005800188,atacadao,Café Solúvel 3 Corações 50g,3 Corações,7896005800652,diferente,500g vacuo × 50g soluvel,api,2026-09-23
+111,alimento,atacadao,Achocolatado em Pó Nescau 1kg,Nescau,19261929,atacadao,Achocolatado em Pó Nescau 550g,Nescau,7891000338087,diferente,1kg × 550g,api,2026-09-23
+112,alimento,atacadao,Achocolatado em Pó Nescau LV 990g PG 900g,Nescau,7891000426203,atacadao,Achocolatado em Pó Nescau 1kg,Nescau,19261929,diferente,900g 990g × 1kg,api,2026-09-23
+113,alimento,atacadao,Achocolatado em Pó Nescau 670g,Nescau,7891000379738,atacadao,Achocolatado em Pó Nescau 350g,Nescau,7891000412855,diferente,670g × 350g,api,2026-09-23
+114,alimento,atacadao,"Achocolatado em Pó Nescau 2,01kg",Nescau,7891000432679,atacadao,Achocolatado em Pó Nescau 550g,Nescau,7891000338087,diferente,"2,01kg × 550g",api,2026-09-23
+115,alimento,atacadao,Achocolatado em Pó Toddy 175g,Toddy,7892840819781,atacadao,Achocolatado em Pó Toddy 300g,Toddy,7892840819774,diferente,175g × 300g,api,2026-09-23
+116,alimento,atacadao,"Achocolatado em Pó Nescau 2,01kg",Nescau,7891000432679,atacadao,Achocolatado em Pó Nescau 730g,Nescau,7891000338162,diferente,"2,01kg × 730g",api,2026-09-23
+117,alimento,atacadao,Achocolatado em Pó Nescau 1kg,Nescau,19261929,atacadao,Achocolatado em Pó Nescau 730g,Nescau,7891000338162,diferente,1kg × 730g,api,2026-09-23
+118,alimento,atacadao,Achocolatado em Pó Nescau 400g,Nescau,70389944,atacadao,Achocolatado em Pó Nescau 350g,Nescau,7891000412855,diferente,400g × 350g,api,2026-09-23
+119,alimento,atacadao,Achocolatado em Pó Toddy 370g,Toddy,7892840819507,atacadao,Achocolatado em Pó Toddy 300g,Toddy,7892840819774,diferente,370g × 300g,api,2026-09-23
+120,alimento,atacadao,Achocolatado em Pó Nescau 730g,Nescau,7891000338162,atacadao,Achocolatado em Pó Nescau 350g,Nescau,7891000412855,diferente,730g × 350g,api,2026-09-23
+121,alimento,atacadao,Achocolatado em Pó Italac 1kg,Italac,43721981,atacadao,Achocolatado em Pó Italac 400g,Italac,7898080640833,diferente,1kg × 400g,api,2026-09-23
+122,alimento,atacadao,Achocolatado em Pó Nescau 730g,Nescau,7891000338162,atacadao,Achocolatado em Pó Nescau 550g,Nescau,7891000338087,diferente,730g × 550g,api,2026-09-23
+123,alimento,atacadao,Achocolatado em Pó Nescau 200g,Nescau,7891000379585,atacadao,Achocolatado em Pó Nescau 2kg,Nescau,7891000242599,diferente,200g × 2kg,api,2026-09-23
+124,alimento,atacadao,Achocolatado em Pó Toddy 900g,Toddy,57916973,atacadao,Achocolatado em Pó Toddy 370g,Toddy,7892840819507,diferente,900g × 370g,api,2026-09-23
+125,bebida,atacadao,Energético Red Bull Pomelo Sem Açúcar 250ml,Red Bull,9002490280901,atacadao,Energético Red Bull Nectarina Sem Açúcar 250ml,Red Bull,9002490287153,diferente,pomelo × nectarina,api,2026-09-23
+126,bebida,atacadao,Energético Red Bull Zero Sem Açúcar 473ml,Red Bull,9002490291143,atacadao,Energético Red Bull Nectarina Sem Açúcar 250ml,Red Bull,9002490287153,diferente,473ml zero × 250ml nectarina,api,2026-09-23
+127,alimento,atacadao,Açúcar União Refinado 1kg,União,7891910000197,atacadao,Açúcar União Refinado 5kg,União,7891910008353,diferente,1kg × 5kg,api,2026-09-23
+128,alimento,atacadao,Açúcar Cristal Mais Açúcar 2kg,Mais Açúcar,40232717048,atacadao,Açúcar Mais Açúcar Cristal 5kg,Mais Açúcar,40232717055,diferente,2kg × 5kg,api,2026-09-23
+129,bebida,atacadao,Energético sem Açúcar Baly Tropical 1L,Baly,7898080666178,atacadao,Energético sem Açúcar Baly Manga 1L,Baly,7898080666260,diferente,tropical × manga,api,2026-09-23
+130,bebida,atacadao,Energético sem Açúcar Baly Cereja 473ml,Baly,7898080666239,atacadao,Energético sem Açúcar Baly Cereja 2L,Baly,7898080666130,diferente,473ml × 2l,api,2026-09-23
+131,bebida,atacadao,Energético sem Açúcar Baly Manga 1L,Baly,7898080666260,atacadao,Energético sem Açúcar Baly Maçã Verde 1L,Baly,7898080666185,diferente,manga × maca verde,api,2026-09-23
+132,bebida,atacadao,Energético sem Açúcar Baly Melancia 1L,Baly,7898080666222,atacadao,Energético sem Açúcar Baly Maçã Verde 1L,Baly,7898080666185,diferente,melancia × maca verde,api,2026-09-23
+133,bebida,atacadao,Energético Red Bull White Edition Sem Açúcar 250ml,Red Bull,9002490300838,atacadao,Energético Red Bull Maçã Edition Sem Açúcar 250ml,Red Bull,9002490290450,diferente,white × maca,api,2026-09-23
+134,bebida,atacadao,Energético sem Açúcar Baly Melancia 1L,Baly,7898080666222,atacadao,Energético sem Açúcar Baly Cereja 473ml,Baly,7898080666239,diferente,1l melancia × 473ml cereja,api,2026-09-23
+135,bebida,atacadao,Energético sem Açúcar Baly Manga 473ml,Baly,7898080666208,atacadao,Energético sem Açúcar Gamer Baly Morango e Pêssego 473ml,Baly,7898080665898,diferente,manga × gamer morango pessego,api,2026-09-23
+136,bebida,atacadao,Energético sem Açúcar Baly Maçã Verde 1L,Baly,7898080666185,atacadao,Energético sem Açúcar Baly Uva Verde 473ml,Baly,7898080666192,diferente,1l maca × 473ml uva,api,2026-09-23
+137,bebida,atacadao,Energético sem Açúcar Baly Melancia 1L,Baly,7898080666222,atacadao,Energético sem Açúcar Baly Uva Verde 1L,Baly,7898080666277,diferente,melancia × uva verde,api,2026-09-23
+138,bebida,atacadao,Energético sem Açúcar Baly Energy Drink 1L,Baly,7898080664556,atacadao,Energético sem Açúcar Baly Uva Verde 1L,Baly,7898080666277,diferente,drink energy × uva verde,api,2026-09-23
+139,alimento,atacadao,Cereal Infantil Mucilon Arroz 360g,Mucilon,7891000357170,atacadao,Mucilon Arroz 230g,Mucilon,7891000424308,diferente,360g cereal infantil × 230g,api,2026-09-23
+140,alimento,atacadao,Flocão de Arroz Urbano 500g,Urbano,7896038360192,atacadao,Arroz Urbano Basmati 1kg,Urbano,7896038300129,diferente,500g flocao × 1kg basmati,api,2026-09-23
+141,alimento,atacadao,Mucilon Arroz e Aveia LV 600g PG 500g,Mucilon,7891000438107,atacadao,Mucilon Arroz e Aveia 180g,Mucilon,7891000319543,diferente,500g 600g × 180g,api,2026-09-23
+142,alimento,atacadao,Mucilon Arroz 230g,Mucilon,7891000424308,atacadao,Mucilon Arroz 180g,Mucilon,7891000319628,diferente,230g × 180g,api,2026-09-23
+143,alimento,atacadao,Arroz Bulnez Agulhinha Tipo 1 1kg,Bulnez,7896401184097,atacadao,Arroz Bulnez Agulhinha Tipo 1 5kg,Bulnez,7896401184080,diferente,1kg × 5kg,api,2026-09-23
+144,alimento,atacadao,Arroz Carreteiro Swift 300g,Swift,7899567238260,atacadao,Arroz Branco Swift 170g,Swift,7899567239526,diferente,300g carreteiro × 170g branco,api,2026-09-23
+145,alimento,atacadao,Mucilon Arroz 400g,Mucilon,4622951,atacadao,Mucilon Arroz e Aveia 180g,Mucilon,7891000319543,diferente,400g × 180g aveia,api,2026-09-23
+146,alimento,atacadao,Arroz Kicaldo Agulhinha Tipo 1 1kg,Kicaldo,7896116900722,atacadao,Arroz Kicaldo Agulhinha Tipo 1 5kg,Kicaldo,7896116910103,diferente,1kg × 5kg,api,2026-09-23
+147,alimento,atacadao,Arroz Itaguary Integral 1kg,Itaguary,7898365320900,atacadao,Arroz Itaguary Parboilizado 1kg,Itaguary,7898365320016,diferente,integral × parboilizado,api,2026-09-23
+148,alimento,atacadao,Arroz Safra Parboilizado 1kg,Safra (Safra Alimentos),7898213390031,atacadao,Arroz Safra Parboilizado 5kg,Safra (Safra Alimentos),7898213390048,diferente,1kg × 5kg,api,2026-09-23
+149,alimento,atacadao,Arroz Urbano Sushi 1kg,Urbano,97890941,atacadao,Arroz Urbano Basmati 1kg,Urbano,7896038300129,diferente,sushi × basmati,api,2026-09-23
+150,alimento,atacadao,Mucilon Arroz e Aveia LV 600g PG 500g,Mucilon,7891000438107,atacadao,Mucilon Arroz 180g,Mucilon,7891000319628,diferente,500g 600g aveia × 180g,api,2026-09-23
+151,alimento,atacadao,Mucilon Arroz 230g,Mucilon,7891000424308,atacadao,Mucilon Arroz 400g,Mucilon,4622951,diferente,230g × 400g,api,2026-09-23
+152,alimento,atacadao,Arroz Carreteiro Swift 500g,Swift,7908625605040,atacadao,Arroz Branco Swift 170g,Swift,7899567239526,diferente,500g carreteiro × 170g branco,api,2026-09-23
+153,alimento,atacadao,Tempero Mika Feijão 50g,Mika,7896635195067,atacadao,Feijão Branco Mika 500g,Mika,7896635100146,diferente,50g tempero × 500g branco,api,2026-09-23
+154,alimento,atacadao,Feijão Fradinho Chinezinho 500g,Chinezinho,7896046600402,atacadao,Feijão Chinezinho Branco 500g,Chinezinho,7896046600433,diferente,fradinho × branco,api,2026-09-23
+155,alimento,atacadao,Feijão Branco Kicaldo 500g,Kicaldo,7896116901002,atacadao,Feijão Preto Kicaldo 500g,Kicaldo,7896116900043,diferente,branco × preto,api,2026-09-23
+156,alimento,atacadao,Feijão Fradinho Chinezinho 500g,Chinezinho,7896046600402,atacadao,Feijão Fradinho Chinezinho 400g,Chinezinho,7896046604219,diferente,500g × 400g,api,2026-09-23
+157,alimento,atacadao,Feijão Carioca Fugini 250g,Fugini,7897517209223,atacadao,Feijão Preto Fugini 250g,Fugini,7897517209247,diferente,carioca × preto,api,2026-09-23
+158,alimento,atacadao,Feijão Fradinho Kicaldo 500g,Kicaldo,7896116901040,atacadao,Feijão Kicaldo Vermelho 1kg,Kicaldo,7896116900845,diferente,500g fradinho × 1kg vermelho,api,2026-09-23
+159,alimento,atacadao,Feijão Fradinho Chinezinho 500g,Chinezinho,7896046600402,atacadao,Feijão Branco Chinezinho 400g,Chinezinho,7896046604172,diferente,500g fradinho × 400g branco,api,2026-09-23
+160,alimento,atacadao,Feijão Branco Chinezinho 400g,Chinezinho,7896046604172,atacadao,Feijão Fradinho Chinezinho 400g,Chinezinho,7896046604219,diferente,branco × fradinho,api,2026-09-23
+161,alimento,atacadao,Feijão Branco Combrasil 500g,Combrasil,7896101062145,atacadao,Feijão Manteiga Combrasil 500g,Combrasil,7896101062169,diferente,branco × manteiga,api,2026-09-23
+162,alimento,atacadao,Feijão Preto Kicaldo 500g,Kicaldo,7896116900043,atacadao,Feijão Fradinho Kicaldo 500g,Kicaldo,7896116901040,diferente,preto × fradinho,api,2026-09-23
+163,alimento,atacadao,Feijão Camil Branco 500g,Camil,7896006748885,atacadao,Feijão Camil Fradinho 500g,Camil,7896006749295,diferente,branco × fradinho,api,2026-09-23
+164,alimento,atacadao,Feijão Branco Kicaldo 500g,Kicaldo,7896116901002,atacadao,Feijão Kicaldo Vermelho 1kg,Kicaldo,7896116900845,diferente,500g branco × 1kg vermelho,api,2026-09-23
+165,alimento,atacadao,Tempero Knorr Feijão 50g,Knorr,7891150088696,atacadao,Caldo Knorr Feijão 57g,Knorr,7891150079366,diferente,50g tempero × 57g caldo,api,2026-09-23
+166,alimento,atacadao,Feijão Manteiga Combrasil 500g,Combrasil,7896101062169,atacadao,Feijão Vermelho Combrasil 500g,Combrasil,7896101062596,diferente,manteiga × vermelho,api,2026-09-23
+167,alimento,atacadao,Biscoito Liane Maizena 330g,Liane,7896080862149,atacadao,Biscoito Liane Cream Cracker 330g,Liane,7896080870144,diferente,maizena × cracker cream,api,2026-09-23
+168,alimento,atacadao,Biscoito Marilan Manteiga 300g,Marilan,7896003740264,atacadao,Biscoito Marilan Mini Maizena 300g,Marilan,7896003740301,diferente,manteiga × maizena mini,api,2026-09-23
+169,alimento,atacadao,Biscoito Bulnez Leite 270g,Bulnez,7896003741650,atacadao,Biscoito Bulnez Cream Cracker 270g,Bulnez,7896003741636,diferente,leite × cracker cream,api,2026-09-23
+170,alimento,atacadao,Biscoito Marilan Água e Sal 300g,Marilan,7896003740189,atacadao,Biscoito Marilan Mini Maizena 300g,Marilan,7896003740301,diferente,agua sal × maizena mini,api,2026-09-23
+171,alimento,atacadao,Biscoito Marilan Coco 300g,Marilan,7896003740233,atacadao,Biscoito Marilan Mini Maizena 300g,Marilan,7896003740301,diferente,coco × maizena mini,api,2026-09-23
+172,alimento,atacadao,Biscoito Marilan Cracker Manteiga 300g,Marilan,7896003740172,atacadao,Biscoito Marilan Mini Maizena 300g,Marilan,7896003740301,diferente,cracker manteiga × maizena mini,api,2026-09-23
+173,alimento,atacadao,Biscoito Wafer Marilan Limão 70g,Marilan,7896003740592,atacadao,Biscoito Wafer Marilan Morango 70g,Marilan,7896003740608,diferente,limao × morango,api,2026-09-23
+174,alimento,atacadao,Biscoito Da Hora Salgadinhos 250g,Da Hora,7896003741247,atacadao,Biscoito Da Hora Maizena 270g,Da Hora,7896003741162,diferente,250g salgadinhos × 270g maizena,api,2026-09-23
+175,alimento,atacadao,Biscoito Marilan Coco 300g,Marilan,7896003740233,atacadao,Biscoito Marilan Maizena Integral 300g,Marilan,7896003740295,diferente,coco × integral maizena,api,2026-09-23
+176,alimento,atacadao,Biscoito Bulnez Leite 270g,Bulnez,7896003741650,atacadao,Biscoito Bulnez Maisena 270g,Bulnez,7896003741674,diferente,leite × maisena,api,2026-09-23
+177,alimento,atacadao,Biscoito Marilan Maria 300g,Marilan,7896003740271,atacadao,Biscoito Marilan Cracker Manteiga 300g,Marilan,7896003740172,diferente,maria × cracker manteiga,api,2026-09-23
+178,alimento,atacadao,Biscoito Marilan Manteiga 300g,Marilan,7896003740264,atacadao,Biscoito Marilan Maizena 300g,Marilan,7896003740226,diferente,manteiga × maizena,api,2026-09-23
+179,alimento,atacadao,Biscoito Marilan Leite 300g,Marilan,7896003740240,atacadao,Biscoito Marilan Cracker Manteiga 300g,Marilan,7896003740172,diferente,leite × cracker manteiga,api,2026-09-23
+180,alimento,atacadao,Biscoito Marilan Coco 300g,Marilan,7896003740233,atacadao,Biscoito Marilan Manteiga 300g,Marilan,7896003740264,diferente,coco × manteiga,api,2026-09-23
+181,alimento,atacadao,Leite Fermentado Zero Activia Morango 170g,Activia,7891025117162,atacadao,Leite Fermentado Activia Ameixa Zero 800g,Activia,7891025124023,diferente,170g morango × 800g ameixa,api,2026-09-23
+182,alimento,atacadao,Leite Fermentado Activia Morango Zero 800g,Activia,7891025124030,atacadao,Leite Fermentado Activia Ameixa Zero 800g,Activia,7891025124023,diferente,morango × ameixa,api,2026-09-23
+183,alimento,atacadao,Leite Fermentado Frutap 90g,Frutap,7896862003302,atacadao,"Leite Fermentado Frutap Big Family 1,15kg",Frutap,7896862002732,diferente,"90g × 1,15kg big family",api,2026-09-23
+184,alimento,atacadao,Leite Condensado Italac Integral 395g,Italac,7898080642646,atacadao,Leite em Pó Italac Integral 1kg,Italac,7898080641267,diferente,395g condensado × 1kg po,api,2026-09-23
+185,alimento,atacadao,Leite Fermentado Activia Morango Zero 800g,Activia,7891025124030,atacadao,Leite Fermentado Zero Activia Morango 170g,Activia,7891025117162,diferente,800g × 170g,api,2026-09-23
+186,alimento,atacadao,Leite Fermentado Frutap Patati e Patatá Tradicional 6x75g,Frutap,7896862003388,atacadao,Leite Fermentado Frutap Patati e Patatá Uva 6x75g,Frutap,7896862004002,diferente,tradicional × uva,api,2026-09-23
+187,alimento,atacadao,Leite Longa Vida Itambé Integral com Tampa 1L,Itambé,7896051111016,atacadao,Leite Longa Vida Itambé Semidesnatado com Tampa 1L,Itambé,7896051111528,diferente,integral × semidesnatado,api,2026-09-23
+188,alimento,atacadao,"Leite Fermentado Frutap Big Family 1,15kg",Frutap,7896862002732,atacadao,Leite Fermentado Frutap Family Tradicional 800g,Frutap,7896862002060,diferente,"1,15kg big × 800g tradicional",api,2026-09-23
+189,alimento,atacadao,Leite Fermentado Activia Morango Zero 800g,Activia,7891025124030,atacadao,Leite Fermentado Activia Ameixa 800g,Activia,7891025123453,diferente,morango zero × ameixa,api,2026-09-23
+190,alimento,atacadao,Leite Fermentado Frutap 90g,Frutap,7896862003302,atacadao,Leite Fermentado Frutap Family Tradicional 800g,Frutap,7896862002060,diferente,90g × 800g family tradicional,api,2026-09-23
+191,alimento,atacadao,Leite Xandô Integral A2 1L,Xandô,7896623100769,atacadao,Leite Xandô A2 Zero Lactose 1L,Xandô,7896623100318,diferente,integral × lactose zero,api,2026-09-23
+192,alimento,atacadao,Leite Fermentado Frutap Family Tradicional 800g,Frutap,7896862002060,atacadao,Leite Fermentado Frutap Family Zero Lactose 800g,Frutap,7896862002862,diferente,tradicional × lactose zero,api,2026-09-23
+193,alimento,atacadao,Óleo de Soja Liza 18L,Liza,23155908,atacadao,Óleo de Soja Liza 900ml,Liza,7896036090244,diferente,18l × 900ml,api,2026-09-23
+194,alimento,atacadao,Óleo Composto de Soja Olívia Tradicional 500ml,Olívia,19179992,atacadao,Óleo Composto de Soja Olívia Ervas Finas 500ml,Olívia,19178932,diferente,tradicional × ervas finas,api,2026-09-23
+195,alimento,atacadao,Óleo de Soja Cocamar 900ml,Cocamar,7897001010014,atacadao,Óleo de Soja Cocamar 18L,Cocamar,7897001010915,diferente,900ml × 18l,api,2026-09-23
+196,alimento,atacadao,Óleo de Soja Vila Velha 900ml,Vila Velha,7896277400055,atacadao,Óleo de Soja Vila Velha 18L,Vila Velha,17159939,diferente,900ml × 18l,api,2026-09-23
+197,alimento,atacadao,Óleo de Soja Serra Verde 5L,Serra Verde,74468550308,atacadao,Óleo de Soja Serra Verde 900ml,Serra Verde,618341238510,diferente,5l × 900ml,api,2026-09-23
+198,alimento,atacadao,Óleo Composto de Soja Olívia Tradicional 500ml,Olívia,19179992,atacadao,Óleo Composto de Soja Olívia Cebola e Alho 500ml,Olívia,19177973,diferente,tradicional × alho cebola,api,2026-09-23
+199,alimento,atacadao,Óleo de Soja Soya 900ml,Soya,7891107101621,atacadao,"Óleo de Soja Soya Fry Max 14,5kg",Soya,7891080011054,diferente,"900ml × 14,5kg fry max",api,2026-09-23
+200,alimento,atacadao,Óleo de Soja Concórdia 18L,Concórdia,41813916,atacadao,Óleo de Soja Concórdia 900ml,Concórdia,7898247780075,diferente,18l × 900ml,api,2026-09-23
+201,alimento,atacadao,Óleo de Soja Vila Velha 18L,Vila Velha,7896223709430,atacadao,Óleo de Soja Vila Velha 900ml,Vila Velha,7896277400055,diferente,18l × 900ml,api,2026-09-23
+202,alimento,atacadao,Óleo de Soja Concórdia 900ml,Concórdia,7898247780075,atacadao,Óleo de Soja Concórdia 18L,Concórdia,46942973,diferente,900ml × 18l,api,2026-09-23
+203,alimento,atacadao,Óleo de Soja Sinhá 900ml,Sinhá,7892300030060,atacadao,Óleo de Soja Sinhá 500ml,Sinhá,7892300001428,diferente,900ml × 500ml,api,2026-09-23
+204,alimento,atacadao,Óleo de Soja Liza 18L,Liza,23155908,atacadao,Óleo de Soja Liza Origens 900ml,Liza,7896036000076,diferente,18l × 900ml origens,api,2026-09-23
+205,alimento,atacadao,Óleo Misto de Soja e Oliva Lisboa 500ml,Lisboa,7898073358806,atacadao,"Óleo Misto de Soja Oliva Lisboa 5,02L",Lisboa,7898073358257,diferente,"500ml × 5,02l",api,2026-09-23
+206,alimento,atacadao,Óleo de Soja Cocamar 18L,Cocamar,7897001010168,atacadao,Óleo de Soja Cocamar 900ml,Cocamar,7897001010014,diferente,18l × 900ml,api,2026-09-23
+207,alimento,atacadao,Macarrão com Ovos Floriani Parafuso 500g,Floriani,7896232111170,atacadao,Macarrão com Ovos Floriani Penne 500g,Floriani,7896232111590,diferente,parafuso × penne,api,2026-09-23
+208,alimento,atacadao,Macarrão Grano Duro Paganini Fettuccine 500g,Paganini,7898152991580,atacadao,Macarrão Grano Duro Paganini Penne Rigate 500g,Paganini,7898152990132,diferente,fettuccine × penne rigate,api,2026-09-23
+209,alimento,atacadao,Macarrão Grano Duro Baronia Farfalle 500g,Baronia,8005709301139,atacadao,Macarrão Grano Duro Baronia Spaghetti 500g,Baronia,8005709300057,diferente,farfalle × spaghetti,api,2026-09-23
+210,alimento,atacadao,Macarrão Grano Duro Baronia Fettuccine 500g,Baronia,8005709301289,atacadao,Macarrão Grano Duro Baronia Lingue di Passero 500g,Baronia,8005709300149,diferente,fettuccine × di lingue passero,api,2026-09-23
+211,alimento,atacadao,Macarrão com Ovos Camil Espaguete 500g,Camil,7896024210098,atacadao,Macarrão com Ovos Camil Parafuso 500g,Camil,7896024210111,diferente,espaguete × parafuso,api,2026-09-23
+212,alimento,atacadao,Macarrão Grano Duro Baronia Fusilli 500g,Baronia,8005709300989,atacadao,Macarrão Grano Duro Baronia Spaghetti 500g,Baronia,8005709300057,diferente,fusilli × spaghetti,api,2026-09-23
+213,alimento,atacadao,Macarrão Grano Duro Baronia Fettuccine 500g,Baronia,8005709301289,atacadao,Macarrão Grano Duro Baronia Spaghetti 500g,Baronia,8005709300057,diferente,fettuccine × spaghetti,api,2026-09-23
+214,alimento,atacadao,Macarrão Grano Duro Baronia Farfalle 500g,Baronia,8005709301139,atacadao,Macarrão Grano Duro Baronia Lingue di Passero 500g,Baronia,8005709300149,diferente,farfalle × di lingue passero,api,2026-09-23
+215,alimento,atacadao,Macarrão Grano Duro Paganini Farfalloni 500g,Paganini,7898152991573,atacadao,Macarrão Grano Duro Paganini Fettuccine Nidi Verde 500g,Paganini,7898152996400,diferente,farfalloni × fettuccine nidi verde,api,2026-09-23
+216,alimento,atacadao,Macarrão Grano Duro Baronia Fusilli 500g,Baronia,8005709300989,atacadao,Macarrão Grano Duro Baronia Fettuccine 500g,Baronia,8005709301289,diferente,fusilli × fettuccine,api,2026-09-23
+217,alimento,atacadao,Macarrão Grano Duro Baronia Fusilli 500g,Baronia,8005709300989,atacadao,Macarrão Grano Duro Baronia Boccoli 500g,Baronia,8005709300552,diferente,fusilli × boccoli,api,2026-09-23
+218,alimento,atacadao,Macarrão Grano Duro Baronia Fusilli 500g,Baronia,8005709300989,atacadao,Macarrão Grano Duro Baronia Lingue di Passero 500g,Baronia,8005709300149,diferente,fusilli × di lingue passero,api,2026-09-23
+219,alimento,atacadao,Macarrão Grano Duro Baronia Fusilli 500g,Baronia,8005709300989,atacadao,Macarrão Grano Duro Baronia Penne Rigate 500g,Baronia,8005709300736,diferente,fusilli × penne rigate,api,2026-09-23
+220,alimento,atacadao,Macarrão Grano Duro Baronia Farfalle 500g,Baronia,8005709301139,atacadao,Macarrão Grano Duro Baronia Boccoli 500g,Baronia,8005709300552,diferente,farfalle × boccoli,api,2026-09-23
+221,bebida,atacadao,Suco Integral de Uva Panizzon 500ml,Panizzon,7896267703166,atacadao,"Suco de Uva Panizzon Tinto 1,35L",Panizzon,7896267700691,diferente,"500ml integral × 1,35l tinto",api,2026-09-23
+222,bebida,atacadao,Suco Néctar Tial Abacaxi 1L,Tial,7896005302002,atacadao,Suco Néctar Tial Maracujá 250ml,Tial,7896005312186,diferente,1l abacaxi × 250ml maracuja,api,2026-09-23
+223,bebida,atacadao,Suco de Uva Panizzon Tinto 1L,Panizzon,7896267704095,atacadao,Suco de Uva Panizzon Tinto Vdo 300ml,Panizzon,7896267704057,diferente,1l × 300ml vdo,api,2026-09-23
+224,bebida,atacadao,Suco Prat's Limão 900ml,Prat's,7898953148275,atacadao,Suco Prat's Caju 900ml,Prat's,7898953148916,diferente,limao × caju,api,2026-09-23
+225,bebida,atacadao,Suco Life Laranja 900ml,Life,7897195981374,atacadao,"Suco Life Laranja 3,5L",Life,7897195981664,diferente,"900ml × 3,5l",api,2026-09-23
+226,bebida,atacadao,Suco Concentrado Maguary Abacaxi 500ml,Maguary,7896000557056,atacadao,Suco Concentrado Maguary Manga 500ml,Maguary,7896000558381,diferente,abacaxi × manga,api,2026-09-23
+227,bebida,atacadao,Suco Concentrado Maguary Abacaxi 500ml,Maguary,7896000557056,atacadao,Suco Concentrado Maguary Goiaba 500ml,Maguary,7896000559265,diferente,abacaxi × goiaba,api,2026-09-23
+228,bebida,atacadao,Suco Prat's Limão 900ml,Prat's,7898953148275,atacadao,Suco Prat's Caju 300ml,Prat's,7898953148909,diferente,900ml limao × 300ml caju,api,2026-09-23
+229,bebida,atacadao,Suco Misto Nutrinéctar Uva e Maçã 290ml,Nutrinéctar,7898961490687,atacadao,Suco Misto Nutrinéctar Morango e Maçã 1L,Nutrinéctar,7898961490434,diferente,290ml uva × 1l morango,api,2026-09-23
+230,bebida,atacadao,Suco Natural One Laranja 300ml,Natural One,7899916900329,atacadao,"Suco Natural One Laranja 1,7L",Natural One,7899916918829,diferente,"300ml × 1,7l",api,2026-09-23
+231,bebida,atacadao,"Suco Life Laranja 3,5L",Life,7897195981664,atacadao,"Suco Life Laranja 1,5L",Life,7897195981602,diferente,"3,5l × 1,5l",api,2026-09-23
+232,bebida,atacadao,Suco Integral de Uva Panizzon 500ml,Panizzon,7896267703166,atacadao,Suco de Uva Panizzon Tinto 1L,Panizzon,7896267704095,diferente,500ml integral × 1l tinto,api,2026-09-23
+233,bebida,atacadao,Suco Integral Tial Maçã 1L,Tial,7896005310243,atacadao,Suco Integral Tial Uva e Pera 1L,Tial,7896005311684,diferente,maca × pera uva,api,2026-09-23
+234,bebida,atacadao,Suco Néctar Tial Kids Maracujá 200ml,Tial,7896005309926,atacadao,Suco Néctar Tial Kids Caju 200ml,Tial,7896005303764,diferente,maracuja × caju,api,2026-09-23
+235,limpeza,atacadao,Detergente Líquido Limpol Cristal 500ml,Limpol,7891022100372,atacadao,Detergente Líquido Limpol Cristal 5L,Limpol,35420939,diferente,500ml × 5l,api,2026-09-23
+236,limpeza,atacadao,Detergente Urca Clear 5L,Urca,86500949,atacadao,Detergente Urca Neutro 5L,Urca,86501914,diferente,clear × neutro,api,2026-09-23
+237,limpeza,atacadao,Detergente Líquido Limpol Neutro 500ml,Limpol,7891022638004,atacadao,Detergente Líquido Limpol Cristal 500ml,Limpol,7891022100372,diferente,neutro × cristal,api,2026-09-23
+238,limpeza,atacadao,Detergente Líquido Ypê Titanium 500ml,Ypê,7896098904329,atacadao,Detergente Líquido Ypê 5L,Ypê,7896098905265,diferente,500ml titanium × 5l,api,2026-09-23
+239,limpeza,atacadao,Detergente Líquido Bulnez Clear 500ml,Bulnez,7896105510802,atacadao,Detergente Líquido Bulnez Coco 500ml,Bulnez,7896923700485,diferente,clear × coco,api,2026-09-23
+240,limpeza,atacadao,Detergente Líquido Bulnez Clear 500ml,Bulnez,7896105510802,atacadao,Detergente Líquido Bulnez Maçã 500ml,Bulnez,7896105510635,diferente,clear × maca,api,2026-09-23
+241,limpeza,atacadao,Detergente Líquido Ypê Maçã 500ml,Ypê,7896098900215,atacadao,Detergente Líquido Ypê Neutro 5L,Ypê,7896098905203,diferente,500ml maca × 5l neutro,api,2026-09-23
+242,limpeza,atacadao,Detergente Líquido Ypê Neutro 500ml,Ypê,7896098900208,atacadao,Detergente Líquido Ypê Neutro 5L,Ypê,7896098905203,diferente,500ml × 5l,api,2026-09-23
+243,limpeza,atacadao,Detergente Líquido Bulnez Coco 500ml,Bulnez,7896105510796,atacadao,Detergente Líquido Bulnez Clear 500ml,Bulnez,7896105510802,diferente,coco × clear,api,2026-09-23
+244,limpeza,atacadao,Detergente Líquido Ypê Neutro 5L,Ypê,7896098905203,atacadao,Detergente Líquido Ypê Clear 5L,Ypê,7896098905258,diferente,neutro × clear,api,2026-09-23
+245,limpeza,atacadao,Detergente Líquido Limpol Neutro 500ml,Limpol,7891022638004,atacadao,Detergente Líquido Limpol Cristal 5L,Limpol,35420939,diferente,500ml neutro × 5l cristal,api,2026-09-23
+246,limpeza,atacadao,Detergente Marilux Neutro 500ml,Marilux,7897423000136,atacadao,Detergente Marilux Limão 500ml,Marilux,7897423000112,diferente,neutro × limao,api,2026-09-23
+247,limpeza,atacadao,Detergente Marilux Maçã 500ml,Marilux,7897423000129,atacadao,Detergente Líquido Marilux Maçã 5L,Marilux,7897423000228,diferente,500ml × 5l liquido,api,2026-09-23
+248,limpeza,atacadao,Detergente Líquido Ypê 5L,Ypê,7896098905265,atacadao,Detergente Líquido Ypê Neutro 500ml,Ypê,7896098900208,diferente,5l × 500ml neutro,api,2026-09-23
+249,limpeza,atacadao,Água Sanitária Summer 5L,Summer,15829946,atacadao,Água Sanitária Summer 1L,Summer,23638986,diferente,5l × 1l,api,2026-09-23
+250,limpeza,atacadao,Água Sanitária Kokino's 1L,Kokino's,7898247610051,atacadao,Água Sanitária Kokino's 5L,Kokino's,7898247610297,diferente,1l × 5l,api,2026-09-23
+251,limpeza,atacadao,Água Sanitária Qboa 1L,Qboa,7896083800018,atacadao,Água Sanitária Qboa 5L,Qboa,7896083800247,diferente,1l × 5l,api,2026-09-23
+252,limpeza,atacadao,Água Sanitária Ypê 2L,Ypê,7896098904688,atacadao,Água Sanitária Ypê 1L,Ypê,7896098904671,diferente,2l × 1l,api,2026-09-23
+253,limpeza,atacadao,Água Sanitária Candura 5L,Candura,7896105500902,atacadao,Água Sanitária Candura 2L,Candura,7896105500094,diferente,5l × 2l,api,2026-09-23
+254,limpeza,atacadao,Água Sanitária Suprema 1L,Suprema,7896524726457,atacadao,Água Sanitária Suprema 2L,Suprema,7896524726518,diferente,1l × 2l,api,2026-09-23
+255,limpeza,atacadao,Água Sanitária Olimpo 2L,Olimpo,7896013105619,atacadao,Água Sanitária Olimpo 1L,Olimpo,7896013100461,diferente,2l × 1l,api,2026-09-23
+256,limpeza,atacadao,Água Sanitária Qboa 2L,Qboa,7896083800025,atacadao,Água Sanitária Qboa 1L,Qboa,7896083800018,diferente,2l × 1l,api,2026-09-23
+257,limpeza,atacadao,Água Sanitária Ypê 1L,Ypê,7896098904671,atacadao,Água Sanitária Ypê 5L,Ypê,7896098904664,diferente,1l × 5l,api,2026-09-23
+258,limpeza,atacadao,Água Sanitária Qboa 2L,Qboa,7896083800025,atacadao,Água Sanitária Qboa 5L,Qboa,7896083800247,diferente,2l × 5l,api,2026-09-23
+259,limpeza,atacadao,Água Sanitária Dragão 2L,Dragão,7896221600036,atacadao,Água Sanitária Dragão 5L,Dragão,7896221600067,diferente,2l × 5l,api,2026-09-23
+260,limpeza,atacadao,Água Sanitária Brilux 1L,Brilux,7896013100386,atacadao,Água Sanitária Brilux 2L,Brilux,7896013100423,diferente,1l × 2l,api,2026-09-23
+261,limpeza,atacadao,Água Sanitária Da Ilha 5L,Da Ilha,7896017200655,atacadao,Água Sanitária Da Ilha 1L,Da Ilha,7896017200075,diferente,5l × 1l,api,2026-09-23
+262,limpeza,atacadao,Água Sanitária Bulnez 5L,Bulnez,7896923700508,atacadao,Água Sanitária Bulnez 1L,Bulnez,7896923700492,diferente,5l × 1l,api,2026-09-23
+263,limpeza,atacadao,Sabão em Pó Tixan Ypê Maciez Sachê 800g,Tixan,7896098909812,atacadao,"Sabão em Pó Tixan Ypê Primavera Sachê 1,3Kg",Tixan,7896098909829,diferente,"800g maciez × 1,3kg primavera",api,2026-09-23
+264,limpeza,atacadao,Sabão em Pó Tixan Ypê Sensitive Sachê 4Kg,Tixan,7896098902721,atacadao,Sabão em Pó Tixan Ypê Primavera Sachê 400g,Tixan,3154951,diferente,4kg sensitive × 400g primavera,api,2026-09-23
+265,limpeza,atacadao,Sabão em Pó Tixan Ypê Primavera 800g,Tixan,7896098909744,atacadao,"Sabão em Pó Tixan Ypê Primavera 2,4kg",Tixan,7896098909850,diferente,"800g × 2,4kg",api,2026-09-23
+266,limpeza,atacadao,Sabão em Pó Tixan Ypê Primavera 800g,Tixan,7896098909744,atacadao,Sabão em Pó Tixan Ypê Maciez 400g,Tixan,7896098909737,diferente,800g primavera × 400g maciez,api,2026-09-23
+267,limpeza,atacadao,Sabão em Pó Tixan Ypê Sensitive Sachê 4Kg,Tixan,7896098902721,atacadao,Sabão em Pó Tixan Ypê Primavera Sachê 800g,Tixan,7896098909805,diferente,4kg sensitive × 800g primavera,api,2026-09-23
+268,limpeza,atacadao,Sabão em Pó Tixan Ypê Primavera Sachê 400g,Tixan,3154951,atacadao,"Sabão em Pó Tixan Ypê Maciez Sachê 2,4Kg",Tixan,7896098909867,diferente,"400g primavera × 2,4kg maciez",api,2026-09-23
+269,limpeza,atacadao,Sabão em Pó Tixan Ypê Maciez Sachê 400g,Tixan,7896098909799,atacadao,"Sabão em Pó Tixan Ypê Maciez 1,6Kg",Tixan,7896098909775,diferente,"400g sache × 1,6kg",api,2026-09-23
+270,limpeza,atacadao,Sabão em Pó Tixan Ypê Primavera Sachê 4Kg,Tixan,7896098909874,atacadao,"Sabão em Pó Tixan Ypê Maciez Sachê 1,6Kg",Tixan,7896098909843,diferente,"4kg primavera × 1,6kg maciez",api,2026-09-23
+271,limpeza,atacadao,Sabão em Pó Tixan Ypê Primavera Sachê 4Kg,Tixan,7896098909874,atacadao,Sabão em Pó Tixan Ypê Primavera Sachê 400g,Tixan,3154951,diferente,4kg × 400g,api,2026-09-23
+272,limpeza,atacadao,Sabão em Pó Tixan Ypê Maciez Sachê 4Kg,Tixan,7896098909881,atacadao,"Sabão em Pó Tixan Ypê Primavera Sachê 1,6Kg",Tixan,7896098909836,diferente,"4kg maciez × 1,6kg primavera",api,2026-09-23
+273,limpeza,atacadao,"Sabão em Pó Tixan Ypê Primavera 2,4kg",Tixan,7896098909850,atacadao,"Sabão em Pó Tixan Ypê Primavera 2,2Kg",Tixan,7896098906750,diferente,"2,4kg × 2,2kg",api,2026-09-23
+274,limpeza,atacadao,Sabão em Pó Tixan Ypê Maciez 800g,Tixan,7896098909751,atacadao,"Sabão em Pó Tixan Ypê Primavera 1,6Kg",Tixan,7896098909768,diferente,"800g maciez × 1,6kg primavera",api,2026-09-23
+275,limpeza,atacadao,Sabão em Pó Tixan Ypê Primavera 800g,Tixan,7896098909744,atacadao,Sabão em Pó Tixan Ypê Primavera Sachê 400g,Tixan,3154951,diferente,800g × 400g sache,api,2026-09-23
+276,limpeza,atacadao,Sabão em Pó Tixan Primavera 400g,Tixan,7896098909782,atacadao,"Sabão em Pó Tixan Ypê Primavera 1,6Kg",Tixan,7896098909768,diferente,"400g × 1,6kg ype",api,2026-09-23
+277,higiene,atacadao,Papel Higiênico Neve Folha Dupla 20m 12 rolos,Neve,7896018704732,atacadao,Papel Higiênico Neve Folha Dupla 30m 4 rolos,Neve,7891172421174,diferente,12 20m × 30m 4,api,2026-09-23
+278,higiene,atacadao,Papel Higiênico Mondeo FDAQ 30M 16 rolos,Mondeo,7899853805879,atacadao,Papel Higiênico Mondeo FDAQ 30M 32 rolos,Mondeo,7899853805862,diferente,16 × 32,api,2026-09-23
+279,higiene,atacadao,Papel Higiênico Mondeo FDAQ 30M 12 rolos,Mondeo,7899853806067,atacadao,Papel Higiênico Mondeo FDAQ 30M 24 rolos,Mondeo,7899853805855,diferente,12 × 24,api,2026-09-23
+280,higiene,atacadao,Papel Higiênico Mondeo FDAQ 30M 16 rolos,Mondeo,7899853805879,atacadao,Papel Higiênico Mondeo FDAQ 30M 12 rolos,Mondeo,7899853806067,diferente,16 × 12,api,2026-09-23
+281,higiene,atacadao,Papel Higiênico Neve Folha Dupla 30m 12 rolos,Neve,7896018704275,atacadao,Papel Higiênico Neve Folha Dupla 30m 4 rolos,Neve,7891172421174,diferente,12 × 4,api,2026-09-23
+282,higiene,atacadao,Papel Higiênico Mondeo FDAQ 30M 12 rolos,Mondeo,7899853806067,atacadao,Papel Higiênico Mondeo FDAQ 30M 32 rolos,Mondeo,7899853805862,diferente,12 × 32,api,2026-09-23
+283,higiene,atacadao,Papel Higiênico Neve Folha Dupla 40m 6 rolos,Neve,7891172523601,atacadao,Papel Higiênico Neve Folha Dupla 20m 12 rolos,Neve,7896018704732,diferente,40m 6 × 12 20m,api,2026-09-23
+284,higiene,atacadao,Papel Higiênico Sulleg Folha Dupla 30m 4 rolos,Sulleg,7898955352069,atacadao,Papel Higiênico Sulleg Folha Dupla 30m 24 rolos,Sulleg,7898955352182,diferente,4 × 24,api,2026-09-23
+285,higiene,atacadao,Papel Higiênico Neve Folha Dupla 30m 12 rolos,Neve,7896018704275,atacadao,Papel Higiênico Neve Folha Dupla 20m 12 rolos,Neve,7896018704732,diferente,30m × 20m,api,2026-09-23
+286,higiene,atacadao,Papel Higiênico Bulnez Folha Dupla 30m 12 rolos,Bulnez,7896104990704,atacadao,Papel Higiênico Bulnez Folha Dupla 30m 24 rolos,Bulnez,7896104990698,diferente,12 × 24,api,2026-09-23
+287,higiene,atacadao,Papel Higiênico Neve Folha Dupla 40m 6 rolos,Neve,7891172523601,atacadao,Papel Higiênico Neve Folha Dupla 30m 12 rolos,Neve,7896018704275,diferente,40m 6 × 12 30m,api,2026-09-23
+288,higiene,atacadao,Papel Higiênico Fofex Folha Dupla 30m 12 rolos,Fofex,7898024270966,atacadao,Papel Higiênico Fofex Folha Dupla 30m 4 rolos,Fofex,7898024270942,diferente,12 × 4,api,2026-09-23
+289,higiene,atacadao,Papel Higiênico Neve Leve 12 Pague 11 rolos FTAQ 20m,Neve,7891172523472,atacadao,Papel Higiênico Neve Folha Dupla 20m 12 rolos,Neve,7896018704732,diferente,11 ftaq × dupla folha,api,2026-09-23
+290,higiene,atacadao,Papel Higiênico Mondeo FDAQ 30M 32 rolos,Mondeo,7899853805862,atacadao,Papel Higiênico Mondeo FDAQ 30M 24 rolos,Mondeo,7899853805855,diferente,32 × 24,api,2026-09-23
+291,descartavel,atacadao,Copo Descartável Isocopos Transparente ABNT 300m 100 un,Isocopos,7898972524081,atacadao,Copo Descartável Isocopos Transparente ABNT 50ml 100 un,Isocopos,7898972524029,diferente,300m × 50ml,api,2026-09-23
+292,descartavel,atacadao,Copo Descartável Totalplast Branco 180ml,Totalplast,7898505140023,atacadao,Copo Descartável Totalplast Branco 200ml 100un,Totalplast,7898505140030,diferente,180ml × 100un 200ml,api,2026-09-23
+293,descartavel,atacadao,Copo Descartável Totalplast Branco 150ml 100un,Totalplast,7898505140016,atacadao,Copo Descartável Totalplast Transparente 200ml 100un,Totalplast,7898505140238,diferente,150ml branco × 200ml transparente,api,2026-09-23
+294,descartavel,atacadao,Copo Descartável Altacoppo Chopp 550ml 50 un,Altacoppo,7898918330455,atacadao,Copo Descartável Altacoppo Chopp 330ml 50 un,Altacoppo,7898918330264,diferente,550ml × 330ml,api,2026-09-23
+295,descartavel,atacadao,Copo Descartável Minaplast 180ml Transparente ABNT 100 un,Minaplast,7896322700789,atacadao,Copo Descartável Minaplast 150ml Transparente ABNT 100 un,Minaplast,7896322701236,diferente,180ml × 150ml,api,2026-09-23
+296,descartavel,atacadao,Copo Descartável Altacoppo Chopp 550ml 50 un,Altacoppo,7898918330455,atacadao,Copo Descartável Altacoppo Chopp 770ml 30 un,Altacoppo,7898918330813,diferente,50un 550ml × 30un 770ml,api,2026-09-23
+297,descartavel,atacadao,Copo Descartável Dudigo Transparente ABNT 180ml 100 un,Dudigo,7898904062650,atacadao,Copo Descartável Dudigo Transparente ABNT 500ml 50 un,Dudigo,7898904062322,diferente,100un 180ml × 500ml 50un,api,2026-09-23
+298,descartavel,atacadao,Copo Descartável Minaplast 150ml Branco ABNT 100 un,Minaplast,7896322700529,atacadao,Copo Descartável Minaplast 300ml Transparente ABNT 100 un,Minaplast,7896322700642,diferente,150ml branco × 300ml transparente,api,2026-09-23
+299,descartavel,atacadao,Copo Descartável Isocopos Transparente ABNT 300m 100 un,Isocopos,7898972524081,atacadao,Copo Descartável Isocopos Transparente ABNT 200ml 100 un,Isocopos,7898972524067,diferente,300m × 200ml,api,2026-09-23
+300,descartavel,atacadao,Copo Descartável Copoideal Transparente ABNT 500ml 50un,Copoideal,793573259493,atacadao,Copo Descartável Copoideal Transparente ABNT 150ml 100un,Copoideal,793573240026,diferente,500ml 50un × 100un 150ml,api,2026-09-23
+301,descartavel,atacadao,Copo Descartável Totalplast Transparente 150ml 100un,Totalplast,7898505140214,atacadao,Copo Descartável Totalplast Branco 200ml 100un,Totalplast,7898505140030,diferente,150ml transparente × 200ml branco,api,2026-09-23
+302,descartavel,atacadao,Copo Descartável Minaplast 200ml Branco ABNT 100 un,Minaplast,7896322700499,atacadao,Copo Descartável Minaplast 150ml Branco ABNT 100 un,Minaplast,7896322700529,diferente,200ml × 150ml,api,2026-09-23
+303,descartavel,atacadao,Copo Descartável Isocopos Transparente ABNT 500ml 100 un,Isocopos,7898972524166,atacadao,Copo Descartável Isocopos Transparente ABNT 200ml 100 un,Isocopos,7898972524067,diferente,500ml × 200ml,api,2026-09-23
+304,descartavel,atacadao,Copo Descartável Totalplast Transparente 180ml 100un,Totalplast,7898505140221,atacadao,Copo Descartável Totalplast Branco 150ml 100un,Totalplast,7898505140016,diferente,180ml transparente × 150ml branco,api,2026-09-23
+305,descartavel,atacadao,Guardanapo de Papel Snob 33x30cm 50 un,Snob,15907944,atacadao,Guardanapo de Papel Snob 24x22cm 50 un,Snob,15906985,diferente,33x30cm × 24x22cm,api,2026-09-23
+306,descartavel,atacadao,"Guardanapo Residence 30x29,5cm 50 un",Residence,7896104994085,atacadao,Guardanapo Residence 21x22cm 50 un,Residence,7896104992531,diferente,"30x29,5cm × 21x22cm",api,2026-09-23
+307,descartavel,atacadao,Guardanapo de Papel Pétalas 14x14cm 500 un,Pétalas,7898934651299,atacadao,Guardanapo de Papel Pétalas 20x23cm 50 un,Pétalas,7898934651176,diferente,14x14cm 500un × 20x23cm 50un,api,2026-09-23
+308,descartavel,atacadao,Guardanapo Residence 21x22cm 50 un,Residence,7896104992531,atacadao,"Guardanapo de Papel Residence 23x22,5cm 50 un",Residence,58044978,diferente,"21x22cm × 23x22,5cm papel",api,2026-09-23
+309,descartavel,atacadao,Guardanapo de Papel Kitchen 30x33cm 50 un,Kitchen,7896061934223,atacadao,"Guardanapo de Papel Kitchen 22x22,8cm 50 un",Kitchen,7896061934285,diferente,"30x33cm × 22x22,8cm",api,2026-09-23
+310,descartavel,atacadao,Guardanapo de Papel Coquetel 23cmx22cm 50 un,Coquetel,7896301800028,atacadao,Guardanapo de Papel Coquetel 30x33cm 50 un,Coquetel,7896301800073,diferente,23cmx22cm × 30x33cm,api,2026-09-23
+311,descartavel,atacadao,Guardanapo de Papel Snob 32x30cm 50 un,Snob,7896110081359,atacadao,Guardanapo de Papel Snob 24x22cm 50 un,Snob,15906985,diferente,32x30cm × 24x22cm,api,2026-09-23
+312,descartavel,atacadao,Guardanapo de Papel Snob 32x30cm 50 un,Snob,7896110081359,atacadao,Guardanapo de Papel Snob 23x22cm 50 un,Snob,7896110081250,diferente,32x30cm × 23x22cm,api,2026-09-23
+313,,atacadao,Porta Guardanapo/Sachê Coza Vermelho un,Coza,7896553980806,atacadao,Porta Guardanapo/Sachê Coza Preto un,Coza,7896553999341,diferente,vermelho × preto,api,2026-09-23
+314,descartavel,atacadao,"Guardanapo de Papel Residence 30cmX29,5cm 200 un",Residence,7896104990896,atacadao,"Guardanapo de Papel Residence 23x22,5cm 50 un",Residence,58044978,diferente,"200un 30cmx29,5cm × 23x22,5cm 50un",api,2026-09-23
+315,descartavel,atacadao,Guardanapo de Papel Snob 23x22cm 50 un,Snob,7896110081250,atacadao,Guardanapo de Papel Snob 24x22cm 50 un,Snob,15906985,diferente,23x22cm × 24x22cm,api,2026-09-23
+316,descartavel,atacadao,Guardanapo de Papel Santepel 23x22cm 50 un,Santepel,7896110083254,atacadao,Guardanapo de Papel Santepel 32x30cm 50 un,Santepel,7896110083353,diferente,23x22cm × 32x30cm,api,2026-09-23
+317,descartavel,atacadao,Guardanapo de Papel Scala 20cmx22cm 50 un,Scala,7896006400011,atacadao,Guardanapo de Papel Scala 23cmx20cm 50 un,Scala,7898962794234,diferente,20cmx22cm × 23cmx20cm,api,2026-09-23
+318,papel,atacadao,Papel Sulfite Allmax A4 75g 500 folhas,Allmax,7898205206418,atacadao,Papel Sulfite Allmax Mirim A4 75g 100 folhas,Allmax,7898205206586,diferente,500 × 100 mirim,api,2026-09-23
+319,papel,atacadao,Papel Sulfite Chamex A4 75g 500 folhas,Chamex,7891173023001,atacadao,Papel Sulfite Chamex 75g A4 300 folhas,Chamex,7891173024978,diferente,500 × 300,api,2026-09-23
+320,papel,atacadao,Papel Sulfite Report A4 75g 500 folhas,Report,7891191003733,atacadao,Papel Sulfite Report Senninha A4 75g 100 folhas,Report,7891191001098,diferente,500 × 100 senninha,api,2026-09-23
+321,limpeza,atacadao,Desinfetante Tróia Lavanda 5L,Tróia,7898090130430,atacadao,Desinfetante Tróia Floral 2L,Tróia,7898090130201,diferente,5l lavanda × 2l floral,api,2026-09-23
+322,limpeza,atacadao,Desinfetante Espuma Cif Extermina Limo 500ml,Cif,7891150104129,atacadao,Desinfetante Espuma Cif Extermina Limo 450ml,Cif,7891150104167,diferente,500ml × 450ml,api,2026-09-23
+323,limpeza,atacadao,Desinfetante Lysoform Suave 500ml,Lysoform,7897000800180,atacadao,Desinfetante Lysoform Citrus 1L,Lysoform,7894650014219,diferente,500ml suave × 1l citrus,api,2026-09-23
+324,limpeza,atacadao,Desinfetante Candura Lavanda 5L,Candura,7896105500285,atacadao,Desinfetante Candura Eucalipto 2L,Candura,7896105500216,diferente,5l lavanda × 2l eucalipto,api,2026-09-23
+325,limpeza,atacadao,Desinfetante Brinort Pinho 500ml,Brinort,7898910758066,atacadao,Desinfetante Brinort Eucalipto 500ml,Brinort,7898910758110,diferente,pinho × eucalipto,api,2026-09-23
+326,limpeza,atacadao,Desinfetante Candura Lavanda 5L,Candura,7896105500285,atacadao,Desinfetante Candura Eucalipto 5L,Candura,7896105500292,diferente,lavanda × eucalipto,api,2026-09-23
+327,limpeza,atacadao,Desinfetante Oeste Pinho 2L,Oeste,7898247330836,atacadao,Desinfetante Oeste Eucalipto 2L,Oeste,7898247330805,diferente,pinho × eucalipto,api,2026-09-23
+328,limpeza,atacadao,Desinfetante Lysoform Suave 5L,Lysoform,7894650007242,atacadao,Desinfetante Lysoform Citrus 1L,Lysoform,7894650014219,diferente,5l suave × 1l citrus,api,2026-09-23
+329,limpeza,atacadao,Desinfetante Tróia Limão 2L,Tróia,7898090130195,atacadao,Desinfetante Tróia Lavanda 5L,Tróia,7898090130430,diferente,2l limao × 5l lavanda,api,2026-09-23
+330,limpeza,atacadao,Desinfetante Urca Lavanda 2L,Urca,7896056404717,atacadao,Desinfetante Urca Lavanda 5L,Urca,7896056406728,diferente,2l × 5l,api,2026-09-23
+331,limpeza,atacadao,Desinfetante Vorel Lavanda 2L,Vorel,7897534800595,atacadao,Desinfetante Vorel Pinho 2L,Vorel,7897534800571,diferente,lavanda × pinho,api,2026-09-23
+332,limpeza,atacadao,Desinfetante Candura Eucalipto 2L,Candura,7896105500216,atacadao,Desinfetante Candura Eucalipto 5L,Candura,7896105500292,diferente,2l × 5l,api,2026-09-23
+333,alimento,atacadao,Desinfetante Hortifrutícolas Zupp 300ml,Zupp,7896360402232,atacadao,Desinfetante Zupp Marine 2L,Zupp,7896360400474,diferente,300ml hortifruticolas × 2l marine,api,2026-09-23
+334,,atacadao,Coleira para Cães Furacão Nylon un,Furacão,7898490097760,atacadao,Coleira para Gatos Furacão Nylon un,Furacão,7898490097777,diferente,caes × gatos,api,2026-09-23
+335,limpeza,atacadao,Água Sanitária Teiú 5L,Teiú,7896394806075,atacadao,Água Sanitária Da Ilha 5L,Da Ilha,7896017200655,diferente,marca Teiú × Da Ilha,api,2026-09-23
+336,limpeza,atacadao,Água Sanitária Brilux 2L,Brilux,7896013100423,atacadao,Água Sanitária Cloral 2L,Cloral,7896013102311,diferente,marca Brilux × Cloral,api,2026-09-23
+337,alimento,atacadao,Achocolatado em Pó Bulnez 400g,Bulnez,7898966549434,atacadao,Achocolatado em Pó Italac 400g,Italac,7898080640673,diferente,marca Bulnez × Italac,api,2026-09-23
+338,limpeza,atacadao,Água Sanitária Oeste 5L,Oeste,7898247330171,atacadao,Água Sanitária Dragão 5L,Dragão,7896221600067,diferente,marca Oeste × Dragão,api,2026-09-23
+339,limpeza,atacadao,Água Sanitária Gbel 1L,Gbel,7898150690010,atacadao,Água Sanitária Tubarão 1L,Tubarão,7896013100669,diferente,marca Gbel × Tubarão,api,2026-09-23
+340,limpeza,atacadao,Água Sanitária Ypê 1L,Ypê,7896098904671,atacadao,Água Sanitária Bulnez 1L,Bulnez,7896923700492,diferente,marca Ypê × Bulnez,api,2026-09-23
+341,limpeza,atacadao,Água Sanitária Summer 1L,Summer,23638986,atacadao,Água Sanitária Qualybrill 1L,Qualybrill,7633337200015,diferente,marca Summer × Qualybrill,api,2026-09-23
+342,limpeza,atacadao,Água Sanitária Summer 5L,Summer,15829946,atacadao,Água Sanitária Bulnez 5L,Bulnez,7898761330565,diferente,marca Summer × Bulnez,api,2026-09-23
+343,limpeza,atacadao,Desinfetante Candura Lavanda 5L,Candura,7896105500285,atacadao,Desinfetante Tróia Lavanda 5L,Tróia,7898090130430,diferente,marca Candura × Tróia,api,2026-09-23
+344,alimento,atacadao,Macarrão Grano Duro Paganini Fusilli 500g,Paganini,7898152990156,atacadao,Macarrão Grano Duro Antico Molino Fusilli 500g,Antico Molino,8004690040287,diferente,marca Paganini × Antico Molino,api,2026-09-23
+345,alimento,atacadao,Óleo de Soja ABC 900ml,ABC,7896242200048,atacadao,Óleo de Soja Comigo 900ml,Comigo,7898917173381,diferente,marca ABC × Comigo,api,2026-09-23
+346,alimento,atacadao,Óleo de Soja Concórdia 900ml,Concórdia,7898247780075,atacadao,Óleo de Soja Liza 900ml,Liza,7896036090244,diferente,marca Concórdia × Liza,api,2026-09-23
+347,alimento,atacadao,Óleo de Soja ABC 900ml,ABC,7896242200048,atacadao,Óleo de Soja Sinhá 900ml,Sinhá,7892300030060,diferente,marca ABC × Sinhá,api,2026-09-23
+348,limpeza,atacadao,Água Sanitária Açucena 5L,Açucena,7898970018919,atacadao,Água Sanitária Daclor 5L,Daclor,7896183301149,diferente,marca Açucena × Daclor,api,2026-09-23
+349,higiene,atacadao,Papel Higiênico Lisse 300m 8 rolos,Lisse,64695971,atacadao,Papel Higiênico Econoclean 300m 8 rolos,Econoclean,84637918,diferente,marca Lisse × Econoclean,api,2026-09-23
+350,alimento,atacadao,Óleo de Soja Soya 900ml,Soya,7891107101621,atacadao,Óleo de Soja Sinhá 900ml,Sinhá,7892300030060,diferente,marca Soya × Sinhá,api,2026-09-23
+351,limpeza,atacadao,Água Sanitária Cloral 5L,Cloral,7896013102045,atacadao,Água Sanitária Bulnez 5L,Bulnez,7898761330565,diferente,marca Cloral × Bulnez,api,2026-09-23
+352,limpeza,atacadao,Detergente Líquido Branmix Neutro 5L,Branmix,7893095572896,atacadao,Detergente Líquido Urca Neutro 5L,Urca,7896056407213,diferente,marca Branmix × Urca,api,2026-09-23
+353,alimento,atacadao,Macarrão Grano Duro Baronia Fusilli 500g,Baronia,8005709300989,atacadao,Macarrão Grano Duro Paganini Fusilli 500g,Paganini,7898152990156,diferente,marca Baronia × Paganini,api,2026-09-23
+354,alimento,atacadao,Óleo de Soja Camera 900ml,Camera,7898401540040,atacadao,Óleo de Soja Leve 900ml,Leve,7896018900035,diferente,marca Camera × Leve,api,2026-09-23
+355,limpeza,atacadao,Detergente Líquido Candura Neutro 5L,Candura,7896105500711,atacadao,Detergente Líquido Branmix Neutro 5L,Branmix,7893095572896,diferente,marca Candura × Branmix,api,2026-09-23
+356,limpeza,atacadao,Desinfetante Urca Lavanda 5L,Urca,7896056406728,atacadao,Desinfetante Tróia Lavanda 5L,Tróia,7898090130430,diferente,marca Urca × Tróia,api,2026-09-23
+357,limpeza,atacadao,Desinfetante Vorel Lavanda 2L,Vorel,7897534800595,atacadao,Desinfetante Tróia Lavanda 2L,Tróia,7898090130218,diferente,marca Vorel × Tróia,api,2026-09-23
+358,papel,atacadao,Papel Sulfite Chamex A4 75g 500 folhas,Chamex,7891173023001,atacadao,Papel Sulfite Copimax A4 75g 500 folhas,Copimax,70604977,diferente,marca Chamex × Copimax,api,2026-09-23
+359,limpeza,atacadao,Água Sanitária Gbel 1L,Gbel,7898150690010,atacadao,Água Sanitária Qualybrill 1L,Qualybrill,7633337200015,diferente,marca Gbel × Qualybrill,api,2026-09-23
+360,papel,atacadao,Papel Sulfite Paper One A4 75g 500 folhas,Paper One,7898969556361,atacadao,Papel Sulfite Royal A4 75g 500 folhas,Royal,7898959592669,diferente,marca Paper One × Royal,api,2026-09-23
+361,alimento,atacadao,Achocolatado em Pó Merilú 400g,Merilú,7898239260844,atacadao,Achocolatado em Pó Toddy 400g,Toddy,7894321711263,diferente,marca Merilú × Toddy,api,2026-09-23
+362,limpeza,atacadao,Água Sanitária Ypê 1L,Ypê,7896098904671,atacadao,Água Sanitária Da Ilha 1L,Da Ilha,7896017200075,diferente,marca Ypê × Da Ilha,api,2026-09-23
+363,descartavel,atacadao,Copo Descartável Bulnez Transparente ABNT 180ml 100 un,Bulnez,7898597033937,atacadao,Copo Descartável Copoideal Transparente ABNT 180ml 100 un,Copoideal,793573240040,diferente,marca Bulnez × Copoideal,api,2026-09-23
+364,limpeza,atacadao,Água Sanitária Teiú 5L,Teiú,7896394806075,atacadao,Água Sanitária Dragão 5L,Dragão,7896221600067,diferente,marca Teiú × Dragão,api,2026-09-23

@@ -58,4 +58,5 @@ A captura de páginas usa o **Microsoft Edge** do Windows (Playwright, canal `ms
 - O repositório é **público**. A pasta `Modelo de Orçamento/` (documentos reais de processos, com nomes de pessoas) está no `.gitignore` e **nunca** deve ser publicada. Dados de teste derivados de casos reais: só preços, produtos e CNPJs de empresas.
 - Não fazer commit nem push sem o usuário pedir. Trabalho novo em branch própria; junção ao `main` com aprovação do usuário.
 - Ao consultar sites de lojas: poucas requisições, sem login, sem aceitar cookies, sem contornar captcha.
+- Catálogo de atributos e vocabulário (`catalogos/atributos.yaml`): toda mudança passa pelo caso T-11 (`testes/correspondencia/test_referencia.py`), que exige **nenhum falso 🟢**. Na dúvida, a correspondência fica 🟡.
 - Dados de CNPJ: guardar só o necessário (razão social, situação, município…). Nunca sócios, e-mails ou telefones (LGPD).

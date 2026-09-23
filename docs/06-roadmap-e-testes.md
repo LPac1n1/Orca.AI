@@ -8,7 +8,7 @@
 - [x] **Tabela de jornadas** revisada e aprovada pelo usuário (23/09/2026).
 - [x] **Levantamento inicial das lojas** (12 lojas em 23/09/2026): [07-levantamento-lojas.md](07-levantamento-lojas.md) e `catalogos/lojas.yaml`. Ampliar conforme o uso.
 - [x] Perguntas de preço Q1 a Q4 respondidas (D-60 a D-63).
-- [ ] **Conjunto de referência de correspondência:** 200 a 500 pares de produtos reais rotulados (mesmo / diferente), para medir o módulo de correspondência. Iniciado com 10 pares do levantamento (`backend/testes/dados/correspondencia/pares_referencia.csv`); completado na etapa 7 da Fase 1.
+- [x] **Conjunto de referência de correspondência:** 364 pares de produtos reais rotulados (60 mesmo / 304 diferente), em `backend/testes/dados/correspondencia/pares_referencia.csv` — 10 do levantamento, o restante montado na etapa 7 a partir da API pública do Atacadão e do Open Food Facts (como foi feito: `LEIAME.md` na mesma pasta).
 - [x] Repositório [LPac1n1/Orca.AI](https://github.com/LPac1n1/Orca.AI) (AGPL-3.0) e `CLAUDE.md` com os princípios do projeto.
 
 ### Fase 1 — Núcleo mínimo: "a URL entra, o dossiê sai"
@@ -54,7 +54,7 @@ Objetivo: um orçamento completo e defensável, com coleta **semiautomática** (
 4. ✅ `selecao` — cobertura, classificação, trio, Regra A/B, conferência, resolução (Saídas 1 e 2), escolha das vagas, conferência de grade pronta.
 5. ✅ `otimizacao` — modelo CP-SAT, diagnóstico (limites, divisibilidade, conflitos e sugestões), verificação independente, execuções gravadas.
 6. ✅ `evidencias` + coleta por URL + CNPJ — captura com o Edge (PDF com cabeçalho, imagem, MHTML, SHA-256), leitura de produto e vaga (JSON-LD), conferência do preço na página, CNPJ do vendedor, situação cadastral (OpenCNPJ, BrasilAPI), comprovante da Receita por captura assistida, fila de comprovantes, validade com alertas, nova pesquisa, vagas repetidas. A janela da captura assistida ganha botões na etapa 9.
-7. `correspondencia` sem IA.
+7. ✅ `correspondencia` sem IA — cascata EAN → marca → atributos (medidas e vocabulário) → palavras que sobram; decisões gravadas; confirmação humana; nível de automação do perfil.
 8. `documentos` — Excel, PDF, ZIP.
 9. API e interface.
 
@@ -76,7 +76,7 @@ Cada caso tem dados de entrada fixos (observações gravadas, sem acesso à inte
 | T-08 | **Teto inviável por limites** | Mensagem com o máximo possível e a diferença | ✅ |
 | T-09 | **Vagas:** mesma vaga em 2 plataformas; vaga sem salário; empresa confidencial; faixa salarial | Duplicada conta 1 vez; as outras descartadas com motivo; faixa → menor valor | ✅ |
 | T-10 | **Validade:** evidência que vence antes da data de entrega | Alerta gerado; nova pesquisa mantém a antiga no histórico | ✅ |
-| T-11 | **Correspondência:** conjunto de referência | 🟢 sem nenhum falso positivo; taxa de 🟡 medida e registrada | etapa 7 |
+| T-11 | **Correspondência:** conjunto de referência | 🟢 sem nenhum falso positivo; taxa de 🟡 medida e registrada | ✅ 364 pares, nenhum falso 🟢 e nenhum 🔴 entre produtos iguais. Sem código de barras: diferentes 88% 🔴 e 12% 🟡; iguais 13% 🟢 e 87% 🟡. Com código de barras: iguais 100% 🟢 |
 | T-12 | **Marketplace:** vendedor sem CNPJ identificável; dois produtos de vendedores diferentes | Anúncio descartado; orçamento comparativo exige vendedor único | ✅ |
 | T-13 | **Regra A** num orçamento e **Regra B** em outro, no mesmo projeto | Cada orçamento com a sua base; teto do projeto exato | ✅ |
 | T-14 | **Item bloqueador** (produto em só 2 lojas) | Item e nº de lojas informados; sugestões apresentadas | ✅ |

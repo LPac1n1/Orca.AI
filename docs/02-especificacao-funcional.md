@@ -79,14 +79,18 @@ Cada tentativa gera uma **observação**, encontrada ou não: loja, CNPJ do vend
 Objetivo: decidir se o produto encontrado é **exatamente** o item especificado (D-17).
 
 Etapas:
-1. **Mesmo EAN** → 🟢.
-2. **Atributos críticos**, comparados pelo programa: marca, modelo e apresentação sempre, mais os atributos da categoria (ex.: papel: formato, gramatura, nº de folhas; alimento: peso ou volume líquido, tipo; limpeza: volume, concentração; eletrônico: voltagem).
+1. **Mesmo EAN** → 🟢. Se a página contradisser o item mesmo assim (ex.: outro peso), 🟡. **EANs diferentes nunca dão 🟢**: o mesmo produto às vezes tem dois códigos (o levantamento achou anúncios iguais com códigos diferentes), então quem confirma é uma pessoa.
+2. **Atributos críticos**, comparados pelo programa: marca, modelo e apresentação sempre, mais os atributos da categoria (catálogo `catalogos/atributos.yaml`, [05 §3](05-regras-padrao.md)). Medidas (peso, volume, gramatura, folhas, unidades, medidas, metragem, concentração, voltagem) são lidas e convertidas ("1 kg" = "1.000 g"; "LV 990g PG 900g" = 990 g). Atributos de texto (tipo, sabor, fragrância, cor, embalagem) usam um vocabulário de valores que se excluem (tradicional × extra forte; lavanda × eucalipto; branco × transparente).
    - Todos presentes e iguais → 🟢
-   - Algum ausente → 🟡, com o motivo (ex.: "a página não informa a gramatura")
+   - Algum ausente, ou citado só de um lado → 🟡, com o motivo (ex.: "a página não informa: gramatura (75 g/m²)")
    - Algum diferente → 🔴
+   - Palavras ou números que sobram de um lado só (ex.: "orgânico", "252°") → 🟡: uma diferença que o vocabulário ainda não conhece nunca vira 🟢.
+   - Item sem marca ou sem categoria conhecida → no máximo 🟡.
 3. **IA (opcional)** extrai atributos de textos desestruturados e julga casos 🟡. Ela pode manter 🟡 ou rebaixar para 🔴, **nunca promover para 🟢** (D-52). Só o usuário promove 🟡 para 🟢.
 
 Diferenças só de texto ("Chamex Papel Sulfite A4 75g – 500 fls" × "Papel Sulfite A4 75g Chamex 500 folhas") não impedem 🟢.
+
+Cada resultado é gravado (tabela `correspondencia`, imutável) com o status, a origem e os motivos. Uma decisão do usuário (confirmar ou recusar, com justificativa) é um registro novo; vale o mais recente. O perfil de regras diz se o 🟢 do programa já vale sozinho ou espera confirmação: padrão, **EAN automático** e **atributos com aprovação** (§4 de [05](05-regras-padrao.md)).
 
 ## 8. Cobertura, lotes e escolha das lojas
 

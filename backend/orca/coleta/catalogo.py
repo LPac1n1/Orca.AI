@@ -1,4 +1,4 @@
-"""Catálogo de lojas e fornecedores (catalogos/lojas.yaml): o que o sistema já sabe de cada site."""
+"""Catálogos versionados: lojas e fornecedores (lojas.yaml) e atributos por categoria (atributos.yaml)."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -6,7 +6,11 @@ from urllib.parse import urlparse
 
 import yaml
 
-CATALOGO_PADRAO = Path(__file__).resolve().parents[3] / "catalogos" / "lojas.yaml"
+from orca.correspondencia import Vocabulario
+
+PASTA_CATALOGOS = Path(__file__).resolve().parents[3] / "catalogos"
+CATALOGO_PADRAO = PASTA_CATALOGOS / "lojas.yaml"
+ATRIBUTOS_PADRAO = PASTA_CATALOGOS / "atributos.yaml"
 
 
 @dataclass(frozen=True)
@@ -47,3 +51,8 @@ def ler_catalogo(caminho: Path | str = CATALOGO_PADRAO) -> dict[str, LojaCatalog
                 preco_a_usar=d.get("preco_a_usar"),
             )
     return entradas
+
+
+def ler_vocabulario(caminho: Path | str = ATRIBUTOS_PADRAO) -> Vocabulario:
+    """Atributos críticos por categoria e vocabulário de valores (catalogos/atributos.yaml)."""
+    return Vocabulario.de_dados(yaml.safe_load(Path(caminho).read_text(encoding="utf-8")) or {})

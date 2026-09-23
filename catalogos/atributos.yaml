@@ -1,18 +1,266 @@
-# Atributos críticos por categoria (docs/05-regras-padrao.md §3).
+# Atributos críticos por categoria e vocabulário (docs/05-regras-padrao.md §3).
 # Além destes, marca, modelo e apresentação são sempre obrigatórios (D-17).
 # O catálogo pode ser ampliado pelo usuário e compartilhado.
+#
+# Atributos com medida (peso, volume, gramatura, folhas, unidades, medidas,
+# concentração, voltagem…) são lidos pelo programa (orca/correspondencia/medidas.py).
+# Atributos de texto (tipo, sabor, fragrância, cor, embalagem) usam o vocabulário
+# abaixo: dentro de um grupo os valores se excluem — se o item diz um e a página
+# diz outro, o produto é diferente (🔴); se só um dos dois diz, fica 🟡.
+# Cada valor lista os seus sinônimos (sem acento e em minúsculas, ou não: o
+# programa normaliza). Características independentes (orgânico, zero lactose…)
+# ficam cada uma no seu grupo.
 
-versao: 1
+versao: 2
 
 sempre: [marca, modelo, apresentacao]
 
 categorias:
-  papel:        [formato, gramatura, folhas_por_pacote]
-  caneta:       [cor, espessura_ponta, unidades_por_embalagem]
-  papelaria:    [dimensoes, unidades_por_embalagem]
+  papel:        [formato, gramatura, folhas_por_pacote, cor]
+  caneta:       [cor, espessura_ponta, unidades_por_embalagem, tipo]
+  papelaria:    [dimensoes, unidades_por_embalagem, cor]
   alimento:     [peso_ou_volume_liquido, tipo, sabor]
   bebida:       [volume, tipo, sabor]
-  limpeza:      [volume, concentracao, fragrancia]
-  descartavel:  [capacidade, unidades_por_embalagem]
+  limpeza:      [peso_ou_volume_liquido, tipo, concentracao, fragrancia]
+  higiene:      [comprimento, unidades_por_embalagem, dimensoes, tipo, fragrancia]
+  descartavel:  [capacidade, unidades_por_embalagem, dimensoes, cor, tipo]
   eletronico:   [modelo_exato, voltagem]
   servico:      [escopo, periodicidade, unidade_de_cobranca]
+
+vocabulario:
+  apresentacao:
+    embalagem:
+      vacuo: [vacuo, a vacuo, tijolo]
+      almofada: [almofada]
+      doypack: [doy, doy pack, doypack, stand up]
+      lata: [lata]
+      sache: [sache, saches, sachet, minissache, minissaches]
+      refil: [refil, refill]
+      frasco: [frasco, garrafa]
+      galao: [galao, bombona]
+      pote: [pote]
+      borrifador: [borrifador, gatilho, spray]
+    formato_ninho:
+      ninho: [ninho, nidi]
+
+  tipo:
+    forma_do_cafe:
+      moido: [moido, moida, torrado e moido]
+      graos: [graos, grao, em graos]
+      soluvel: [soluvel]
+      capsula: [capsula, capsulas]
+      cappuccino: [cappuccino, capuccino, capucino]
+    torra:
+      tradicional: [tradicional]
+      extra_forte: [extra forte, extraforte, extra-forte]
+      forte: [forte]
+      suave: [suave]
+      intenso: [intenso, intensa]
+      descafeinado: [descafeinado, descafeinada]
+    grao_do_arroz:
+      agulhinha: [agulhinha, agulha]
+      arboreo: [arboreo]
+      basmati: [basmati]
+      cateto: [cateto]
+      japones: [japones, japonesa, sushi, gohan]
+      jasmim: [jasmim]
+    processo_do_arroz:
+      branco: [branco]
+      parboilizado: [parboilizado]
+      integral: [integral]
+    feijao:
+      carioca: [carioca]
+      preto: [preto]
+      branco: [branco]
+      fradinho: [fradinho]
+      vermelho: [vermelho]
+      manteiga: [feijao manteiga]
+      jalo: [jalo]
+      rajado: [rajado]
+      bolinha: [bolinha]
+      rosinha: [rosinha]
+    leite:
+      integral: [integral]
+      desnatado: [desnatado, desnatada]
+      semidesnatado: [semidesnatado, semidesnatada, semi desnatado]
+    acucar:
+      cristal: [cristal]
+      refinado: [refinado]
+      demerara: [demerara]
+      mascavo: [mascavo]
+      confeiteiro: [confeiteiro]
+    massa:
+      com_ovos: [com ovos]
+      grano_duro: [grano duro]
+      semola: [semola]
+    formato_da_massa:
+      espaguete: [espaguete, spaghetti, spaguetti, espagueti]
+      penne: [penne, pena]
+      parafuso: [parafuso, fusilli]
+      fettuccine: [fettuccine, fetuccine]
+      lingue_di_passero: [lingue di passero, linguine]
+      talharim: [talharim, tagliatelle]
+      farfalle: [farfalle, gravata, gravatinha]
+      farfalloni: [farfalloni]
+      aviaozinho: [aviaozinho]
+      conchinha: [conchinha, conchiglie]
+      cabelo_de_anjo: [cabelo de anjo, capellini]
+      lasanha: [lasanha]
+      cavatappi: [cavatappi]
+      boccoli: [boccoli]
+      pappardelle: [pappardelle]
+      fidelini: [fidelini]
+      rigatoni: [rigatoni]
+      argolinha: [argolinha]
+      letrinha: [letrinha]
+      ave_maria: [ave maria]
+      padre_nosso: [padre nosso]
+    biscoito:
+      rosquinha: [rosquinha, rosquinhas]
+      recheado: [recheado, recheada]
+      wafer: [wafer]
+      amanteigado: [amanteigado, amanteigados]
+      salgadinho: [salgadinho, salgadinhos]
+    suco:
+      nectar: [nectar]
+      integral: [suco integral, integral]
+      concentrado: [concentrado]
+      refresco_em_po: [refresco em po]
+    forma_do_produto:
+      liquido: [liquido, liquida]
+      po: [em po, po]
+      gel: [gel]
+      espuma: [espuma]
+      tablete: [tablete, tabletes, pastilha, pastilhas]
+      barra: [em barra]
+      cremoso: [cremoso, cremosa]
+    folha:
+      simples: [folha simples, fs, f s]
+      dupla: [folha dupla, fd, fdaq]
+      tripla: [folha tripla, ft, ftaq]
+    organico:
+      organico: [organico, organica]
+    lactose:
+      zero_lactose: [zero lactose, sem lactose]
+    acucar_adicionado:
+      sem_acucar: [sem acucar, zero acucar, diet]
+    light:
+      light: [light]
+    termico:
+      termico: [termico, isopor]
+    biodegradavel:
+      biodegradavel: [biodegradavel, compostavel]
+    ponta:
+      fina: [ponta fina]
+      media: [ponta media]
+      grossa: [ponta grossa]
+
+  sabor:
+    sabores:          # inclui as variedades de biscoito (leite × maizena × cream cracker)
+      maizena: [maizena, maisena]
+      maria: [maria]
+      agua_e_sal: [agua e sal]
+      cream_cracker: [cream cracker, cracker]
+      morango: [morango]
+      manga: [manga]
+      uva: [uva]
+      uva_verde: [uva verde]
+      laranja: [laranja]
+      limao: [limao]
+      maca: [maca]
+      maca_verde: [maca verde]
+      pessego: [pessego]
+      abacaxi: [abacaxi]
+      goiaba: [goiaba]
+      caju: [caju]
+      maracuja: [maracuja]
+      acerola: [acerola]
+      tangerina: [tangerina, mexerica]
+      melancia: [melancia]
+      cereja: [cereja]
+      coco: [coco]
+      banana: [banana]
+      frutas_vermelhas: [frutas vermelhas]
+      tropical: [tropical]
+      chocolate: [chocolate]
+      baunilha: [baunilha]
+      leite: [leite]
+      manteiga: [manteiga]
+      doce_de_leite: [doce de leite]
+      caramelo: [caramelo]
+      caramelo_salgado: [caramelo salgado]
+      avela: [avela]
+      amendoim: [amendoim]
+      queijo: [queijo]
+      presunto: [presunto, presuntinho]
+      cebola: [cebola]
+      frango: [frango]
+      carne: [carne]
+      natural: [natural]
+      ameixa: [ameixa]
+      pomelo: [pomelo]
+      nectarina: [nectarina]
+      amora: [amora]
+      mirtilo: [mirtilo, blueberry]
+      framboesa: [framboesa]
+      kiwi: [kiwi]
+      tamarindo: [tamarindo]
+      pitaya: [pitaya]
+      acai: [acai]
+      menta: [menta, hortela]
+      gengibre: [gengibre]
+      canela: [canela]
+      mel: [mel]
+      cranberry: [cranberry]
+      pera: [pera]
+      ervas_finas: [ervas finas]
+      alho: [alho]
+    chocolate:
+      ao_leite: [ao leite]
+      amargo: [amargo]
+      meio_amargo: [meio amargo]
+      branco: [chocolate branco]
+
+  fragrancia:
+    fragrancias:
+      lavanda: [lavanda]
+      eucalipto: [eucalipto]
+      pinho: [pinho]
+      floral: [floral, flores]
+      citrus: [citrus, citrico, citrica]
+      limao: [limao]
+      laranja: [laranja]
+      maca: [maca]
+      coco: [coco]
+      neutro: [neutro, neutra]
+      clear: [clear]
+      cristal: [cristal]
+      talco: [talco]
+      campestre: [campestre]
+      primavera: [primavera]
+      maciez: [maciez]
+      sensitive: [sensitive]
+      marine: [marine]
+      cha_branco: [cha branco]
+      erva_doce: [erva doce]
+      jasmim: [jasmim]
+      rosas: [rosas]
+      bambu: [bambu]
+
+  cor:
+    cores:
+      azul: [azul]
+      preto: [preto, preta]
+      vermelho: [vermelho, vermelha]
+      verde: [verde]
+      amarelo: [amarelo, amarela]
+      branco: [branco, branca]
+      transparente: [transparente, transp, cristal, incolor]
+      rosa: [rosa]
+      roxo: [roxo, roxa, lilas]
+      laranja: [laranja]
+      cinza: [cinza]
+      marrom: [marrom]
+      prata: [prata]
+      dourado: [dourado, dourada]
+      colorido: [colorido, colorida, sortido, sortida, sortidas, sortidos]

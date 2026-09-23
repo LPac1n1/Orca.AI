@@ -2,7 +2,14 @@
 comprovante da Receita, gravação das observações e pendências (validade e comprovantes)."""
 
 from orca.coleta.captura import Captura, ErroCaptura, Navegador, cabecalho_pdf, detectar_bloqueio, horario_brasilia
-from orca.coleta.catalogo import CATALOGO_PADRAO, LojaCatalogo, dominio_da_url, ler_catalogo
+from orca.coleta.catalogo import (
+    ATRIBUTOS_PADRAO,
+    CATALOGO_PADRAO,
+    LojaCatalogo,
+    dominio_da_url,
+    ler_catalogo,
+    ler_vocabulario,
+)
 from orca.coleta.cnpj import PROVEDORES, DadosCnpj, ErroCnpj, consultar_cnpj
 from orca.coleta.extracao import (
     ProdutoExtraido,
@@ -40,6 +47,7 @@ from orca.coleta.registro import (
 )
 
 __all__ = [
+    "ATRIBUTOS_PADRAO",
     "CATALOGO_PADRAO",
     "PROVEDORES",
     "Captura",
@@ -69,6 +77,7 @@ __all__ = [
     "fonte_da_url",
     "horario_brasilia",
     "ler_catalogo",
+    "ler_vocabulario",
     "objetos_jsonld",
     "observacoes_do_projeto",
     "preco_aparece",

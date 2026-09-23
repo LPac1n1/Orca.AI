@@ -150,18 +150,23 @@ Profissões com regra controversa (ex.: médico, advogado empregado) ficam **for
 Além de **marca, modelo e apresentação** (sempre obrigatórios, D-17):
 
 ```yaml
-papel:        [formato, gramatura, folhas_por_pacote]
-caneta:       [cor, espessura_ponta, unidades_por_embalagem]
-papelaria:    [dimensoes, unidades_por_embalagem]
+papel:        [formato, gramatura, folhas_por_pacote, cor]
+caneta:       [cor, espessura_ponta, unidades_por_embalagem, tipo]
+papelaria:    [dimensoes, unidades_por_embalagem, cor]
 alimento:     [peso_ou_volume_liquido, tipo, sabor]
 bebida:       [volume, tipo, sabor]
-limpeza:      [volume, concentracao, fragrancia]
-descartavel:  [capacidade, unidades_por_embalagem]
+limpeza:      [peso_ou_volume_liquido, tipo, concentracao, fragrancia]
+higiene:      [comprimento, unidades_por_embalagem, dimensoes, tipo, fragrancia]
+descartavel:  [capacidade, unidades_por_embalagem, dimensoes, cor, tipo]
 eletronico:   [modelo_exato, voltagem]
 servico:      [escopo, periodicidade, unidade_de_cobranca]
 ```
 
-O catálogo pode ser ampliado pelo usuário e compartilhado.
+Ajustes da etapa 7, a partir de 921 produtos reais do Atacadão: limpeza usa peso **ou** volume (sabão em pó vem em kg) e ganhou o tipo (líquido, pó, gel…); papel ganhou a cor; descartável ganhou medidas (guardanapo) e cor (copo branco × transparente); nova categoria higiene (papel higiênico: metragem, rolos, folha simples/dupla/tripla).
+
+Os atributos de texto têm um **vocabulário** no mesmo arquivo: grupos de valores que se excluem, cada um com os seus sinônimos (ex.: torra do café: tradicional, extra forte, suave…; fragrâncias; cores; formatos de massa). Características independentes (orgânico, zero lactose, sem açúcar…) ficam cada uma no seu grupo. Atributos sem leitor nem vocabulário (escopo e periodicidade de serviços, modelo exato de eletrônico) são conferidos por uma pessoa, a menos que o item traga o valor e ele apareça na página.
+
+O catálogo pode ser ampliado pelo usuário e compartilhado. Toda mudança nele é conferida pelo caso T-11 ([06](06-roadmap-e-testes.md)).
 
 ## 4. Níveis de automação padrão
 

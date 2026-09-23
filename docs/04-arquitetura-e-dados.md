@@ -57,13 +57,14 @@ Orca.AI/                       ← repositório (sem "ç": limite do GitHub)
 ├── docs/                      ← esta especificação
 ├── backend/
 │   ├── pyproject.toml
+│   ├── ferramentas/           scripts de apoio (ex.: montar o conjunto de referência)
 │   ├── testes/                unitários, propriedades, casos de teste completos
 │   └── orca/
 │       ├── dominio/           tipos, identificadores (CNPJ, EAN) e regras puras (sem I/O)
 │       ├── regras/            perfis, herança, versões, validação
 │       ├── calculo/           dinheiro em centavos, arredondamento, cotações, mão de obra
 │       ├── selecao/           cobertura, classificação, conferência preço × média, resolução
-│       ├── correspondencia/   normalização, atributos, EAN, cascata 🟢🟡🔴
+│       ├── correspondencia/   normalização, medidas, vocabulário, EAN, cascata 🟢🟡🔴
 │       ├── otimizacao/        modelo CP-SAT, diagnóstico, verificação independente
 │       ├── coleta/            captura (Edge), leitura de preço/vaga/CNPJ, situação cadastral, comprovante, pendências
 │       ├── evidencias/        armazém por impressão digital (SHA-256), validade, manifesto
@@ -74,7 +75,7 @@ Orca.AI/                       ← repositório (sem "ç": limite do GitHub)
 │       ├── tarefas/           fila, orquestração, grafo incremental
 │       └── api/               endpoints
 ├── frontend/                  React
-└── catalogos/                 lojas, jornadas, ocupações MEI (versionados no repositório)
+└── catalogos/                 lojas, jornadas, atributos e vocabulário, ocupações MEI (versionados)
 ```
 
 Regra de dependência: `dominio`, `calculo`, `selecao`, `correspondencia` e `otimizacao` **não acessam rede nem disco**. Toda I/O fica em `coleta`, `evidencias`, `documentos` e `api`. Isso deixa o núcleo 100% testável.
@@ -223,7 +224,7 @@ A duplicidade de vagas (D-49) não tem tabela própria: é calculada a cada sele
 |---|---|
 | `catalogos/lojas.yaml` | lojas, domínios, categorias, conector, qual preço usar |
 | `catalogos/jornadas.yaml` | jornada semanal, divisor, fonte legal, revisão |
-| `catalogos/atributos.yaml` | atributos críticos por categoria |
+| `catalogos/atributos.yaml` | atributos críticos por categoria e vocabulário de valores que se excluem |
 | `catalogos/ocupacoes_mei.csv` | lista oficial de ocupações permitidas ao MEI (a importar) |
 
 ### Migrações
