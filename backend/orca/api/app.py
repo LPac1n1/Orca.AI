@@ -54,12 +54,13 @@ from orca.coleta import (
     ler_jornadas,
     ler_vocabulario,
 )
-from orca.documentos import Renderizador
+from orca.documentos import Renderizador, conferir
 from orca.evidencias import ArmazemArquivos, ErroIntegridade
 from orca.fluxo import (
     ErroAcao,
     ErroDossie,
     devolver_loja,
+    dossie_do_projeto,
     estado_do_projeto,
     execucao_vigente,
     marcar_mesma_vaga,
@@ -522,6 +523,18 @@ def _rotas_de_resultado(app: FastAPI, sv: Servico) -> None:
                            | {o.cnpj_vendedor for _, c in estado.cargos() for o in c.anuncios.values() if o.cnpj_vendedor})
             dias = estado.perfil.regras.evidencia.reaproveitar_comprovante_dias
             return {"pendentes": comprovantes_pendentes(s, cnpjs, estado.hoje, dias)}
+
+    @app.get("/api/projetos/{projeto_id}/conformidade")
+    def conformidade(projeto_id: str):
+        """A conferência de cada regra (a mesma do relatório do pacote), antes de gerar os documentos."""
+        with sv.sessao() as s:
+            estado = sv.estado(s, _obter(s, Projeto, projeto_id, "Projeto"))
+            try:
+                dossie = dossie_do_projeto(s, estado, execucao_vigente(s, estado))
+            except ErroDossie as erro:
+                return {"conferencias": [], "pendencias": str(erro)}
+            return {"conferencias": [{"regra": c.regra, "situacao": c.situacao, "detalhes": list(c.detalhes)}
+                                     for c in conferir(dossie, estado.hoje)], "pendencias": None}
 
     @app.post("/api/projetos/{projeto_id}/exportar", status_code=202)
     def exportar(projeto_id: str):

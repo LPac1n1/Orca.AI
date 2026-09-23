@@ -197,3 +197,13 @@ def test_exportar_pelo_edge(tmp_path, navegador):
         assert zip_.status_code == 200 and zip_.content[:2] == b"PK"
         assert api.get("/api/arquivos/orcamentos.sqlite").status_code == 404  # só a pasta de exportações
         assert api.get("/api/arquivos/../../segredo.txt").status_code == 404
+
+
+def test_interface_e_conformidade(app, api):
+    inicio = api.get("/")
+    assert inicio.status_code == 200 and 'id="raiz"' in inicio.text  # a interface compilada é servida
+    ids = _projeto(api)
+    conformidade = _ok(api.get(f"/api/projetos/{ids['projeto']}/conformidade"))
+    assert conformidade["conferencias"] == [] and "Ainda não dá" in conformidade["pendencias"]
+    painel = _ok(api.get(f"/api/projetos/{ids['projeto']}/painel"))
+    assert any("nenhuma loja pesquisada" in m for l in painel["linhas"] for m in l["motivos"])

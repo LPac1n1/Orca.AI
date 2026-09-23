@@ -51,11 +51,19 @@ cd backend && /c/Users/leopa/.venvs/orca-ai/Scripts/python -m pytest
 cd backend && ORCA_TESTES_REDE=1 /c/Users/leopa/.venvs/orca-ai/Scripts/python -m pytest -m rede
 ```
 
-Para abrir o sistema (API local; a interface entra na etapa 9.3):
+Para abrir o sistema:
 
 ```bash
 /c/Users/leopa/.venvs/orca-ai/Scripts/orca
 ```
+
+A interface (React + TypeScript + Vite) fica em `frontend/`. Depois de mudar as telas, compile — o resultado vai para `backend/orca/api/estatico/` e entra no commit:
+
+```bash
+cd frontend && npm install && npm run build
+```
+
+Para desenvolver com recarga automática: `orca` rodando e `cd frontend && npm run dev` (abre em http://localhost:5173).
 
 A API tem documentação em `http://localhost:8765/api/docs`. Pedidos que mudam dados precisam do cabeçalho `X-Orca: 1`.
 

@@ -48,7 +48,7 @@ Aplicação **local** (D-05): um único programa instalado no computador da OSC.
 | Interface | React + TypeScript + Vite; TanStack Table | A matriz de revisão precisa de uma tela rica |
 | Testes | pytest + hypothesis | Testes de propriedade para arredondamento e cálculo |
 
-Node.js (já instalado) é usado só no desenvolvimento, para compilar a interface. O usuário final não precisa dele.
+Node.js (já instalado) é usado só no desenvolvimento, para compilar a interface. O usuário final não precisa dele: a interface compilada fica em `backend/orca/api/estatico/` (vai junto com o pacote Python) e é servida pelo comando `orca`. As telas usam endereços com `#` (`/#/projetos/…`), para funcionar sem configuração no servidor. A matriz de revisão é uma tabela própria; a TanStack Table fica para quando for necessária.
 
 ## 3. Organização do código
 

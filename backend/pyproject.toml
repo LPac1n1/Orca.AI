@@ -44,6 +44,8 @@ orca = [
     "banco/migracoes/*.mako",
     "banco/migracoes/versions/*.py",
     "documentos/modelos/*.html",
+    "api/estatico/*",
+    "api/estatico/assets/*",
 ]
 
 [tool.pytest.ini_options]

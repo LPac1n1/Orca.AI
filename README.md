@@ -8,7 +8,18 @@ O Orça.AI pesquisa produtos e vagas, confere se os produtos são idênticos, va
 
 ## Situação
 
-Em construção — **Fase 1**: cálculo, regras, banco local, seleção, otimização do teto, coleta por URL (evidências e CNPJ), correspondência de produtos e documentos (Excel, PDF e pacote ZIP) prontos. Ainda não há versão para uso.
+Em construção — **Fase 1**: cálculo, regras, banco local, seleção, otimização do teto, coleta por URL (evidências e CNPJ), correspondência de produtos, documentos (Excel, PDF e pacote ZIP), API local e telas principais prontos. Faltam as telas de captura assistida, catálogos e regras; ainda não há instalador.
+
+## Como usar (versão em desenvolvimento)
+
+Depois de instalar (veja Desenvolvimento), rode `orca`. O sistema abre no navegador em `http://localhost:8765`:
+
+1. crie o projeto com o teto e a duração;
+2. cadastre os orçamentos (rubricas), os lotes, os itens (com marca e especificação) e os cargos;
+3. em **Pesquisa e revisão**, cole os links das páginas das lojas e das vagas; o sistema guarda a prova, lê o preço e confere se é o mesmo produto;
+4. consulte os CNPJs, resolva o que estiver apontado, feche o teto e gere os documentos.
+
+Os dados ficam na pasta `Documentos\Orca.AI` (ou na que você escolher com `orca --pasta`).
 
 ## Documentação
 
@@ -24,7 +35,7 @@ python -m venv ~/.venvs/orca-ai
 cd backend && ~/.venvs/orca-ai/Scripts/python -m pytest
 ```
 
-(No Linux/macOS, troque `Scripts` por `bin`.)
+(No Linux/macOS, troque `Scripts` por `bin`.) A interface fica em `frontend/`; para compilá-la: `cd frontend && npm install && npm run build` (precisa de Node.js).
 
 ## Licença
 
