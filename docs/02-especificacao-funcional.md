@@ -35,7 +35,8 @@ Ações: criar, duplicar, renomear, arquivar, excluir, recalcular, pesquisar de 
 ## 4. Perfis de regras
 
 - Herança em camadas: **padrão do sistema → OSC → secretaria/edital → projeto → orçamento**. Cada camada só declara o que muda.
-- Todo perfil tem **versão**. Cada cálculo grava a versão exata usada.
+- Todo perfil tem **versão**. Cada cálculo grava a versão exata usada (impressão digital SHA-256 do perfil completo e a lista das camadas).
+- O sistema registra **de qual camada veio cada regra**, para responder "por que esta regra vale aqui?".
 - Perfis podem ser exportados e importados (arquivo YAML), para OSCs compartilharem perfis de secretarias.
 - O perfil padrão e todos os parâmetros estão em [05](05-regras-padrao.md).
 - Com IA disponível, o sistema pode ler um edital (PDF) e **propor** um perfil, citando a página de cada regra. O usuário confirma.

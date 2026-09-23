@@ -8,17 +8,22 @@ version = "0.1.0"
 description = "Montador de orçamentos para projetos sociais de OSCs"
 requires-python = ">=3.12"
 license = { text = "AGPL-3.0-only" }
-dependencies = []
+dependencies = [
+    "pydantic>=2.7,<3",
+    "pyyaml>=6",
+]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
     "hypothesis>=6",
-    "pyyaml>=6",
 ]
 
 [tool.setuptools.packages.find]
 include = ["orca*"]
+
+[tool.setuptools.package-data]
+orca = ["regras/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["testes"]

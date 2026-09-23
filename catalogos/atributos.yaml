@@ -1,0 +1,18 @@
+# Atributos críticos por categoria (docs/05-regras-padrao.md §3).
+# Além destes, marca, modelo e apresentação são sempre obrigatórios (D-17).
+# O catálogo pode ser ampliado pelo usuário e compartilhado.
+
+versao: 1
+
+sempre: [marca, modelo, apresentacao]
+
+categorias:
+  papel:        [formato, gramatura, folhas_por_pacote]
+  caneta:       [cor, espessura_ponta, unidades_por_embalagem]
+  papelaria:    [dimensoes, unidades_por_embalagem]
+  alimento:     [peso_ou_volume_liquido, tipo, sabor]
+  bebida:       [volume, tipo, sabor]
+  limpeza:      [volume, concentracao, fragrancia]
+  descartavel:  [capacidade, unidades_por_embalagem]
+  eletronico:   [modelo_exato, voltagem]
+  servico:      [escopo, periodicidade, unidade_de_cobranca]

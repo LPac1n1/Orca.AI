@@ -48,8 +48,8 @@ Objetivo: um orçamento completo e defensável, com coleta **semiautomática** (
 
 ## 2. Ordem de construção dentro da Fase 1
 
-1. `calculo` — dinheiro em centavos, arredondamento comercial, cotações, mão de obra (com testes de propriedade).
-2. `regras` — perfis, herança, versões.
+1. ✅ `calculo` — dinheiro em centavos, arredondamento comercial, cotações, mão de obra (com testes de propriedade).
+2. ✅ `regras` — perfis, herança, versões, origem de cada regra.
 3. `dominio` + banco + auditoria.
 4. `selecao` — cobertura, classificação, Regra A/B, conferência, resolução.
 5. `otimizacao` — modelo, diagnóstico, verificação independente.

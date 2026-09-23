@@ -1,0 +1,109 @@
+perfil: padrao-sistema
+camada: sistema
+versao: 1
+descricao: Perfil padrão do Orca.AI. As camadas seguintes declaram só o que muda.
+
+fontes:
+  fontes_por_cotacao: 3                    # D-10
+  lojas_virtuais: permitidas               # D-11
+  validade_dias: 180                       # D-12
+  aviso_vencimento_dias: 30
+  cnpjs_distintos_na_cotacao: true         # P-03
+  marketplace:                             # D-16
+    permitido: true
+    cnpj_considerado: vendedor
+    um_vendedor_por_orcamento_comparativo: true
+    descartar_sem_cnpj_vendedor: true
+  fontes_alternativas:                     # D-18
+    atas_registro_preco: false
+    painel_de_precos: false
+    caged: false
+    convencao_coletiva: false
+
+preco_referencia:                          # D-15, D-60 a D-63
+  frete: excluir
+  desconto_pix: ignorar                    # D-60 — usar o preço normal
+  cupom: ignorar                           # D-61
+  clube_assinatura_ou_login: ignorar       # D-61
+  promocao_aberta_a_todos: usar            # D-62 — vale o preço atual ("por")
+  preco_por_quantidade: ignorar            # D-63 — sempre o preço unitário
+  cep: do_projeto                          # ou um CEP fixo, ex.: "03977-015"
+
+produto:
+  equivalencia: mesma_marca_modelo_apresentacao   # D-17 | mesmo_ean
+  exige_ean_igual: false                           # true = só 🟢 com EAN igual
+  atributos_criticos: catalogos/atributos.yaml     # ver §3
+
+evidencia:
+  por_fonte: [pdf, png, html]              # o PDF é obrigatório (D-13)
+  cabecalho_pdf: [url, data_hora, cep, sha256]
+  pdf_por_cotacao: true
+  comprovante_receita: obrigatorio         # D-13
+  reaproveitar_comprovante_dias: 30        # D-14
+  cnpj_ativo_obrigatorio: true
+
+cnpj:
+  provedores: [opencnpj, brasilapi]
+  aceita_alfanumerico: true                # D-19
+
+calculo:
+  base_preco_final: B                      # D-20 — A: média arredondada | B: loja de menor total
+  arredondamento: comercial                # D-21
+  casas_decimais: 2
+  comparar_com: media_exata                # P-02 — media_exata | media_exibida
+  misturar_lojas_no_final: false           # D-22
+  resolucao_item_acima_da_media: [trocar_produto, trocar_loja]   # D-23 — o usuário escolhe
+  lotes_dentro_do_orcamento: permitido     # D-24
+  comparativos_usam_quantidades_finais: true   # D-25
+  orcamento_1: menor_total                 # D-26
+
+teto:
+  nivel: projeto                           # D-30
+  exato: true
+  limites_por_orcamento: {}                # ex.: {"Mão de obra": {max_percentual: 70}}
+
+otimizacao:                                # D-32 — margens em percentual inteiro
+  margem_quantidade: {min_percentual: -20, max_percentual: 20}
+  margem_horas: {min_percentual: -20, max_percentual: 20}
+  meses: definidos_pelo_usuario
+  manter_loja_escolhida_menor_total: true  # C3
+  manter_classificacao: true               # C4
+  objetivo: [menos_linhas_alteradas, menor_desvio_relativo]
+
+mao_de_obra:
+  fontes_por_cotacao: 3                    # D-40
+  valor_referencia: media                  # D-41
+  divisor: jornada_semanal_x5              # D-42
+  tabela_jornadas: catalogos/jornadas.yaml # ver §2
+  sequencia_arredondamento: [media, valor_hora, valor_mensal]   # D-43
+  horas_casas_decimais: 2
+  encargos: false                          # D-44
+  regime_padrao: [mei_se_permitido, recibo]   # D-45
+  formula_por_regime: {mei: padrao, recibo: padrao, clt: padrao}
+  faixa_salarial: menor_valor              # D-46
+  vaga_sem_salario: descartar
+  empresa_nao_identificada: descartar
+  empresas_distintas_na_cotacao: true      # P-04
+  mesmo_municipio: false                   # D-47
+  idade_maxima_vaga_dias: null
+  escolha: tres_menores_salarios           # D-48
+  plataformas: [catho, indeed, infojobs, vagas_com, google_jobs, linkedin_assistido]
+
+desembolso:
+  padrao: parcela_unica_mes_1              # P-06 | conforme_cronograma
+
+automacao:                                 # §4 — automatico | com_aprovacao | manual
+  correspondencia_ean: automatico
+  correspondencia_atributos: com_aprovacao
+  ia_rebaixa_correspondencia: automatico
+  promover_amarelo_para_verde: manual      # sempre manual (princípio 4)
+  escolher_lojas: automatico
+  resolver_item_acima_da_media: com_aprovacao   # nunca automático (D-23)
+  bloquear_cnpj_inativo: automatico
+  descartar_vaga_duplicada_clara: automatico
+  descartar_vaga_duplicada_incerta: com_aprovacao
+  sugerir_quantidade_horas_cargo: com_aprovacao
+  refazer_pesquisa_vencida: com_aprovacao
+  otimizar_teto: com_aprovacao
+  perfil_do_edital: manual                 # sempre manual
+  aprovacao_final: manual                  # sempre manual

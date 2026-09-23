@@ -4,9 +4,13 @@
 
 Camadas seguintes (OSC → secretaria/edital → projeto → orçamento) declaram **só o que muda**. Cada parâmetro cita a decisão de origem ([01](01-decisoes.md)).
 
+Arquivo usado pelo sistema: [`backend/orca/regras/padrao-sistema.yaml`](../backend/orca/regras/padrao-sistema.yaml). Um teste garante que este bloco e o arquivo são iguais.
+
 ```yaml
 perfil: padrao-sistema
+camada: sistema
 versao: 1
+descricao: Perfil padrão do Orca.AI. As camadas seguintes declaram só o que muda.
 
 fontes:
   fontes_por_cotacao: 3                    # D-10
@@ -32,15 +36,15 @@ preco_referencia:                          # D-15, D-60 a D-63
   clube_assinatura_ou_login: ignorar       # D-61
   promocao_aberta_a_todos: usar            # D-62 — vale o preço atual ("por")
   preco_por_quantidade: ignorar            # D-63 — sempre o preço unitário
-  cep: do_projeto
+  cep: do_projeto                          # ou um CEP fixo, ex.: "03977-015"
 
 produto:
-  equivalencia: mesma_marca_modelo_apresentacao   # D-17
+  equivalencia: mesma_marca_modelo_apresentacao   # D-17 | mesmo_ean
   exige_ean_igual: false                           # true = só 🟢 com EAN igual
   atributos_criticos: catalogos/atributos.yaml     # ver §3
 
 evidencia:
-  por_fonte: [pdf, png, html]
+  por_fonte: [pdf, png, html]              # o PDF é obrigatório (D-13)
   cabecalho_pdf: [url, data_hora, cep, sha256]
   pdf_por_cotacao: true
   comprovante_receita: obrigatorio         # D-13
@@ -67,9 +71,9 @@ teto:
   exato: true
   limites_por_orcamento: {}                # ex.: {"Mão de obra": {max_percentual: 70}}
 
-otimizacao:                                # D-32
-  margem_quantidade: {min: -0.20, max: 0.20}
-  margem_horas: {min: -0.20, max: 0.20}
+otimizacao:                                # D-32 — margens em percentual inteiro
+  margem_quantidade: {min_percentual: -20, max_percentual: 20}
+  margem_horas: {min_percentual: -20, max_percentual: 20}
   meses: definidos_pelo_usuario
   manter_loja_escolhida_menor_total: true  # C3
   manter_classificacao: true               # C4
@@ -95,8 +99,34 @@ mao_de_obra:
   plataformas: [catho, indeed, infojobs, vagas_com, google_jobs, linkedin_assistido]
 
 desembolso:
-  padrao: parcela_unica_mes_1              # P-06
+  padrao: parcela_unica_mes_1              # P-06 | conforme_cronograma
+
+automacao:                                 # §4 — automatico | com_aprovacao | manual
+  correspondencia_ean: automatico
+  correspondencia_atributos: com_aprovacao
+  ia_rebaixa_correspondencia: automatico
+  promover_amarelo_para_verde: manual      # sempre manual (princípio 4)
+  escolher_lojas: automatico
+  resolver_item_acima_da_media: com_aprovacao   # nunca automático (D-23)
+  bloquear_cnpj_inativo: automatico
+  descartar_vaga_duplicada_clara: automatico
+  descartar_vaga_duplicada_incerta: com_aprovacao
+  sugerir_quantidade_horas_cargo: com_aprovacao
+  refazer_pesquisa_vencida: com_aprovacao
+  otimizar_teto: com_aprovacao
+  perfil_do_edital: manual                 # sempre manual
+  aprovacao_final: manual                  # sempre manual
 ```
+
+**Como as camadas se somam** (ordem: sistema → OSC → secretaria/edital → projeto → orçamento, cada nível no máximo uma vez):
+- grupos de chaves são somados; listas e valores simples **substituem** o anterior; um grupo vazio (`{}`) limpa o grupo;
+- o sistema registra **de qual camada veio cada regra** e grava a impressão digital (SHA-256) do perfil completo em cada cálculo;
+- **números decimais não são aceitos** nas regras (evita arredondamentos escondidos): percentuais são inteiros (`-20`, não `-0.20`);
+- chaves desconhecidas e valores fora das opções geram erro em português, com o nome da camada responsável.
+
+**Opções ainda fixas:** algumas chaves aceitam hoje só o valor padrão, porque a alternativa ainda não foi implementada (ex.: `teto.exato`, `calculo.misturar_lojas_no_final`, `mao_de_obra.encargos`, `mao_de_obra.faixa_salarial`, `preco_referencia.preco_por_quantidade`). Mudar isso exige decisão registrada em [01](01-decisoes.md) e implementação.
+
+**Travas dos princípios** (nenhuma camada muda): `automacao.promover_amarelo_para_verde`, `automacao.perfil_do_edital` e `automacao.aprovacao_final` são sempre `manual`; `automacao.resolver_item_acima_da_media` nunca é `automatico`; o PDF da página e, no cabeçalho, URL e data/hora são obrigatórios na evidência.
 
 ## 2. Tabela de jornadas (divisor mensal = jornada semanal × 5)
 
@@ -134,6 +164,8 @@ servico:      [escopo, periodicidade, unidade_de_cobranca]
 O catálogo pode ser ampliado pelo usuário e compartilhado.
 
 ## 4. Níveis de automação padrão
+
+No perfil de regras: grupo `automacao` (valores `automatico`, `com_aprovacao`, `manual`).
 
 | Ação | Nível padrão |
 |---|---|
