@@ -69,6 +69,7 @@ Orca.AI/                       ← repositório (sem "ç": limite do GitHub)
 │       ├── coleta/            captura (Edge), leitura de preço/vaga/CNPJ, situação cadastral, comprovante, pendências
 │       ├── evidencias/        armazém por impressão digital (SHA-256), validade, manifesto
 │       ├── ia/                provedores plugáveis e tarefas de IA
+│       ├── fluxo/             liga as etapas a partir do banco: estado, seleção, vagas, teto, painel, dossiê
 │       ├── documentos/        Excel, PDF, ZIP
 │       ├── banco/             tabelas, migrações, gatilhos, sessões com autor, regras gravadas
 │       ├── auditoria/         histórico automático de eventos, rastro do valor

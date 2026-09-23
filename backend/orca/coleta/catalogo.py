@@ -11,6 +11,7 @@ from orca.correspondencia import Vocabulario
 PASTA_CATALOGOS = Path(__file__).resolve().parents[3] / "catalogos"
 CATALOGO_PADRAO = PASTA_CATALOGOS / "lojas.yaml"
 ATRIBUTOS_PADRAO = PASTA_CATALOGOS / "atributos.yaml"
+JORNADAS_PADRAO = PASTA_CATALOGOS / "jornadas.yaml"
 
 
 @dataclass(frozen=True)
@@ -56,3 +57,22 @@ def ler_catalogo(caminho: Path | str = CATALOGO_PADRAO) -> dict[str, LojaCatalog
 def ler_vocabulario(caminho: Path | str = ATRIBUTOS_PADRAO) -> Vocabulario:
     """Atributos críticos por categoria e vocabulário de valores (catalogos/atributos.yaml)."""
     return Vocabulario.de_dados(yaml.safe_load(Path(caminho).read_text(encoding="utf-8")) or {})
+
+
+@dataclass(frozen=True)
+class Jornada:
+    id: str
+    descricao: str
+    jornada_semanal_horas: int
+    fator_divisor: int  # divisor mensal = jornada semanal × fator (D-42)
+    fonte_legal: str
+
+
+def ler_jornadas(caminho: Path | str = JORNADAS_PADRAO) -> dict[str, Jornada]:
+    """Tabela de jornadas revisada por humano (catalogos/jornadas.yaml), por id."""
+    dados = yaml.safe_load(Path(caminho).read_text(encoding="utf-8")) or {}
+    fator = int(dados["fator_divisor"])
+    return {
+        j["id"]: Jornada(j["id"], j["descricao"], int(j["jornada_semanal_horas"]), fator, j.get("fonte_legal", ""))
+        for j in dados["jornadas"]
+    }

@@ -10,13 +10,14 @@ from orca.banco.tabelas import ExecucaoOtimizacao, LinhaFinal, Projeto
 from orca.otimizacao import VERSAO_OTIMIZADOR, ProblemaTeto, SemSolucao, SolucaoTeto
 
 
-def _para_json(valor: Any) -> Any:
+def para_json(valor: Any) -> Any:
+    """Dataclasses, dicionários e tuplas → estrutura JSON (como fica gravada no banco)."""
     if dataclasses.is_dataclass(valor) and not isinstance(valor, type):
-        return {c.name: _para_json(getattr(valor, c.name)) for c in dataclasses.fields(valor)}
+        return {c.name: para_json(getattr(valor, c.name)) for c in dataclasses.fields(valor)}
     if isinstance(valor, Mapping):
-        return {str(k): _para_json(v) for k, v in valor.items()}
+        return {str(k): para_json(v) for k, v in valor.items()}
     if isinstance(valor, (list, tuple)):
-        return [_para_json(v) for v in valor]
+        return [para_json(v) for v in valor]
     return valor
 
 
@@ -42,8 +43,8 @@ def registrar_execucao(
         total_centavos=total,
         verificacao_ok=verificacao_ok,
         versao_otimizador=versao,
-        entradas=_para_json(problema),
-        resultado=_para_json(resultado),
+        entradas=para_json(problema),
+        resultado=para_json(resultado),
         autor=autor,
     )
     sessao.add(execucao)
