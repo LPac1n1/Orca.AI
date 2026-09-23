@@ -47,10 +47,15 @@ python -m venv /c/Users/leopa/.venvs/orca-ai
 /c/Users/leopa/.venvs/orca-ai/Scripts/python -m pip install -e "backend[dev]"
 # testes
 cd backend && /c/Users/leopa/.venvs/orca-ai/Scripts/python -m pytest
+# testes que consultam APIs reais (marcados "rede"; normalmente pulados)
+cd backend && ORCA_TESTES_REDE=1 /c/Users/leopa/.venvs/orca-ai/Scripts/python -m pytest -m rede
 ```
+
+A captura de páginas usa o **Microsoft Edge** do Windows (Playwright, canal `msedge`); não baixe outro navegador. Testes marcados `navegador` usam uma loja sintética servida no próprio computador.
 
 ## Cuidados
 
 - O repositório é **público**. A pasta `Modelo de Orçamento/` (documentos reais de processos, com nomes de pessoas) está no `.gitignore` e **nunca** deve ser publicada. Dados de teste derivados de casos reais: só preços, produtos e CNPJs de empresas.
 - Não fazer commit nem push sem o usuário pedir. Trabalho novo em branch própria; junção ao `main` com aprovação do usuário.
 - Ao consultar sites de lojas: poucas requisições, sem login, sem aceitar cookies, sem contornar captcha.
+- Dados de CNPJ: guardar só o necessário (razão social, situação, município…). Nunca sócios, e-mails ou telefones (LGPD).

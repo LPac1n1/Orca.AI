@@ -53,7 +53,7 @@ Objetivo: um orçamento completo e defensável, com coleta **semiautomática** (
 3. ✅ `dominio` + banco + auditoria (tabelas, migrações, gatilhos, histórico automático, regras gravadas por versão).
 4. ✅ `selecao` — cobertura, classificação, trio, Regra A/B, conferência, resolução (Saídas 1 e 2), escolha das vagas, conferência de grade pronta.
 5. ✅ `otimizacao` — modelo CP-SAT, diagnóstico (limites, divisibilidade, conflitos e sugestões), verificação independente, execuções gravadas.
-6. `evidencias` + coleta por URL + CNPJ.
+6. ✅ `evidencias` + coleta por URL + CNPJ — captura com o Edge (PDF com cabeçalho, imagem, MHTML, SHA-256), leitura de produto e vaga (JSON-LD), conferência do preço na página, CNPJ do vendedor, situação cadastral (OpenCNPJ, BrasilAPI), comprovante da Receita por captura assistida, fila de comprovantes, validade com alertas, nova pesquisa, vagas repetidas. A janela da captura assistida ganha botões na etapa 9.
 7. `correspondencia` sem IA.
 8. `documentos` — Excel, PDF, ZIP.
 9. API e interface.
@@ -74,10 +74,10 @@ Cada caso tem dados de entrada fixos (observações gravadas, sem acesso à inte
 | T-06 | **Teto exato viável** (materiais + mão de obra, projeto com várias rubricas) | Soma igual ao teto ao centavo; C3 e C4 respeitadas; verificação independente ok; mesma saída em execuções repetidas | ✅ |
 | T-07 | **Teto inviável por divisibilidade** (itens múltiplos de R$ 2,50, teto terminado em 1,00) | Mensagem de divisibilidade e sugestão da menor mudança | ✅ |
 | T-08 | **Teto inviável por limites** | Mensagem com o máximo possível e a diferença | ✅ |
-| T-09 | **Vagas:** mesma vaga em 2 plataformas; vaga sem salário; empresa confidencial; faixa salarial | Duplicada conta 1 vez; as outras descartadas com motivo; faixa → menor valor | escolha ✅; detecção de duplicidade na etapa 6 |
-| T-10 | **Validade:** evidência que vence antes da data de entrega | Alerta gerado; nova pesquisa mantém a antiga no histórico | etapa 6 |
+| T-09 | **Vagas:** mesma vaga em 2 plataformas; vaga sem salário; empresa confidencial; faixa salarial | Duplicada conta 1 vez; as outras descartadas com motivo; faixa → menor valor | ✅ |
+| T-10 | **Validade:** evidência que vence antes da data de entrega | Alerta gerado; nova pesquisa mantém a antiga no histórico | ✅ |
 | T-11 | **Correspondência:** conjunto de referência | 🟢 sem nenhum falso positivo; taxa de 🟡 medida e registrada | etapa 7 |
-| T-12 | **Marketplace:** vendedor sem CNPJ identificável; dois produtos de vendedores diferentes | Anúncio descartado; orçamento comparativo exige vendedor único | seleção ✅; identificação do vendedor na etapa 6 |
+| T-12 | **Marketplace:** vendedor sem CNPJ identificável; dois produtos de vendedores diferentes | Anúncio descartado; orçamento comparativo exige vendedor único | ✅ |
 | T-13 | **Regra A** num orçamento e **Regra B** em outro, no mesmo projeto | Cada orçamento com a sua base; teto do projeto exato | ✅ |
 | T-14 | **Item bloqueador** (produto em só 2 lojas) | Item e nº de lojas informados; sugestões apresentadas | ✅ |
 | T-15 | **CNPJ alfanumérico** e CNPJ não ativo | DV validado; fonte bloqueada quando não ativa | ✅ |

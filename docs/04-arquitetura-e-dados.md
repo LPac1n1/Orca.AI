@@ -65,8 +65,8 @@ Orca.AI/                       ← repositório (sem "ç": limite do GitHub)
 │       ├── selecao/           cobertura, classificação, conferência preço × média, resolução
 │       ├── correspondencia/   normalização, atributos, EAN, cascata 🟢🟡🔴
 │       ├── otimizacao/        modelo CP-SAT, diagnóstico, verificação independente
-│       ├── coleta/            conectores de lojas, vagas e CNPJ; captura assistida
-│       ├── evidencias/        captura, hash, armazenamento, manifesto, validade
+│       ├── coleta/            captura (Edge), leitura de preço/vaga/CNPJ, situação cadastral, comprovante, pendências
+│       ├── evidencias/        armazém por impressão digital (SHA-256), validade, manifesto
 │       ├── ia/                provedores plugáveis e tarefas de IA
 │       ├── documentos/        Excel, PDF, ZIP
 │       ├── banco/             tabelas, migrações, gatilhos, sessões com autor, regras gravadas
@@ -126,15 +126,27 @@ O **catálogo de lojas** (`catalogos/lojas.yaml`) diz qual conector usar em cada
 ### 5.3 Conferências obrigatórias na coleta
 
 - A página é rolada até o fim antes da captura, para carregar conteúdo tardio. O HTML salvo inclui o conteúdo dos quadros incorporados (iframes), e o PDF mostra o que está neles.
-- O preço extraído precisa aparecer no HTML salvo. Senão: 🔴 "Não foi possível validar automaticamente".
+- O preço extraído precisa aparecer no texto visível da página (inclusive dos quadros). Senão: 🔴 "Não foi possível validar automaticamente". Na captura assistida, o preço informado pelo usuário passa pela mesma conferência.
+- Outros valores logo antes ou depois do preço (Pix, clube, "leve 5", "de/por") geram aviso para conferir D-60 a D-63. Valores distantes (produtos recomendados, rodapé) não.
 - EAN com dígito verificador válido; CNPJ com DV válido (numérico e alfanumérico).
-- Página de marketplace: o CNPJ do **vendedor** precisa ser identificado (D-16).
+- Página de marketplace: o CNPJ do **vendedor** precisa ser identificado (D-16). O CNPJ do rodapé é da plataforma e nunca é usado como o do vendedor; sem ele, o anúncio é descartado (T-12). Em loja comum, um único CNPJ na página é o da loja; com vários, o usuário indica qual.
 - A página está disponível, e o produto está em estoque para o CEP do projeto.
+- O CEP só aparece no PDF quando foi de fato aplicado na página. Lojas com preço por região (catálogo) avisam quando a captura foi feita sem CEP.
+- Sinais de bloqueio (códigos 401, 403, 429, 503; captcha; página de verificação) geram aviso para usar a captura assistida. O sistema nunca contorna captcha.
 
 ### 5.4 CNPJ
 
 - Situação cadastral: provedores plugáveis (OpenCNPJ, BrasilAPI; outros configuráveis). Resultados guardados com data e fonte.
-- Comprovante oficial: captura assistida na página da Receita, com uma **fila de comprovantes pendentes** para resolver de uma vez (D-14).
+- Comprovante oficial: captura assistida na página da Receita, com uma **fila de comprovantes pendentes** para resolver de uma vez (D-14). O sistema abre a página com o CNPJ já preenchido; o usuário resolve o captcha e clica em "Consultar"; o sistema reconhece o comprovante (e não a página de solicitação, que tem o mesmo título) e o captura sozinho. Um comprovante emitido há menos de 30 dias é reaproveitado; a fila tem os CNPJs sem comprovante reaproveitável.
+
+### 5.5 Evidência capturada (etapa 6)
+
+- Navegador: o **Microsoft Edge** que já vem no Windows (Playwright, canal `msedge`), sem baixar outro navegador. Sem janela na coleta automática (C1); com janela na captura assistida (C4).
+- Antes de capturar, a página é rolada tela a tela até o fim, esperando o conteúdo tardio.
+- **PDF** A4 com cabeçalho em todas as páginas: "Orça.AI — capturado em dd/mm/aaaa hh:mm:ss (horário de Brasília) · CEP", a URL e o SHA-256 da página salva (MHTML); rodapé com "página x de y".
+- **Imagem** (PNG) da página inteira e **página salva** (MHTML, com os quadros).
+- Arquivos gravados em `evidencias/ab/cd/<sha256>.<ext>`: o nome é a impressão digital do conteúdo, o arquivo fica somente leitura e é conferido a cada leitura.
+- Captura assistida: a janela fica aberta até a página ficar pronta — um sinal da própria página (ex.: o comprovante apareceu) ou o botão "Capturar agora" da interface (etapa 9).
 
 ## 6. Inteligência artificial (opcional)
 
@@ -202,8 +214,9 @@ Implementado em `backend/orca/banco/tabelas.py` (etapa 3). Convenções:
 | Tabela | Etapa |
 |---|---|
 | `selecao_lojas`, `resolucao` | 4 — seleção de lojas e resolução do item acima da média |
-| `grupo_vaga` | 6 — coleta de vagas |
 | `tarefa` | fila de tarefas (coleta, captura, exportação) |
+
+A duplicidade de vagas (D-49) não tem tabela própria: é calculada a cada seleção (`orca.selecao.agrupar_duplicadas`), e a decisão do usuário nos casos incertos é gravada em `decisao`.
 
 ### Catálogos (arquivos versionados no repositório)
 | Arquivo | Conteúdo |

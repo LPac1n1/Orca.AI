@@ -25,12 +25,23 @@ from orca.selecao.resolucao import (
     trocar_loja,
     trocar_produto,
 )
-from orca.selecao.vagas import SelecaoVagas, Vaga, selecionar_vagas
+from orca.selecao.vagas import (
+    AnuncioVaga,
+    Duplicidade,
+    ParIncerto,
+    SelecaoVagas,
+    Vaga,
+    agrupar_duplicadas,
+    selecionar_vagas,
+    semelhanca_titulos,
+)
 
 __all__ = [
     "Alternativa",
     "AnaliseLote",
+    "AnuncioVaga",
     "Divergencia",
+    "Duplicidade",
     "ItemLote",
     "LinhaGrade",
     "LinhaInformada",
@@ -38,6 +49,7 @@ __all__ = [
     "LojaClassificada",
     "Oferta",
     "OpcaoTrocaProduto",
+    "ParIncerto",
     "ParametrosSelecao",
     "ResultadoTrocaLoja",
     "SelecaoVagas",
@@ -45,11 +57,13 @@ __all__ = [
     "TentativaTrocaLoja",
     "Vaga",
     "Violacao",
+    "agrupar_duplicadas",
     "analisar_lote",
     "classificar",
     "conferir_grade",
     "motivos_inelegivel",
     "selecionar_vagas",
+    "semelhanca_titulos",
     "total_da_loja",
     "trocar_loja",
     "trocar_produto",
