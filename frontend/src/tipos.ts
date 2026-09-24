@@ -219,7 +219,7 @@ export interface Painel {
 export interface Tarefa {
   id: string;
   projeto_id: string | null;
-  tipo: "coletar_item" | "coletar_cargo" | "captura_assistida" | "comprovante" | "consultar_cnpj" | "fechar_teto" | "exportar";
+  tipo: "coletar_item" | "coletar_cargo" | "captura_assistida" | "comprovante" | "consultar_cnpj" | "fechar_teto" | "exportar" | "buscar_lote";
   estado: "pendente" | "rodando" | "esperando_usuario" | "concluida" | "falhou" | "cancelada";
   progresso: number;
   mensagem: string | null;

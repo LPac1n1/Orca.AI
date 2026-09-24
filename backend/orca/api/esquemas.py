@@ -146,6 +146,10 @@ class CorrecaoDePreco(_Entrada):
     justificativa: str = Field(min_length=1)
 
 
+class PedidoDeBusca(_Entrada):
+    lojas: list[str] = Field(min_length=1)
+
+
 class DecisaoDeLoja(_Entrada):
     loja: str
     justificativa: str = Field(min_length=1)

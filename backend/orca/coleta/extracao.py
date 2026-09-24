@@ -124,7 +124,10 @@ def _ofertas(produto: dict) -> list[dict]:
 
 
 def _preco_oferta(oferta: dict) -> int | None:
+    """Preço da oferta; zero conta como "sem preço" (lojas que só mostram o preço depois do CEP)."""
     preco = _centavos(oferta.get("price"))
+    if preco is not None and preco <= 0:
+        preco = None
     if preco is None:
         especificacao = oferta.get("priceSpecification")
         if isinstance(especificacao, dict):

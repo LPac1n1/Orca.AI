@@ -4,6 +4,11 @@
 #   C0 = dados estruturados/API | C1 = página da loja (acesso simples ou navegador)
 #   C2 = descoberta por buscador | C3 = agente de IA | C4 = captura assistida
 #   proposta = cotação por e-mail com o fornecedor
+# "busca" diz como o sistema pesquisa a loja (Fase 2, etapa 10; D-68):
+#   modo api_vtex = API pública de catálogo; modo pagina = página de busca do site
+#   ("produto" = pedaço do endereço de uma página de produto); modo assistida = a
+#   janela abre na busca e a pessoa escolhe o produto (D-67). Sem "busca": colar o link.
+#   Levantamento das buscas: 24/09/2026, uma requisição por loja.
 # "precos_na_pagina" lista os preços encontrados; "preco_a_usar" segue as
 # decisões D-60 a D-63 (docs/01): preço no Pix (sem Pix, boleto; nunca parcelado), sem clube/assinatura,
 # promoção aberta a todos vale, sempre o preço unitário.
@@ -19,9 +24,12 @@ lojas:
     plataforma: vtex
     coleta: C0
     endpoints:
-      busca_texto: /api/catalog_system/pub/products/search?ft={termo}
-      busca_ean: /api/catalog_system/pub/products/search?fq=alternateIds_Ean:{ean}
+      busca_texto: /io/api/catalog_system/pub/products/search?ft={termo}     # /api/... redireciona para /io/api/... (24/09/2026)
+      busca_ean: /io/api/catalog_system/pub/products/search?fq=alternateIds_Ean:{ean}
       regiao_por_cep: /api/checkout/pub/regions?country=BRA&postalCode={cep}
+    busca:
+      modo: api_vtex
+      url: https://www.atacadao.com.br/io/api/catalog_system/pub/products/search   # sem CEP a API traz preço 0
     ean: api
     cnpj_site: null            # vendedor "ATACADAO SA" na API; CNPJ a obter pelos dados abertos
     cep: regiao_por_cep
@@ -36,7 +44,9 @@ lojas:
     plataforma: vtex
     coleta: C1
     modo: navegador            # API recusa acesso simples (503)
-    busca: assistida           # D-67: a busca recusa o navegador sem janela (403, 23/09/2026); com janela visível funciona
+    busca:                     # D-67: a busca recusa o navegador sem janela (403, 23/09/2026); com janela visível funciona
+      modo: assistida
+      url: https://mercado.carrefour.com.br/s?q={termo}
     ean: jsonld
     cnpj_site: [45.543.915/0736-50, 45.543.915/0846-95]
     cep: pede_cep
@@ -51,7 +61,9 @@ lojas:
     plataforma: propria_nextjs
     coleta: C1
     modo: navegador
-    busca: assistida           # D-67: a busca recusa o navegador sem janela (403, 23/09/2026); com janela visível funciona
+    busca:                     # D-67: a busca recusa o navegador sem janela (403, 23/09/2026); com janela visível funciona
+      modo: assistida
+      url: https://www.extramercado.com.br/busca?terms={termo}
     ean: dados_da_pagina       # __NEXT_DATA__
     cnpj_site: [47.508.411/0001-56]
     cep: a_verificar
@@ -67,6 +79,10 @@ lojas:
     plataforma: propria_nextjs
     coleta: C1
     modo: acesso_simples       # dados embutidos em __NEXT_DATA__ e microdados
+    busca:
+      modo: pagina
+      url: https://www.tendaatacado.com.br/busca?q={termo}
+      produto: /produto/
     ean: nao_encontrado
     cnpj_site: [01.157.555/0011-86]
     cep: a_verificar
@@ -81,7 +97,10 @@ lojas:
     plataforma: propria
     coleta: C1
     modo: acesso_simples
-    busca: /busca/1?q={termo}
+    busca:
+      modo: pagina
+      url: https://www.kalunga.com.br/busca/1?q={termo}
+      produto: /prod/
     ean: nao_exibido           # só código interno
     cnpj_site: [43.283.811/0001-50]
     cep: a_verificar
@@ -97,6 +116,10 @@ lojas:
     plataforma: propria
     coleta: C1
     modo: navegador            # preço normal não aparece no HTML simples
+    busca:
+      modo: pagina
+      url: https://www.gimba.com.br/?txt-busca={termo}
+      produto: PID=
     ean: nao_exibido
     cnpj_site: [54.651.716/0011-50]
     cep: a_verificar
@@ -112,7 +135,10 @@ lojas:
     plataforma: propria
     coleta: C1
     modo: navegador
-    busca: /busca/1?q={termo}
+    busca:                     # a busca devolve muitos produtos; o sistema ordena pela semelhança com o item
+      modo: pagina
+      url: https://www.lepok.com.br/busca/1?q={termo}
+      produto: /produto/
     ean: a_verificar
     cnpj_site: [19.576.717/0001-04]
     cep: a_verificar

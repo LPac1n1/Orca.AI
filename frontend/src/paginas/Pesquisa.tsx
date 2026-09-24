@@ -261,10 +261,85 @@ function OutroValor({ aoEscolher }: { aoEscolher: (centavos: number) => void }) 
   );
 }
 
+// --- Busca automática nas lojas (Fase 2, etapa 10; D-68) ------------------------------------------
+
+interface LojaDeBusca {
+  id: string;
+  nome: string;
+  modo: "api_vtex" | "pagina" | "assistida";
+  sugerida: boolean;
+  faltam: number;
+}
+
+function BuscarNasLojas({ lote, aoFechar, aoIniciar }: { lote: LoteRevisao; aoFechar: () => void; aoIniciar: () => void }) {
+  const { dados, erro } = useDados<{ itens: number; lojas: LojaDeBusca[] }>(`/api/lotes/${lote.id}/lojas-de-busca`);
+  const [marcadas, setMarcadas] = useState<Set<string> | null>(null);
+  const escolhidas = marcadas ?? new Set((dados?.lojas ?? []).filter((l) => l.modo !== "assistida" && l.sugerida && l.faltam > 0).map((l) => l.id));
+  const alternar = (id: string) => {
+    const nova = new Set(escolhidas);
+    if (nova.has(id)) nova.delete(id);
+    else nova.add(id);
+    setMarcadas(nova);
+  };
+  const lojas = dados?.lojas ?? [];
+  const automaticas = lojas.filter((l) => l.modo !== "assistida");
+  const assistidas = lojas.filter((l) => l.modo === "assistida");
+  const buscas = automaticas.filter((l) => escolhidas.has(l.id)).reduce((n, l) => n + l.faltam, 0);
+  const janelas = assistidas.filter((l) => escolhidas.has(l.id)).reduce((n, l) => n + l.faltam, 0);
+  const linha = (l: LojaDeBusca) => (
+    <label key={l.id} className="marcador">
+      <input type="checkbox" checked={escolhidas.has(l.id)} onChange={() => alternar(l.id)} disabled={l.faltam === 0} />
+      {l.nome}
+      <span className="discreto pequeno">
+        {l.faltam === 0 ? " · todos os itens já têm página" : ` · ${l.faltam} item(ns) a pesquisar`}{l.sugerida ? "" : " · não vende todas as categorias do lote"}
+      </span>
+    </label>
+  );
+  return (
+    <Modal titulo={`Pesquisar nas lojas — lote ${lote.nome}`} aoFechar={aoFechar}>
+      <p className="explicacao">
+        O sistema pesquisa cada item na loja, escolhe o produto mais parecido e guarda a página dele como prova, como se você
+        tivesse colado o link. Começa pelo item mais difícil; se a loja não tiver um item, ela não completa o lote e as outras
+        buscas nela são poupadas. Vai devagar (alguns segundos entre um pedido e outro, na mesma loja). No fim, confira os
+        resultados na tabela.
+      </p>
+      {erro && <Aviso tipo="erro">{erro}</Aviso>}
+      {!dados && !erro && <Carregando />}
+      {dados && (
+        <Formulario rotulo="Pesquisar" aoCancelar={aoFechar} aoEnviar={async () => {
+          if (escolhidas.size === 0) throw new Error("Escolha ao menos uma loja.");
+          await api.criar(`/api/lotes/${lote.id}/busca`, { lojas: [...escolhidas] });
+          aoIniciar();
+        }}>
+          <h3>O sistema pesquisa sozinho</h3>
+          <div className="lista-lojas">{automaticas.map(linha)}</div>
+          {assistidas.length > 0 && (
+            <>
+              <h3>Com janela: você escolhe o produto</h3>
+              <p className="discreto pequeno">
+                Estas lojas recusam programas (D-67). Para cada item, abre uma janela na busca da loja; você clica no
+                produto certo e depois em “Capturar agora”, no quadro Tarefas.
+              </p>
+              <div className="lista-lojas">{assistidas.map(linha)}</div>
+            </>
+          )}
+          <Aviso tipo="info">
+            Até <strong>{buscas}</strong> busca(s) automática(s)
+            {buscas > 0 ? ` (cerca de ${Math.max(1, Math.round((buscas * 20) / 60))} min)` : ""} e{" "}
+            <strong>{janelas}</strong> captura(s) com janela, que vão esperar por você.
+          </Aviso>
+          <p className="discreto pequeno">Mercado Livre, Shopee e Amazon não entram aqui: cole o link da página do produto.</p>
+        </Formulario>
+      )}
+    </Modal>
+  );
+}
+
 // --- Lote -----------------------------------------------------------------------------------------
 
 function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: OrcamentoRevisao; atualizar: () => void }) {
   const [colar, setColar] = useState<ItemRevisao | null>(null);
+  const [buscar, setBuscar] = useState(false);
   const [detalhe, setDetalhe] = useState<{ item: ItemRevisao; loja: LojaDoLote } | null>(null);
   const [simulacao, setSimulacao] = useState<null | { sucesso: boolean; mensagem: string; tentativas: { retirada: string; motivo: string }[] }>(null);
   const [janela, pedir] = useDecisao();
@@ -286,7 +361,7 @@ function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: Or
   return (
     <div className="lote">
       <div className="cabecalho-secao">
-        <h3>Lote {lote.nome}</h3>
+        <h3>Lote {lote.nome} <button className="secundario pequeno" onClick={() => setBuscar(true)}>Pesquisar nas lojas</button></h3>
         <Selo status={lote.situacao === "ok" ? (temAcima ? "vermelho" : "verde") : "amarelo"}
           texto={lote.situacao === "ok" ? (temAcima ? "item acima da média" : `${orcamento.fontes_por_cotacao} lojas escolhidas`) : lote.situacao === "sem_trio" ? "faltam lojas completas" : "sem pesquisa"} />
       </div>
@@ -359,6 +434,7 @@ function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: Or
       </div>
 
       {colar && <ColarLink alvo={{ tipo: "item", id: colar.id, nome: colar.descricao }} aoTerminar={() => { setColar(null); atualizar(); }} />}
+      {buscar && <BuscarNasLojas lote={lote} aoFechar={() => setBuscar(false)} aoIniciar={() => { setBuscar(false); atualizar(); }} />}
       {detalhe && <DetalheDaOferta item={detalhe.item} loja={detalhe.loja} aoFechar={() => setDetalhe(null)} atualizar={atualizar} />}
       {simulacao && (
         <Modal titulo="Simulação da troca de loja (Saída 2)" aoFechar={() => setSimulacao(null)}>

@@ -167,3 +167,14 @@ def test_detecta_bloqueio():
     assert "verificação" in detectar_bloqueio(200, "https://x/account-verification", "")
     assert "(CAPTCHA)" in detectar_bloqueio(200, "https://x", "Resolva o CAPTCHA para continuar")
     assert detectar_bloqueio(200, "https://x/produto", "Papel A4 R$ 25,29") is None
+
+
+def test_preco_zero_nos_dados_da_pagina_e_sem_preco():
+    """Ensaio real no Atacadão (24/09/2026): sem CEP, os dados da página trazem preço 0."""
+    import json as _json
+
+    from orca.coleta import extrair_produto
+
+    produto = {"@type": "Product", "name": "Papel", "offers": {"price": "0", "priceCurrency": "BRL"}}
+    html = f'<script type="application/ld+json">{_json.dumps(produto)}</script>'
+    assert extrair_produto(html).preco_centavos is None

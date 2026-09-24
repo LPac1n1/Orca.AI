@@ -158,6 +158,28 @@ def _registrar_pagina(pagina: Page, url_pedida: str, status: int | None, cep: st
     )
 
 
+# Links de produto da página de busca: endereço, título e o texto do "cartão" (onde aparece o preço).
+_JS_RESULTADOS = """(padrao) => {
+    const vistos = new Map();
+    for (const a of document.querySelectorAll('a[href]')) {
+        const href = a.href;
+        if (!href || !href.startsWith('http') || !href.includes(padrao) || href.includes("'+")) continue;
+        const img = a.querySelector('img');
+        const titulo = (a.getAttribute('title') || a.innerText || (img && img.alt) || '').trim();
+        if (vistos.has(href)) {
+            if (!vistos.get(href).titulo && titulo) vistos.get(href).titulo = titulo;
+            continue;
+        }
+        let cartao = a;
+        for (let i = 0; i < 6 && cartao.parentElement && !(cartao.innerText || '').includes('R$'); i++) {
+            cartao = cartao.parentElement;
+        }
+        vistos.set(href, {href, titulo, texto: (cartao.innerText || '').slice(0, 600)});
+    }
+    return [...vistos.values()];
+}"""
+
+
 class Navegador:
     """Use com `with Navegador() as nav: nav.capturar(url)`.
 
@@ -196,6 +218,27 @@ class Navegador:
             return _registrar_pagina(pagina, url, resposta.status if resposta else None, cep, "C1")
         except ErroPlaywright as e:
             raise ErroCaptura(f"Não foi possível capturar {url}: {e}") from e
+        finally:
+            pagina.close()
+
+    def resultados_de_busca(self, url: str, padrao_produto: str) -> tuple[int | None, list[dict]]:
+        """Fase 2: abre a página de busca da loja e lê os links de produto (com o texto do cartão de cada um).
+
+        Não gera prova: a prova é a página do produto, capturada depois.
+        """
+        pagina = self._contexto.new_page()
+        try:
+            resposta = pagina.goto(url, wait_until="domcontentloaded", timeout=self.tempo_limite_ms)
+            try:
+                pagina.wait_for_load_state("networkidle", timeout=15_000)
+            except ErroPlaywright:
+                pass
+            for _ in range(3):  # os resultados podem carregar ao rolar
+                pagina.evaluate("window.scrollBy(0, window.innerHeight)")
+                pagina.wait_for_timeout(400)
+            return (resposta.status if resposta else None), pagina.evaluate(_JS_RESULTADOS, padrao_produto)
+        except ErroPlaywright as e:
+            raise ErroCaptura(f"Não foi possível abrir a busca {url}: {e}") from e
         finally:
             pagina.close()
 

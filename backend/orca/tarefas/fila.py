@@ -50,6 +50,7 @@ class Contexto:
     abrir_navegador_visivel: Callable[[], AbstractContextManager] | None = None
     cliente_http: Callable[[], httpx.Client] | None = None
     hoje: Callable[[], date] = field(default=hoje_em_brasilia)
+    intervalo_busca_s: float = 3.0  # entre dois pedidos à mesma loja na busca automática (poucas requisições)
 
 
 Executor = Callable[["Fila", str, dict], dict]

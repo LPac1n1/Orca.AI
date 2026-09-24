@@ -67,6 +67,7 @@ export const TIPOS_DE_TAREFA = {
   coletar_item: "Ler página de produto",
   coletar_cargo: "Ler página de vaga",
   captura_assistida: "Captura com janela",
+  buscar_lote: "Pesquisar nas lojas",
   comprovante: "Comprovante da Receita",
   consultar_cnpj: "Consultar CNPJs",
   fechar_teto: "Fechar o teto",

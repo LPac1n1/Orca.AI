@@ -46,6 +46,7 @@ from orca.banco import (
     corresponder,
     decidir_correspondencia,
     definir_camadas_do_projeto,
+    especificacao_do_item,
     perfil_do_orcamento,
     perfil_do_projeto,
     sessao_como,
@@ -57,6 +58,7 @@ from orca.coleta import (
     captura_de_pdf,
     comprovantes_pendentes,
     corrigir_preco,
+    dominio_da_url,
     ler_atributos_dados,
     ler_comprovante_pdf,
     ler_catalogo,
@@ -66,6 +68,8 @@ from orca.coleta import (
     registrar_comprovante_enviado,
     url_do_comprovante,
 )
+from orca.busca import lojas_de_busca, termo_de_busca
+from orca.coleta.pendencias import vigentes
 from orca.correspondencia import LEITORES, avaliar, pares_do_sistema
 from orca.documentos import Renderizador, conferir
 from orca.dominio import normalizar_cnpj
@@ -472,6 +476,47 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
             s.flush()
             regras = perfil_do_projeto(s, item.lote.orcamento.projeto).regras
             return ap.observacao_json(nova, ap.correspondencia_json(correspondencia_vigente(s, item.id, nova.id), regras))
+
+    def _faltando_por_loja(s: Session, lote: Lote, lojas) -> dict[str, list[Item]]:
+        """Itens do lote ainda sem página encontrada em cada loja."""
+        itens = [i for i in lote.itens if i.excluido_em is None]
+        obs = vigentes(s.scalars(select(Observacao).where(Observacao.item_id.in_([i.id for i in itens]))))
+        achados = {(o.item_id, dominio_da_url(o.url)) for o in obs if o.encontrado}
+        return {l.id: [i for i in itens if (i.id, dominio_da_url("https://" + l.dominio)) not in achados] for l in lojas}
+
+    @app.get("/api/lotes/{lote_id}/lojas-de-busca")
+    def lojas_para_buscar(lote_id: str):
+        """As lojas que o sistema sabe pesquisar, com as sugeridas para as categorias do lote (D-68)."""
+        with sv.sessao() as s:
+            lote = _obter(s, Lote, lote_id, "Lote")
+            lojas = lojas_de_busca(cat.lojas_da_organizacao(s, lote.orcamento.projeto.organizacao_id))
+            categorias = {i.categoria for i in lote.itens if i.excluido_em is None}
+            faltando = _faltando_por_loja(s, lote, lojas)
+            return {"itens": sum(1 for i in lote.itens if i.excluido_em is None),
+                    "lojas": [{"id": l.id, "nome": l.nome, "modo": l.modo, "sugerida": l.atende(categorias),
+                               "faltam": len(faltando[l.id])} for l in lojas]}
+
+    @app.post("/api/lotes/{lote_id}/busca", status_code=202)
+    def buscar(lote_id: str, dados: e.PedidoDeBusca):
+        """Busca automática nas lojas escolhidas; nas que recusam programas, uma captura com janela por item."""
+        with sv.sessao() as s:
+            lote = _obter(s, Lote, lote_id, "Lote")
+            projeto_id = lote.orcamento.projeto_id
+            lojas = [l for l in lojas_de_busca(cat.lojas_da_organizacao(s, lote.orcamento.projeto.organizacao_id))
+                     if l.id in set(dados.lojas)]
+            if not lojas:
+                raise HTTPException(400, "Nenhuma das lojas escolhidas tem busca configurada.")
+            tarefas = []
+            automaticas = [l.id for l in lojas if l.automatica]
+            if automaticas:
+                tarefas.append(sv.fila.enfileirar(s, "buscar_lote", {"lote_id": lote.id, "lojas": automaticas}, projeto_id))
+            faltando = _faltando_por_loja(s, lote, lojas)
+            for loja in (l for l in lojas if not l.automatica):
+                for item in faltando[loja.id]:
+                    url = loja.endereco(termo_de_busca(especificacao_do_item(item)))
+                    tarefas.append(sv.fila.enfileirar(s, "captura_assistida", {"item_id": item.id, "url": url}, projeto_id))
+            s.flush()
+            return {"tarefas": [ap.tarefa_json(t) for t in tarefas]}
 
     @app.post("/api/lotes/{lote_id}/retirar-loja", status_code=201)
     def retirar(lote_id: str, dados: e.DecisaoDeLoja):

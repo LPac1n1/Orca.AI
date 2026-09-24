@@ -65,6 +65,18 @@ Objetivo: um orçamento completo e defensável, com coleta **semiautomática** (
 
 O núcleo de cálculo e otimização vem primeiro porque é o que torna o orçamento defensável e não depende de como os dados foram coletados.
 
+### Piloto da Fase 1 (24/09/2026)
+Refazer o caso de SJC no Orça.AI revelou e corrigiu: CNPJ consultado logo depois da leitura; preço no Pix ou boleto, nunca parcelado (D-60 revista); correção do preço pela tela; comprovante da Receita emitido no navegador do usuário e enviado em PDF (D-14 revista); PDF da prova em 70%; dados do projeto editáveis. O usuário pediu para seguir com a Fase 2 e testar tudo no fim.
+
+## 2b. Ordem de construção da Fase 2 (combinada em 24/09/2026)
+
+10. ✅ Busca de produtos nas lojas (D-68): botão "Pesquisar nas lojas" em cada lote, com as lojas sugeridas pelas categorias e o aviso de quantas buscas e capturas com janela serão feitas; API pública (Atacadão), página de busca do site (Kalunga, Gimba, Lepok, Tenda) e janela (Carrefour, Extra); item mais difícil primeiro; código de barras achado numa loja usado nas outras; segunda busca sem medidas; loja sem um item poupada; "não encontrado" com prova; página recusada não volta; busca de loja nova configurável pela OSC. Ensaio real com 1 item em 3 lojas.
+11. Vagas: conectores (Catho primeiro), depois de conferir os termos de uso de cada plataforma; onde for proibido, captura com janela.
+12. Validade e avisos: pesquisa vencendo com "pesquisar de novo" em um clique.
+13. Aprendizado: sugestões de sinônimos e valores a partir das decisões, com o teste de correspondência antes de salvar (D-65).
+14. Saídas 1 e 2 automáticas: busca de produto alternativo e de loja nova quando um item passa da média.
+15. Opcionais: buscador (SerpApi grátis, C2) e IA grátis; o sistema funciona sem eles.
+
 ## 3. Casos de teste
 
 Cada caso tem dados de entrada fixos (observações gravadas, sem acesso à internet) e resultado esperado exato. Casos reais servem só como teste (D-04); nenhum deles define o comportamento do sistema sozinho.

@@ -167,6 +167,25 @@ def validar_atributos(dados: dict) -> Vocabulario:
     return vocabulario
 
 
+def _problemas_da_busca(loja: dict) -> list[str]:
+    """A busca automática da loja (D-68), se configurada, precisa de endereço válido."""
+    busca = loja.get("busca")
+    if busca is None:
+        return []
+    nome = loja.get("nome") or loja.get("id") or "?"
+    if not isinstance(busca, dict) or busca.get("modo") not in ("api_vtex", "pagina", "assistida"):
+        return [f"{nome}: o modo da busca deve ser api_vtex, pagina ou assistida"]
+    url = str(busca.get("url") or "")
+    problemas = []
+    if not url.startswith("https://"):
+        problemas.append(f"{nome}: o endereço da busca deve começar com https://")
+    if busca["modo"] != "api_vtex" and "{termo}" not in url:
+        problemas.append(f"{nome}: o endereço da busca precisa ter {{termo}} no lugar do que se pesquisa")
+    if busca["modo"] == "pagina" and not str(busca.get("produto") or "").strip():
+        problemas.append(f"{nome}: diga que pedaço aparece nos endereços de produto (ex.: /produto/)")
+    return problemas
+
+
 def validar_lojas(dados: dict) -> dict[str, LojaCatalogo]:
     problemas = []
     ids = []
@@ -177,6 +196,7 @@ def validar_lojas(dados: dict) -> dict[str, LojaCatalogo]:
                     problemas.append(f"loja {e.get('id') or '?'}: falta “{campo}”")
             if e.get("coleta") and e["coleta"] not in COLETAS:
                 problemas.append(f"loja {e.get('id')}: coleta deve ser uma destas: {', '.join(COLETAS)}")
+            problemas += _problemas_da_busca(e)
             ids.append(e.get("id"))
     repetidos = sorted({i for i in ids if ids.count(i) > 1 and i})
     if repetidos:

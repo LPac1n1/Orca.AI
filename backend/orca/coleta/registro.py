@@ -335,6 +335,21 @@ def refazer_pesquisa(
     return coletar_cargo(sessao, armazem, navegador, anterior.cargo, anterior.url, cnpj_empresa=anterior.cnpj_vendedor)
 
 
+def registrar_nao_encontrado(sessao: Session, item: Item, captura: Captura, evidencia: Evidencia, termo: str,
+                             candidatos: list[str], catalogo: Mapping[str, LojaCatalogo] | None = None) -> Observacao:
+    """A busca da loja não trouxe o item (docs/02 §6.3): fica registrado, com a página da busca como prova."""
+    observacao = Observacao(
+        alvo_tipo="item", item=item, fonte=fonte_da_url(sessao, captura.url_final, catalogo=catalogo),
+        url=captura.url_final, titulo=None, preco_centavos=None, encontrado=False, coletado_em=captura.capturado_em,
+        cep=captura.cep, metodo=captura.metodo, evidencia=evidencia, preco_no_html=None,
+        dados_brutos=_json({"busca": termo, "candidatos": candidatos[:10],
+                            "avisos": [f"não encontrado na busca da loja (termo: “{termo}”)"]}),
+        autor=sessao.info["autor"],
+    )
+    sessao.add(observacao)
+    return observacao
+
+
 # --- Preço escolhido pelo usuário na mesma página -----------------------------------
 
 

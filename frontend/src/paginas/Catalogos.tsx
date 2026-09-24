@@ -287,16 +287,30 @@ const COLETAS: Record<string, string> = {
 
 type Grupo = "lojas" | "fornecedores_servico";
 
+type Busca = { modo: "api_vtex" | "pagina" | "assistida"; url: string; produto?: string };
+
+const MODOS_DE_BUSCA: Record<string, string> = {
+  "": "sem busca: só colando o link",
+  pagina: "o sistema pesquisa na página de busca do site",
+  assistida: "com janela: você escolhe o produto (lojas que recusam programas)",
+  api_vtex: "API pública de catálogo (VTEX)",
+};
+
 function FormularioDeLoja({ inicial, grupo, aoSalvar, aoFechar }: {
   inicial: LojaDados | null; grupo: Grupo; aoSalvar: (l: LojaDados) => Promise<void>; aoFechar: () => void;
 }) {
   const [l, setL] = useState<LojaDados>(inicial ?? { id: "", nome: "", dominio: "", coleta: "C1" });
   const campo = (chave: keyof LojaDados) => (e: { target: { value: string } }) => setL({ ...l, [chave]: e.target.value });
+  const busca = (l.busca && typeof l.busca === "object" ? l.busca : null) as Busca | null;
+  const mudarBusca = (parte: Partial<Busca>) => {
+    const nova = { ...(busca ?? { modo: "pagina", url: "" }), ...parte } as Busca;
+    setL({ ...l, busca: nova.modo ? nova : null });
+  };
   return (
     <Modal titulo={inicial ? `Editar ${inicial.nome}` : grupo === "lojas" ? "Nova loja" : "Novo fornecedor de serviço"} aoFechar={aoFechar}>
       <Formulario aoCancelar={aoFechar} aoEnviar={async () => {
         const dominio = l.dominio.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-        await aoSalvar({ ...l, id: l.id || chaveDe(l.nome), nome: l.nome.trim(), dominio });
+        await aoSalvar({ ...l, id: l.id || chaveDe(l.nome), nome: l.nome.trim(), dominio, busca: busca ?? null });
         aoFechar();
       }}>
         <Campo rotulo="Nome"><input value={l.nome} onChange={campo("nome")} required autoFocus /></Campo>
@@ -313,6 +327,27 @@ function FormularioDeLoja({ inicial, grupo, aoSalvar, aoFechar }: {
         <Campo rotulo="Preço a usar" ajuda="Se a página mostra mais de um preço (ex.: preco_por, preco_normal). D-60 a D-63.">
           <input value={String(l.preco_a_usar ?? "")} onChange={campo("preco_a_usar")} />
         </Campo>
+        {grupo === "lojas" && (
+          <>
+            <Campo rotulo="Busca automática (Fase 2)">
+              <select value={busca?.modo ?? ""} onChange={(e) => (e.target.value ? mudarBusca({ modo: e.target.value as Busca["modo"] }) : setL({ ...l, busca: null }))}>
+                {Object.entries(MODOS_DE_BUSCA).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </Campo>
+            {busca && (
+              <div className="linha-campos">
+                <Campo rotulo="Endereço da busca" ajuda="Pesquise algo no site e copie o endereço, trocando o que você digitou por {termo}.">
+                  <input value={busca.url} onChange={(e) => mudarBusca({ url: e.target.value })} placeholder="https://www.loja.com.br/busca?q={termo}" />
+                </Campo>
+                {busca.modo === "pagina" && (
+                  <Campo rotulo="Endereço de produto contém" ajuda="Um pedaço que só aparece nos links de produto, ex.: /produto/">
+                    <input value={busca.produto ?? ""} onChange={(e) => mudarBusca({ produto: e.target.value })} />
+                  </Campo>
+                )}
+              </div>
+            )}
+          </>
+        )}
         <Campo rotulo="Observações"><textarea rows={2} value={String(l.observacoes ?? "")} onChange={campo("observacoes")} /></Campo>
       </Formulario>
     </Modal>
@@ -345,7 +380,7 @@ function Lojas({ organizacaoId }: { organizacaoId: string }) {
               <td>{l.nome}{l.marketplace ? <span className="discreto pequeno"> · marketplace</span> : null}
                 {l.observacoes ? <div className="discreto pequeno">{String(l.observacoes)}</div> : null}</td>
               <td className="url">{l.dominio}</td>
-              <td>{COLETAS[l.coleta] ?? l.coleta}{l.busca === "assistida" ? <div className="discreto pequeno">busca só com janela (D-67)</div> : null}</td>
+              <td>{COLETAS[l.coleta] ?? l.coleta}{l.busca && typeof l.busca === "object" ? <div className="discreto pequeno">busca: {MODOS_DE_BUSCA[(l.busca as Busca).modo] ?? (l.busca as Busca).modo}</div> : null}</td>
               <td>{String(l.preco_a_usar ?? "—")}</td>
               <td><button className="link pequeno" onClick={() => setEdicao({ grupo, loja: l })}>editar</button></td>
             </tr>

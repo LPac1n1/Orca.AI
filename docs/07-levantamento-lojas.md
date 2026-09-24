@@ -46,3 +46,16 @@
 
 - Adicionar mais lojas conforme a OSC usar (o catálogo aceita novas entradas sem mudar o código).
 - Na Fase 2: confirmar cada loja com o navegador automatizado, detalhar a Lepok e escrever o conector de cada uma.
+
+## 4. Buscas das lojas (Fase 2, etapa 10 — 24/09/2026)
+
+Uma busca de teste por loja ("papel sulfite chamex a4"), sem login e sem aceitar cookies:
+
+| Loja | Como o sistema pesquisa | Observações |
+|---|---|---|
+| Atacadão | API pública VTEX (`/io/api/catalog_system/pub/products/search`; o endereço antigo `/api/...` redireciona) | Traz nome, marca e código de barras; sem CEP o preço vem 0 e a página do produto não mostra preço: o produto é achado, mas o preço pede a captura com janela |
+| Kalunga | Página de busca (`/busca/1?q=`), links `/prod/` | Buscas longas trazem poucos produtos e podem esconder o produto comum; a segunda busca, sem as medidas, o encontra |
+| Gimba | Página de busca (`/?txt-busca=`), links com `PID=` | O preço principal da página de produto é o preço no Pix |
+| Lepok | Página de busca (`/busca/1?q=`), links `/produto/` | Devolve milhares de produtos; o sistema ordena pela semelhança |
+| Tenda | Página de busca (`/busca?q=`), links `/produto/` | Mostra "Sugestões" quando acha pouco |
+| Carrefour, Extra | Janela (a busca recusa o navegador sem janela, D-67) | `mercado.carrefour.com.br/s?q=` e `extramercado.com.br/busca?terms=` |

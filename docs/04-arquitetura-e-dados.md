@@ -67,6 +67,7 @@ Orca.AI/                       ← repositório (sem "ç": limite do GitHub)
 │       ├── correspondencia/   normalização, medidas, vocabulário, EAN, cascata 🟢🟡🔴
 │       ├── otimizacao/        modelo CP-SAT, diagnóstico, verificação independente
 │       ├── coleta/            captura (Edge), leitura de preço/vaga/CNPJ, situação cadastral, comprovante, pendências
+│       ├── busca/             Fase 2: lojas pesquisáveis, conectores (API VTEX, página de busca), escolha dos candidatos
 │       ├── evidencias/        armazém por impressão digital (SHA-256), validade, manifesto
 │       ├── ia/                provedores plugáveis e tarefas de IA
 │       ├── fluxo/             liga as etapas a partir do banco: estado, seleção, vagas, teto, painel, dossiê
@@ -115,6 +116,16 @@ Pode ficar dentro do OneDrive ou do Google Drive para backup automático. O sist
 | C4 | **Captura assistida:** o usuário navega na janela do sistema e clica "capturar para o item X"; ou envia o PDF da página salvo no próprio navegador (D-67) | Login, CEP, captcha, bloqueio, LinkedIn |
 
 A evidência é sempre a página da loja, capturada pelo navegador do sistema (C1, C3, C4) ou aberta por ele depois de uma descoberta (C0, C2). Na janela visível da C4 quem navega é o usuário: o sistema não usa a janela para escapar de bloqueios nem se disfarça (D-67).
+
+### 5.1.1 Busca automática (Fase 2, etapa 10; D-68)
+
+Módulo `orca.busca` (conectores e escolha dos candidatos) e tarefa `buscar_lote` (`orca.tarefas.busca`), na pista principal da fila.
+
+- **Configuração:** cada loja do catálogo pode ter `busca: {modo, url, produto}`. `api_vtex` = API pública de catálogo (texto e código de barras); `pagina` = página de busca do site, aberta pelo navegador sem janela, de onde se leem os links de produto (`produto` é o pedaço do endereço que os identifica) e o texto do cartão de cada um; `assistida` = a janela abre na busca e a pessoa escolhe. Levantamento: Atacadão (API), Kalunga, Gimba, Lepok e Tenda (página), Carrefour e Extra (janela), 24/09/2026.
+- **Escolha:** cada candidato passa pela mesma correspondência dos produtos (sem código de barras, pelo título); 🔴 nunca é capturado; entre os 🟡, ganha o mais parecido — palavras em comum sobre todas as palavras do item e do título, para que variações ("reciclado", "eco") percam para o produto comum. Se o primeiro não for 🟢 nem bem parecido, faz uma segunda busca sem as medidas.
+- **Prova:** a página do produto escolhido é capturada e registrada como ao colar o link (preço à vista, CNPJ consultado, correspondência pela página). "Não encontrado" é registrado com a página da busca.
+- **Ritmo:** pelo menos 3 s entre pedidos à mesma loja (`Contexto.intervalo_busca_s`); identificação "Orca.AI/0.1" no pedido à API.
+- **Lojas que precisam de CEP** (ex.: Atacadão sem CEP mostra preço zero): o produto é achado, mas fica "sem preço na página" — a captura com janela resolve.
 
 ### 5.2 Contrato de um conector
 
