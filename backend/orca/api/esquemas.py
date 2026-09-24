@@ -152,6 +152,10 @@ class BuscaDeVagas(_Entrada):
     uf: str | None = Field(default=None, max_length=2)
 
 
+class PesquisarDeNovo(_Entrada):
+    observacoes: list[str] | None = None  # vazio: todas as vencidas ou vencendo
+
+
 class PedidoDeBusca(_Entrada):
     lojas: list[str] = Field(min_length=1)
 

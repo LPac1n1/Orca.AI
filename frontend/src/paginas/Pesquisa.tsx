@@ -600,6 +600,67 @@ function CargoPesquisa({ cargo, atualizar }: { cargo: CargoRevisao; atualizar: (
   );
 }
 
+// --- Validade das pesquisas (D-12; Fase 2, etapa 12) ---------------------------------------------------
+
+interface PesquisaVencendo {
+  observacao_id: string;
+  nome: string;
+  loja: string;
+  url: string;
+  valida_ate: string;
+  situacao: "vencida" | "vence_antes_da_entrega" | "vence_em_breve";
+  como: "coletar_item" | "coletar_cargo" | "captura_assistida" | "pdf";
+}
+
+const SITUACAO_DA_VALIDADE = {
+  vencida: "venceu", vence_antes_da_entrega: "vence antes da entrega", vence_em_breve: "vence em breve",
+} as const;
+
+function ValidadeDasPesquisas({ projetoId, versao, atualizar }: { projetoId: string; versao: number; atualizar: () => void }) {
+  const { dados } = useDados<{ pesquisas: PesquisaVencendo[] }>(`/api/projetos/${projetoId}/validade`, versao);
+  const [aviso, setAviso] = useState<string | null>(null);
+  if (!dados || dados.pesquisas.length === 0) return null;
+  const refazer = async (observacoes?: string[]) => {
+    const r = await api.criar<{ tarefas: unknown[]; so_pela_pessoa: string[] }>(`/api/projetos/${projetoId}/pesquisar-de-novo`,
+      observacoes ? { observacoes } : {});
+    setAviso(r.so_pela_pessoa.length > 0
+      ? `Estas provas foram PDFs enviados por você; salve e envie o PDF de novo: ${r.so_pela_pessoa.join("; ")}.`
+      : null);
+    atualizar();
+  };
+  const data = (iso: string) => iso.split("-").reverse().join("/");
+  return (
+    <div className="bloco">
+      <div className="cabecalho-secao">
+        <h2>Pesquisas vencidas ou vencendo</h2>
+        <BotaoAcao aoClicar={() => refazer()}>Pesquisar todas de novo</BotaoAcao>
+      </div>
+      <p className="discreto pequeno">
+        Cada pesquisa vale pelo prazo das regras (D-12). Pesquisar de novo abre a mesma página e guarda uma prova nova; a
+        antiga fica no histórico. Páginas capturadas na janela abrem a janela de novo.
+      </p>
+      {aviso && <Aviso tipo="atencao">{aviso}</Aviso>}
+      <table className="tabela">
+        <tbody>
+          {dados.pesquisas.map((p) => (
+            <tr key={p.observacao_id}>
+              <td><Selo status={p.situacao === "vence_em_breve" ? "amarelo" : "vermelho"} texto={SITUACAO_DA_VALIDADE[p.situacao]} /></td>
+              <td>{p.nome}<div className="discreto pequeno">{p.loja} · vale até {data(p.valida_ate)}</div></td>
+              <td>
+                {p.como === "pdf"
+                  ? <span className="discreto pequeno">PDF enviado por você: salve e envie de novo (colar link → PDF)</span>
+                  : <BotaoAcao classe="secundario pequeno" aoClicar={() => refazer([p.observacao_id])}>
+                      {p.como === "captura_assistida" ? "Pesquisar de novo (janela)" : "Pesquisar de novo"}
+                    </BotaoAcao>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function AbaPesquisa({ projeto, versao, atualizar }: PropsDaAba) {
   const { dados, erro } = useDados<Revisao>(`/api/projetos/${projeto.id}/revisao`, versao);
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
@@ -611,6 +672,7 @@ export function AbaPesquisa({ projeto, versao, atualizar }: PropsDaAba) {
         Para cada item, cole os links das páginas de pelo menos {dados.orcamentos[0]?.fontes_por_cotacao ?? 3} lojas. Cada preço só vale com a prova completa, o produto confirmado como idêntico e o CNPJ ativo.
         Clique num preço para ver a prova e decidir.
       </p>
+      <ValidadeDasPesquisas projetoId={projeto.id} versao={versao} atualizar={atualizar} />
       {dados.orcamentos.map((o) => (
         <div key={o.id} className="bloco">
           <h2>{o.nome} <span className="discreto">· regra {o.base_preco_final} {o.base_preco_final === "B" ? "(preço da loja de menor total)" : "(média)"}</span></h2>

@@ -91,6 +91,7 @@ from orca.fluxo import (
 )
 from orca.fluxo import catalogos as cat
 from orca.fluxo import regras as rg
+from orca.fluxo.validade import como_refazer, pesquisas_a_refazer
 from orca.selecao import ParametrosSelecao
 from orca.tarefas import Contexto, ErroTarefa, Fila
 from orca.tarefas.executores import registrar_cargo, registrar_item
@@ -594,7 +595,8 @@ def _rotas_de_resultado(app: FastAPI, sv: Servico) -> None:
         with sv.sessao() as s:
             estado = sv.estado(s, _obter(s, Projeto, projeto_id, "Projeto"))
             execucao = execucao_vigente(s, estado)
-            return ap.painel_json(painel(estado, execucao, montar_problema(estado).pendencias))
+            a_refazer = tuple(p.situacao.value for p in pesquisas_a_refazer(s, estado.projeto, estado.hoje))
+            return ap.painel_json(painel(estado, execucao, montar_problema(estado).pendencias, a_refazer))
 
     @app.post("/api/projetos/{projeto_id}/fechar-teto", status_code=202)
     def fechar_teto(projeto_id: str):
@@ -635,6 +637,48 @@ def _rotas_de_resultado(app: FastAPI, sv: Servico) -> None:
             dias = estado.perfil.regras.evidencia.reaproveitar_comprovante_dias
             pendentes = comprovantes_pendentes(s, cnpjs, estado.hoje, dias)
             return {"pendentes": pendentes, "paginas": {c: url_do_comprovante(c) for c in pendentes}}
+
+    def _nome_do_alvo(obs: Observacao) -> str:
+        return obs.item.descricao if obs.item_id else obs.cargo.nome
+
+    @app.get("/api/projetos/{projeto_id}/validade")
+    def validade_das_pesquisas(projeto_id: str):
+        """Pesquisas em uso vencidas ou vencendo (D-12), com o jeito de pesquisar de novo."""
+        with sv.sessao() as s:
+            projeto = _obter(s, Projeto, projeto_id, "Projeto")
+            lista = []
+            for p in pesquisas_a_refazer(s, projeto, sv.contexto.hoje()):
+                refazer = como_refazer(p.observacao)
+                lista.append({
+                    "observacao_id": p.observacao.id, "nome": _nome_do_alvo(p.observacao), "loja": p.observacao.fonte.nome,
+                    "url": p.observacao.url, "coletado_em": ap._data(p.observacao.coletado_em),
+                    "valida_ate": p.valida_ate.isoformat(), "situacao": p.situacao.value,
+                    "como": refazer[0] if refazer else "pdf",
+                })
+            return {"pesquisas": lista}
+
+    @app.post("/api/projetos/{projeto_id}/pesquisar-de-novo", status_code=202)
+    def pesquisar_de_novo(projeto_id: str, dados: e.PesquisarDeNovo):
+        """Pesquisa de novo as mesmas páginas (em um clique). A pesquisa anterior fica no histórico."""
+        with sv.sessao() as s:
+            projeto = _obter(s, Projeto, projeto_id, "Projeto")
+            a_refazer = pesquisas_a_refazer(s, projeto, sv.contexto.hoje())
+            escolhidas = [p.observacao for p in a_refazer if dados.observacoes is None or p.observacao.id in dados.observacoes]
+            if dados.observacoes:  # uma pesquisa pedida pela pessoa, mesmo que ainda válida
+                ids_a_refazer = {o.id for o in escolhidas}
+                for obs_id in dados.observacoes:
+                    obs = s.get(Observacao, obs_id)
+                    if obs is not None and obs.id not in ids_a_refazer:
+                        escolhidas.append(obs)
+            tarefas, so_pela_pessoa = [], []
+            for obs in escolhidas:
+                refazer = como_refazer(obs)
+                if refazer is None:
+                    so_pela_pessoa.append(f"{_nome_do_alvo(obs)} ({obs.fonte.nome})")
+                    continue
+                tarefas.append(sv.fila.enfileirar(s, refazer[0], refazer[1], projeto_id))
+            s.flush()
+            return {"tarefas": [ap.tarefa_json(t) for t in tarefas], "so_pela_pessoa": so_pela_pessoa}
 
     @app.get("/api/projetos/{projeto_id}/conformidade")
     def conformidade(projeto_id: str):

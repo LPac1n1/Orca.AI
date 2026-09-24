@@ -87,7 +87,9 @@ def _status_cargo(estado_cargo: EstadoCargo) -> StatusLinha:
     return StatusLinha(cargo.id, cargo.nome, "cargo", AMARELO if motivos else VERDE, tuple(motivos))
 
 
-def painel(estado: EstadoProjeto, execucao: ExecucaoOtimizacao | None, pendencias_teto: tuple[str, ...] = ()) -> Painel:
+def painel(estado: EstadoProjeto, execucao: ExecucaoOtimizacao | None, pendencias_teto: tuple[str, ...] = (),
+           a_refazer: tuple[str, ...] = ()) -> Painel:
+    """`a_refazer`: a situação de cada pesquisa vencida ou vencendo (orca.fluxo.validade)."""
     linhas: list[StatusLinha] = []
     planejado = 0
     for o, estado_lote in estado.lotes():
@@ -119,6 +121,13 @@ def painel(estado: EstadoProjeto, execucao: ExecucaoOtimizacao | None, pendencia
     if vermelhos:
         alertas.append(f"{vermelhos} linha(s) com problema.")
     alertas += [f"Não dá para fechar o teto: {p}" for p in pendencias_teto]
+    if a_refazer:
+        vencidas = sum(1 for s in a_refazer if s == "vencida")
+        texto = f"{vencidas} pesquisa(s) vencida(s)" if vencidas else ""
+        outras = len(a_refazer) - vencidas
+        if outras:
+            texto += (" e " if texto else "") + f"{outras} vencendo"
+        alertas.append(f"{texto[0].upper() + texto[1:]}: pesquise de novo em Pesquisa e revisão (D-12).")
     return Painel(
         teto_centavos=estado.projeto.teto_centavos,
         total_centavos=execucao.total_centavos if execucao is not None else None,

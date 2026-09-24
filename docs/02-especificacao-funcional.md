@@ -188,7 +188,7 @@ Por observação:
 
 Por cotação: um PDF com os 3 prints e os comprovantes da Receita das 3 empresas.
 
-**Validade** (D-12): cada observação vale 180 dias a partir da coleta, contando o dia da coleta (coleta em 23/09/2026 vale até 21/03/2027). O sistema avisa com antecedência (padrão 30 dias) e alerta se alguma evidência vence antes da data prevista de entrega do projeto. Uma pesquisa vencida pode ser refeita com um clique; a antiga fica no histórico.
+**Validade** (D-12): cada observação vale 180 dias a partir da coleta, contando o dia da coleta (coleta em 23/09/2026 vale até 21/03/2027). O sistema avisa com antecedência (padrão 30 dias) e alerta se alguma evidência vence antes da data prevista de entrega do projeto. Uma pesquisa vencida pode ser refeita com um clique; a antiga fica no histórico. Na aba de pesquisa, o quadro "Pesquisas vencidas ou vencendo" lista cada uma com "Pesquisar de novo" (e "Pesquisar todas de novo"); páginas capturadas na janela abrem a janela de novo, e provas que foram PDFs enviados pela pessoa precisam ser salvas e enviadas de novo por ela.
 
 ## 13. Otimização do orçamento final
 
