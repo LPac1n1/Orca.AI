@@ -2,9 +2,9 @@ import { useState } from "react";
 import { api, evidencia } from "../api";
 import { Aviso, BotaoAcao, Campo, Carregando, Formulario, Modal, Selo, useDecisao } from "../componentes";
 import { centavosDeTexto, cnpj, dataHora, FORMAS_DE_PAGAMENTO, horas, reais, REGIMES } from "../formatos";
-import { useDados } from "../ganchos";
+import { ativa, useDados, useTarefa } from "../ganchos";
 import type {
-  CargoRevisao, ItemRevisao, LojaDoLote, LoteRevisao, Observacao, Oferta, OrcamentoRevisao, Revisao, Status,
+  CargoRevisao, ItemRevisao, LojaDoLote, LoteRevisao, Observacao, Oferta, OrcamentoRevisao, Revisao, Status, Tarefa,
 } from "../tipos";
 import type { PropsDaAba } from "./Projeto";
 
@@ -352,6 +352,158 @@ function BuscarNasLojas({ lote, aoFechar, aoIniciar }: { lote: LoteRevisao; aoFe
   );
 }
 
+// --- Saída 1 com busca: produto de outra marca nas 3 lojas (D-23; Fase 2, etapa 14) -----------------
+
+interface OpcaoAlternativa {
+  titulo: string;
+  marca: string | null;
+  situacao: "resolve" | "nao_resolve" | "sem_preco" | "incompleta";
+  motivo: string;
+  lojas: { loja_id: string; loja: string; url: string | null; preco_centavos: number | null }[];
+  media: string | null;
+  impacto_centavos: number | null;
+}
+
+interface ResultadoAlternativas {
+  termo: string;
+  escolhida: string;
+  lojas: { loja_id: string; loja: string; busca: string | null }[];
+  opcoes: OpcaoAlternativa[];
+  avisos: string[];
+  mensagem: string;
+}
+
+const SITUACAO_DA_ALTERNATIVA: Record<OpcaoAlternativa["situacao"], Status> = {
+  resolve: "verde", nao_resolve: "vermelho", sem_preco: "amarelo", incompleta: "amarelo",
+};
+
+/** A marca que o título tem a mais que a descrição genérica (só uma sugestão; a pessoa confere). */
+function marcaDoTitulo(titulo: string, termo: string): string {
+  const base = new Set(termo.toLowerCase().split(/\s+/));
+  return titulo.split(/\s+/).filter((p) => !base.has(p.toLowerCase()) && !/\d/.test(p)).join(" ");
+}
+
+function UsarAlternativa({ item, tarefaId, resultado, indice, aoCancelar, aoTrocar }: {
+  item: ItemRevisao; tarefaId: string; resultado: ResultadoAlternativas; indice: number;
+  aoCancelar: () => void; aoTrocar: () => void;
+}) {
+  const opcao = resultado.opcoes[indice];
+  const [descricao, setDescricao] = useState(resultado.termo);
+  const [marca, setMarca] = useState(opcao.marca ?? marcaDoTitulo(opcao.titulo, resultado.termo));
+  const [justificativa, setJustificativa] = useState(
+    `Saída 1 (D-23): ${item.descricao}${item.marca ? ` (${item.marca})` : ""} passa da média na loja escolhida; ` +
+    `troca por ${opcao.titulo}, que aparece nas 3 lojas do orçamento.`);
+  return (
+    <Formulario rotulo="Trocar o produto e capturar as provas" aoCancelar={aoCancelar} aoEnviar={async () => {
+      await api.criar(`/api/itens/${item.id}/usar-alternativa`, { tarefa_id: tarefaId, indice, descricao, marca, justificativa });
+      aoTrocar();
+    }}>
+      <p>Novo produto: <strong>{opcao.titulo}</strong></p>
+      <div className="linha-campos">
+        <Campo rotulo="Descrição"><input value={descricao} onChange={(e) => setDescricao(e.target.value)} /></Campo>
+        <Campo rotulo="Marca" ajuda="Confira: o sistema tirou do título do produto."><input value={marca} onChange={(e) => setMarca(e.target.value)} /></Campo>
+      </div>
+      <Campo rotulo="Justificativa"><textarea value={justificativa} onChange={(e) => setJustificativa(e.target.value)} rows={3} /></Campo>
+      <p className="discreto pequeno">
+        O item antigo sai do orçamento e fica no histórico, com as pesquisas dele. As 3 páginas entram na fila para virar
+        prova; confira depois, na tabela, se cada uma é o mesmo produto (🟢) e se o preço ficou dentro da média.
+      </p>
+    </Formulario>
+  );
+}
+
+function AlternativasDoItem({ item, tarefaId, aoIniciar, aoFechar, aoTrocar }: {
+  item: ItemRevisao; tarefaId: string | null; aoIniciar: (tarefaId: string) => void; aoFechar: () => void; aoTrocar: () => void;
+}) {
+  const tarefa = useTarefa(tarefaId);
+  const [escolhida, setEscolhida] = useState<number | null>(null);
+  const resultado = tarefa?.estado === "concluida" ? (tarefa.resultado as unknown as ResultadoAlternativas) : null;
+  const procurar = async () => {
+    setEscolhida(null);
+    aoIniciar((await api.criar<Tarefa>(`/api/itens/${item.id}/alternativas`)).id);
+  };
+  return (
+    <Modal titulo={`Procurar outra marca — ${item.descricao}`} aoFechar={aoFechar}>
+      <p className="explicacao">
+        O sistema procura o item <strong>sem a marca</strong>{item.marca ? ` (${item.marca})` : ""} nas 3 lojas do orçamento,
+        junta os produtos que aparecem nas três e faz a conta com os preços que a busca mostra. É uma <strong>prévia, sem
+        prova</strong>: nada muda até você escolher. Aí o produto é trocado (o antigo fica no histórico) e as páginas dele
+        nas 3 lojas são capturadas como prova (Saída 1, D-23).
+      </p>
+      {!tarefaId && <div className="acoes"><BotaoAcao aoClicar={procurar}>Procurar</BotaoAcao></div>}
+      {tarefaId && (!tarefa || ativa(tarefa)) && (
+        <Aviso tipo="info">Procurando… {tarefa?.mensagem ?? ""} {tarefa ? `(${tarefa.progresso}%)` : ""}</Aviso>
+      )}
+      {tarefa && (tarefa.estado === "falhou" || tarefa.estado === "cancelada") && (
+        <>
+          <Aviso tipo="erro">{tarefa.mensagem ?? "A busca não terminou."}</Aviso>
+          <div className="acoes"><BotaoAcao classe="secundario" aoClicar={procurar}>Procurar de novo</BotaoAcao></div>
+        </>
+      )}
+      {resultado && tarefaId && escolhida === null && (
+        <>
+          <Aviso tipo={resultado.opcoes.some((o) => o.situacao === "resolve") ? "ok" : "atencao"}>
+            {resultado.mensagem}. Busca por “{resultado.termo}”.
+          </Aviso>
+          {resultado.avisos.length > 0 && <ul className="pequeno">{resultado.avisos.map((a) => <li key={a}>{a}</li>)}</ul>}
+          {resultado.opcoes.length > 0 && (
+            <div className="rolagem">
+              <table className="tabela">
+                <thead>
+                  <tr>
+                    <th>Produto</th>
+                    {resultado.lojas.map((l) => <th key={l.loja_id} className="n">{l.loja}</th>)}
+                    <th className="n">Média</th>
+                    <th>Resultado pela prévia</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {resultado.opcoes.map((o, n) => (
+                    <tr key={n}>
+                      <td>{o.titulo}</td>
+                      {o.lojas.map((l) => (
+                        <td key={l.loja_id} className="n">
+                          {l.url ? <a href={l.url} target="_blank" rel="noreferrer">{l.preco_centavos ? reais(l.preco_centavos) : "ver"}</a> : <span className="discreto">—</span>}
+                        </td>
+                      ))}
+                      <td className="n">{o.media ?? "—"}</td>
+                      <td>
+                        <Selo status={SITUACAO_DA_ALTERNATIVA[o.situacao]} texto={o.situacao === "resolve" ? "resolveria" : o.situacao === "nao_resolve" ? "não resolve" : "a conferir"} />
+                        <div className="pequeno">{o.motivo}</div>
+                        {o.impacto_centavos !== null && (
+                          <div className="discreto pequeno">total da loja escolhida {o.impacto_centavos <= 0 ? "−" : "+"}{reais(Math.abs(o.impacto_centavos))}</div>
+                        )}
+                      </td>
+                      <td>
+                        {(o.situacao === "resolve" || o.situacao === "sem_preco") && (
+                          <button className="secundario pequeno" onClick={() => setEscolhida(n)}>Escolher</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="discreto pequeno">
+            Nenhuma serve? Tente a Saída 2 (trocar a loja) ou cole à mão os links de um produto nas 3 lojas, depois de trocar o
+            produto em Itens e cargos.
+          </p>
+          <div className="acoes">
+            <button className="secundario" onClick={aoFechar}>Fechar</button>
+            <BotaoAcao classe="secundario" aoClicar={procurar}>Procurar de novo</BotaoAcao>
+          </div>
+        </>
+      )}
+      {resultado && tarefaId && escolhida !== null && (
+        <UsarAlternativa item={item} tarefaId={tarefaId} resultado={resultado} indice={escolhida}
+          aoCancelar={() => setEscolhida(null)} aoTrocar={aoTrocar} />
+      )}
+    </Modal>
+  );
+}
+
 // --- Lote -----------------------------------------------------------------------------------------
 
 function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: OrcamentoRevisao; atualizar: () => void }) {
@@ -359,6 +511,8 @@ function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: Or
   const [buscar, setBuscar] = useState(false);
   const [detalhe, setDetalhe] = useState<{ item: ItemRevisao; loja: LojaDoLote } | null>(null);
   const [simulacao, setSimulacao] = useState<null | { sucesso: boolean; mensagem: string; tentativas: { retirada: string; motivo: string }[] }>(null);
+  const [alternativas, setAlternativas] = useState<ItemRevisao | null>(null);
+  const [buscasDeAlternativas, setBuscasDeAlternativas] = useState<Record<string, string>>({});  // item → tarefa
   const [janela, pedir] = useDecisao();
   const lojasComPreco = lote.lojas.filter((l) => lote.itens.some((i) => i.ofertas[l.id]));
   const temAcima = lote.itens.some((i) => i.dentro_da_media === false);
@@ -386,10 +540,20 @@ function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: Or
       {lote.sugestoes.length > 0 && <Aviso tipo="info"><ul>{lote.sugestoes.map((s) => <li key={s}>{s}</li>)}</ul></Aviso>}
       {temAcima && orcamento.base_preco_final === "B" && (
         <Aviso tipo="atencao">
-          Na regra B, o preço da loja escolhida precisa estar dentro da média. Você pode <strong>trocar o produto</strong> (em Itens e cargos) ou <strong>retirar a loja escolhida</strong> para a próxima entrar.{" "}
-          <BotaoAcao classe="secundario pequeno" aoClicar={async () => setSimulacao(await api.obter(`/api/lotes/${lote.id}/simular-troca-de-loja`))}>
-            Simular a troca de loja
-          </BotaoAcao>
+          <p>Na regra B, o preço da loja escolhida precisa estar dentro da média. Há duas saídas, e você escolhe (D-23):</p>
+          <ul>
+            <li>
+              <strong>Trocar o produto</strong> (Saída 1): use “procurar outra marca” no item acima da média. O sistema procura
+              nas 3 lojas do orçamento e mostra quais produtos resolveriam.
+            </li>
+            <li>
+              <strong>Trocar a loja</strong> (Saída 2): a loja escolhida sai e a próxima da classificação entra.{" "}
+              <BotaoAcao classe="secundario pequeno" aoClicar={async () => setSimulacao(await api.obter(`/api/lotes/${lote.id}/simular-troca-de-loja`))}>
+                Simular a troca de loja
+              </BotaoAcao>{" "}
+              <button className="secundario pequeno" onClick={() => setBuscar(true)}>Pesquisar outras lojas</button>
+            </li>
+          </ul>
         </Aviso>
       )}
 
@@ -424,6 +588,9 @@ function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: Or
                   <div className="discreto pequeno">{[i.marca, i.apresentacao].filter(Boolean).join(" · ")} · {i.qtd_planejada} {i.unidade}/mês × {i.meses}</div>
                   {i.motivos.map((m) => <div key={m} className="pequeno motivo">{m}</div>)}
                   <button className="link pequeno" onClick={() => setColar(i)}>+ colar link</button>
+                  {i.dentro_da_media === false && orcamento.base_preco_final === "B" && (
+                    <> · <button className="link pequeno" onClick={() => setAlternativas(i)}>procurar outra marca</button></>
+                  )}
                 </td>
                 {lojasComPreco.map((l) => {
                   const o = i.ofertas[l.id];
@@ -453,11 +620,19 @@ function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: Or
       {colar && <ColarLink alvo={{ tipo: "item", id: colar.id, nome: colar.descricao }} aoTerminar={() => { setColar(null); atualizar(); }} />}
       {buscar && <BuscarNasLojas lote={lote} aoFechar={() => setBuscar(false)} aoIniciar={() => { setBuscar(false); atualizar(); }} />}
       {detalhe && <DetalheDaOferta item={detalhe.item} loja={detalhe.loja} aoFechar={() => setDetalhe(null)} atualizar={atualizar} />}
+      {alternativas && (
+        <AlternativasDoItem item={alternativas} tarefaId={buscasDeAlternativas[alternativas.id] ?? null}
+          aoIniciar={(t) => { setBuscasDeAlternativas({ ...buscasDeAlternativas, [alternativas.id]: t }); atualizar(); }}
+          aoFechar={() => setAlternativas(null)} aoTrocar={() => { setAlternativas(null); atualizar(); }} />
+      )}
       {simulacao && (
         <Modal titulo="Simulação da troca de loja (Saída 2)" aoFechar={() => setSimulacao(null)}>
           <Aviso tipo={simulacao.sucesso ? "ok" : "atencao"}>{simulacao.mensagem}</Aviso>
           <ol>{simulacao.tentativas.map((t, n) => <li key={n}>Retirando <strong>{t.retirada}</strong>: {t.motivo}</li>)}</ol>
-          <p className="discreto">Nada foi mudado. Para aplicar, use “retirar” na loja.</p>
+          <p className="discreto">
+            Nada foi mudado. Para aplicar, use “retirar” na loja. Se a próxima loja ainda não tem todos os itens, use
+            “Pesquisar outras lojas”.
+          </p>
         </Modal>
       )}
       {janela}

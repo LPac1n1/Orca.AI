@@ -137,6 +137,8 @@ Se nenhuma saída resolver, o sistema informa o motivo e sugere pesquisar mais l
 
 Nunca se troca uma das outras duas lojas do trio para subir a média (D-27).
 
+**Com a busca automática (Fase 2, etapa 14):** na Saída 1, o botão "procurar outra marca" do item pesquisa o item sem a marca nas 3 lojas do trio e mostra os produtos que aparecem nelas, com a conta feita pelos preços da prévia da busca (resolveria / não resolve / a conferir). Nada muda até a pessoa escolher; aí o produto é trocado e as páginas nas 3 lojas são capturadas como prova, e a conferência é refeita com elas. Na Saída 2, além da simulação, o atalho "Pesquisar outras lojas" pesquisa o lote nas lojas que ainda faltam.
+
 ### 9.3 Conferência de uma grade pronta
 Uma grade feita fora do sistema (ex.: planilha) pode ser conferida antes do envio. O sistema recalcula a média unitária, a média do total e os totais de cada linha, e aponta:
 - valores informados que não batem com o cálculo (ex.: média unitária R$ 45,97 no lugar de R$ 9,19);

@@ -67,7 +67,7 @@ Orca.AI/                       ← repositório (sem "ç": limite do GitHub)
 │       ├── correspondencia/   normalização, medidas, vocabulário, EAN, cascata 🟢🟡🔴
 │       ├── otimizacao/        modelo CP-SAT, diagnóstico, verificação independente
 │       ├── coleta/            captura (Edge), leitura de preço/vaga/CNPJ, situação cadastral, comprovante, pendências
-│       ├── busca/             Fase 2: lojas pesquisáveis, conectores (API VTEX, página de busca), escolha dos candidatos
+│       ├── busca/             Fase 2: lojas pesquisáveis, conectores (API VTEX, página de busca), escolha dos candidatos, alternativas da Saída 1
 │       ├── evidencias/        armazém por impressão digital (SHA-256), validade, manifesto
 │       ├── ia/                provedores plugáveis e tarefas de IA
 │       ├── fluxo/             liga as etapas a partir do banco: estado, seleção, vagas, teto, painel, dossiê
@@ -126,6 +126,17 @@ Módulo `orca.busca` (conectores e escolha dos candidatos) e tarefa `buscar_lote
 - **Prova:** a página do produto escolhido é capturada e registrada como ao colar o link (preço à vista, CNPJ consultado, correspondência pela página). "Não encontrado" é registrado com a página da busca.
 - **Ritmo:** pelo menos 3 s entre pedidos à mesma loja (`Contexto.intervalo_busca_s`); identificação "Orca.AI/0.1" no pedido à API.
 - **Lojas que precisam de CEP** (ex.: Atacadão sem CEP mostra preço zero): o produto é achado, mas fica "sem preço na página" — a captura com janela resolve.
+
+### 5.1.1b Produto alternativo para a Saída 1 (Fase 2, etapa 14; D-23)
+
+Tarefa `buscar_alternativas` (`orca.tarefas.alternativas`), na pista principal, pedida pela rota `/api/itens/{id}/alternativas` quando um item passa da média na Regra B.
+
+- **Onde procurar:** nas 3 lojas do trio, pela busca configurada da loja de cada uma (pelo domínio da página usada no item). A loja escolhida precisa ter busca automática; as outras sem busca aparecem como "confira você mesmo".
+- **O que procurar:** o item **sem a marca** (`orca.busca.alternativas.especificacao_sem_marca`: sai marca, modelo, código de barras e as palavras da marca na descrição; ficam os atributos, a mesma finalidade). Os candidatos da loja escolhida da mesma marca de antes são deixados de lado; os 🔴 também.
+- **Mesmo produto nas outras lojas:** pelo título. As palavras que distinguem o produto (as que ele tem a mais que a descrição genérica, em geral a marca) têm que estar no título da outra loja; sem contradição de atributos (nunca 🔴) e com pelo menos metade das palavras em comum. Sem palavra que distinga, o produto não é juntado.
+- **A conta:** a de sempre (`orca.selecao.trocar_produto`: preço na escolhida ≤ nova média e a escolhida continua a de menor total), com os preços da **prévia** da busca (preço no Pix/boleto quando o cartão mostra, D-60). Nada é gravado: o resultado fica na tarefa.
+- **A escolha:** a pessoa escolhe uma alternativa, confere descrição e marca e justifica; a rota `/api/itens/{id}/usar-alternativa` troca o produto (`substituir_item`: item novo, o antigo no histórico, decisão `trocar_produto`) e põe as páginas dela nas 3 lojas na fila de coleta. As provas, o preço e a correspondência que valem são os dessas páginas; 🟢 por atributos espera a confirmação, como qualquer produto.
+- **Saída 2:** a simulação da troca de loja já existia (etapa 9); na tela, o aviso do item acima da média ganhou o atalho "Pesquisar outras lojas" (a busca do lote, etapa 10), para quando a próxima loja da classificação ainda não tem todos os itens.
 
 ### 5.1.2 Vagas (Fase 2, etapa 11; D-69)
 

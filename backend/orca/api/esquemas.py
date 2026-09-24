@@ -160,6 +160,16 @@ class PedidoDeBusca(_Entrada):
     lojas: list[str] = Field(min_length=1)
 
 
+class UsoDeAlternativa(_Entrada):
+    """Saída 1 com busca (D-23): a alternativa escolhida no resultado da tarefa `buscar_alternativas`."""
+
+    tarefa_id: str
+    indice: Annotated[int, Field(ge=0)]
+    descricao: str = Field(min_length=1, max_length=300)
+    marca: str = Field(min_length=1, max_length=120)
+    justificativa: str = Field(min_length=1)
+
+
 class DecisaoDeLoja(_Entrada):
     loja: str
     justificativa: str = Field(min_length=1)

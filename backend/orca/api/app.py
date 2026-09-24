@@ -541,6 +541,35 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
             s.flush()
             return {"tarefas": [ap.tarefa_json(t) for t in tarefas]}
 
+    @app.post("/api/itens/{item_id}/alternativas", status_code=202)
+    def buscar_alternativas(item_id: str):
+        """Saída 1 com busca (D-23): procura o item sem a marca nas 3 lojas do trio. Só mostra; não grava."""
+        with sv.sessao() as s:
+            item = _obter(s, Item, item_id, "Item")
+            t = sv.fila.enfileirar(s, "buscar_alternativas", {"item_id": item.id}, _projeto_do_item(item))
+            s.flush()
+            return ap.tarefa_json(t)
+
+    @app.post("/api/itens/{item_id}/usar-alternativa", status_code=201)
+    def usar_alternativa(item_id: str, dados: e.UsoDeAlternativa):
+        """Troca o produto pela alternativa escolhida e captura as páginas dela nas lojas do trio (as provas)."""
+        with sv.sessao() as s:
+            item = _obter(s, Item, item_id, "Item")
+            t = s.get(Tarefa, dados.tarefa_id)
+            if (t is None or t.tipo != "buscar_alternativas" or t.parametros.get("item_id") != item.id
+                    or t.estado != "concluida" or not t.resultado):
+                raise HTTPException(409, "Essa busca de alternativas não é deste item ou não terminou.")
+            opcoes = t.resultado.get("opcoes", [])
+            if dados.indice >= len(opcoes):
+                raise HTTPException(404, "Alternativa não encontrada")
+            opcao = opcoes[dados.indice]
+            novo = substituir_item(s, item, dados.justificativa, descricao=dados.descricao.strip(),
+                                   marca=dados.marca.strip(), modelo=None, ean=None)
+            tarefas = [sv.fila.enfileirar(s, "coletar_item", {"item_id": novo.id, "url": l["url"]}, _projeto_do_item(novo))
+                       for l in opcao["lojas"] if l.get("url")]
+            s.flush()
+            return {"item": ap.item_json(novo), "tarefas": [ap.tarefa_json(x) for x in tarefas]}
+
     @app.post("/api/lotes/{lote_id}/retirar-loja", status_code=201)
     def retirar(lote_id: str, dados: e.DecisaoDeLoja):
         with sv.sessao() as s:

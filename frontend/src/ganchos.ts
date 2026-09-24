@@ -29,6 +29,28 @@ export function useDados<T>(caminho: string | null, versao = 0) {
 
 export const ativa = (t: Tarefa) => t.estado === "pendente" || t.estado === "rodando" || t.estado === "esperando_usuario";
 
+/** Acompanha uma tarefa até ela terminar. */
+export function useTarefa(id: string | null) {
+  const [tarefa, setTarefa] = useState<Tarefa | null>(null);
+  const [pulso, setPulso] = useState(0);
+  useEffect(() => {
+    if (!id) return;
+    let ativo = true;
+    api.obter<Tarefa>(`/api/tarefas/${id}`).then((t) => ativo && setTarefa(t)).catch(() => undefined);
+    return () => {
+      ativo = false;
+    };
+  }, [id, pulso]);
+  const atual = tarefa && tarefa.id === id ? tarefa : null;
+  const andando = !!id && (!atual || ativa(atual));
+  useEffect(() => {
+    if (!andando) return;
+    const relogio = setInterval(() => setPulso((n) => n + 1), 1500);
+    return () => clearInterval(relogio);
+  }, [andando]);
+  return atual;
+}
+
 /** Acompanha as tarefas do projeto; avisa quando alguma termina. */
 export function useTarefas(projetoId: string, aoTerminar: () => void, versao: number) {
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
