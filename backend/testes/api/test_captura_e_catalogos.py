@@ -366,3 +366,23 @@ def test_link_de_vaga_do_indeed_vai_para_a_janela(api):
     indeed = _ok(api.post(f"/api/cargos/{cargo}/coletas", json={"url": "https://br.indeed.com/viewjob?jk=abc"}), 202)
     catho = _ok(api.post(f"/api/cargos/{cargo}/coletas", json={"url": "https://www.catho.com.br/vagas/2"}), 202)
     assert (indeed["tipo"], catho["tipo"]) == ("captura_assistida", "coletar_cargo")
+
+
+# --- Sugestões para o vocabulário (Fase 2, etapa 13; D-65) -----------------------------------------------
+
+
+def test_sugestao_conferida_e_aplicada(api):
+    ids = _projeto(api)
+    rota = f"/api/organizacoes/{ids['org']}"
+    _ok(api.post(f"{rota}/pares", json={"titulo_a": "Café Pilão moído 500g", "titulo_b": "Café Pilão pilado 500g",
+                                        "rotulo": "diferente", "categoria": "alimento", "marca_a": "Pilão",
+                                        "marca_b": "Pilão"}), 201)
+    [sugestao] = _ok(api.get(f"{rota}/sugestoes"))
+    assert sugestao["tipo"] == "valor_exclusivo" and "pilado" in sugestao["explicacao"]
+    conferida = _ok(api.post(f"{rota}/sugestoes/{sugestao['id']}/conferir"))
+    assert conferida["aprovada"]
+    assert any(p["titulo_b"] == "Café Pilão pilado 500g" and p["depois"] == "vermelho" for p in conferida["pares_que_mudaram"])
+    aplicada = _ok(api.post(f"{rota}/sugestoes/{sugestao['id']}/aplicar"))
+    assert aplicada["versao"] == 1 and "pilado" in aplicada["mudancas"]["vocabulario"]["tipo"]["forma_do_cafe"]
+    assert _ok(api.get(f"{rota}/sugestoes")) == []  # o sistema passou a acertar o par
+    assert api.post(f"{rota}/sugestoes/{sugestao['id']}/aplicar").status_code == 404

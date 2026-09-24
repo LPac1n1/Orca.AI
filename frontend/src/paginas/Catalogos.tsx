@@ -507,10 +507,88 @@ function ParesDaOsc({ organizacaoId, categorias }: { organizacaoId: string; cate
   );
 }
 
+// --- Sugestões (D-65; Fase 2, etapa 13) --------------------------------------------------------------------
+
+interface SugestaoDoVocabulario {
+  id: string;
+  tipo: "valor_exclusivo" | "grupo_novo" | "sinonimo" | "atributo_na_categoria";
+  explicacao: string;
+  par: { titulo_a: string; titulo_b: string; rotulo: "mesmo" | "diferente"; origem: string };
+}
+
+function ConferirSugestao({ organizacaoId, sugestao, aoFechar, aoAplicar }: {
+  organizacaoId: string; sugestao: SugestaoDoVocabulario; aoFechar: () => void; aoAplicar: () => void;
+}) {
+  const rota = `/api/organizacoes/${organizacaoId}/sugestoes/${sugestao.id}`;
+  const [teste, setTeste] = useState<ResultadoDoTeste | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  useEffect(() => {
+    api.criar<ResultadoDoTeste>(`${rota}/conferir`).then(setTeste).catch((e: Error) => setErro(e.message));
+  }, [rota]);
+  return (
+    <Modal titulo="Conferir a sugestão" aoFechar={aoFechar}>
+      <p><strong>{sugestao.explicacao}</strong></p>
+      <p className="discreto pequeno">
+        O sistema compara de novo todos os pares de exemplo com o vocabulário mudado. Se algum par de produtos diferentes
+        virar 🟢, a sugestão não pode ser aplicada (D-65).
+      </p>
+      {erro && <Aviso tipo="erro">{erro}</Aviso>}
+      {!teste && !erro && <Carregando />}
+      {teste && (
+        <>
+          <p className="pequeno"><strong>Antes:</strong> {resumoDoTeste(teste.antes)}</p>
+          <p className="pequeno"><strong>Depois:</strong> {resumoDoTeste(teste.depois)}</p>
+          {teste.aprovada
+            ? <Aviso tipo="ok">Nenhum par de produtos diferentes vira 🟢. {teste.pares_que_mudaram.length} par(es) mudam de resultado.</Aviso>
+            : <Aviso tipo="erro">A sugestão faria produtos diferentes virarem 🟢: {teste.novos_falsos_verdes.map((p) => `“${p.titulo_a}” × “${p.titulo_b}”`).join("; ")}</Aviso>}
+          <div className="acoes">
+            <button className="secundario" onClick={aoFechar}>Fechar</button>
+            {teste.aprovada && (
+              <BotaoAcao aoClicar={async () => { await api.criar(`${rota}/aplicar`); aoAplicar(); }}>Aplicar</BotaoAcao>
+            )}
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function Sugestoes({ organizacaoId, aoAplicar }: { organizacaoId: string; aoAplicar: () => void }) {
+  const { dados, erro, recarregar } = useDados<SugestaoDoVocabulario[]>(`/api/organizacoes/${organizacaoId}/sugestoes`);
+  const [aberta, setAberta] = useState<SugestaoDoVocabulario | null>(null);
+  if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
+  if (!dados) return <Carregando />;
+  return (
+    <div>
+      <p className="explicacao">
+        Quando você confirma ou recusa um produto, o par vira exemplo. Se o sistema ainda não acerta esse par sozinho,
+        ele sugere o que ensinar ao vocabulário: um valor novo, um sinônimo ou um atributo a conferir na categoria. Nada
+        muda sem você conferir e aplicar.
+      </p>
+      {dados.length === 0 && <Aviso tipo="ok">Nenhuma sugestão agora: o sistema acerta os pares de exemplo que consegue explicar.</Aviso>}
+      {dados.map((s) => (
+        <div key={s.id} className="bloco">
+          <p><strong>{s.explicacao}</strong></p>
+          <p className="discreto pequeno">
+            Vem do par “{s.par.titulo_a}” × “{s.par.titulo_b}”, que você marcou como
+            {s.par.rotulo === "mesmo" ? " o mesmo produto" : " produtos diferentes"}.
+          </p>
+          <button className="secundario pequeno" onClick={() => setAberta(s)}>Conferir e aplicar</button>
+        </div>
+      ))}
+      {dados.length > 0 && (
+        <p className="discreto pequeno">Não concorda com uma sugestão? Retire o par em “Pares de exemplo”, ou ajuste o vocabulário à mão.</p>
+      )}
+      {aberta && <ConferirSugestao organizacaoId={organizacaoId} sugestao={aberta} aoFechar={() => setAberta(null)}
+        aoAplicar={() => { setAberta(null); recarregar(); aoAplicar(); }} />}
+    </div>
+  );
+}
+
 // --- Página ---------------------------------------------------------------------------------------------------
 
-type Aba = "vocabulario" | "categorias" | "lojas" | "pares";
-const ABAS: [Aba, string][] = [["vocabulario", "Vocabulário"], ["categorias", "Categorias"], ["lojas", "Lojas"], ["pares", "Pares de exemplo"]];
+type Aba = "vocabulario" | "categorias" | "lojas" | "pares" | "sugestoes";
+const ABAS: [Aba, string][] = [["vocabulario", "Vocabulário"], ["categorias", "Categorias"], ["lojas", "Lojas"], ["pares", "Pares de exemplo"], ["sugestoes", "Sugestões"]];
 
 function CatalogosDaOrganizacao({ organizacao }: { organizacao: Organizacao }) {
   const [aba, setAba] = useState<Aba>("vocabulario");
@@ -551,6 +629,7 @@ function CatalogosDaOrganizacao({ organizacao }: { organizacao: Organizacao }) {
       {aba === "categorias" && <Categorias editado={editado} mudar={mudar} conhecidos={conhecidos} />}
       {aba === "lojas" && <Lojas organizacaoId={organizacao.id} />}
       {aba === "pares" && <ParesDaOsc organizacaoId={organizacao.id} categorias={Object.keys(editado.categorias)} />}
+      {aba === "sugestoes" && <Sugestoes organizacaoId={organizacao.id} aoAplicar={recarregar} />}
       {mudou && (
         <div className="barra-salvar visivel">
           <span>Há mudanças no vocabulário ou nas categorias que ainda não foram salvas.</span>

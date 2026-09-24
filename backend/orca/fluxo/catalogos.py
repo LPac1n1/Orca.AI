@@ -28,7 +28,7 @@ from orca.banco import (
     agora,
 )
 from orca.coleta.catalogo import LojaCatalogo, catalogo_de_dados, ler_atributos_dados, ler_catalogo_dados
-from orca.correspondencia import LEITORES, Avaliacao, Par, Vocabulario, avaliar, pares_do_sistema
+from orca.correspondencia import LEITORES, Avaliacao, Par, Sugestao, Vocabulario, avaliar, pares_do_sistema, sugerir
 
 SO_POR_PESSOA = frozenset({"escopo", "periodicidade", "unidade_de_cobranca", "modelo_exato"})
 COLETAS = ("C0", "C1", "C2", "C3", "C4", "proposta")
@@ -361,6 +361,19 @@ def sincronizar_pares_de_ean(sessao: Session, organizacao_id: str) -> list[ParRe
             sessao.add(par)
             novos.append(par)
     return novos
+
+
+def sugestoes_da_organizacao(sessao: Session, organizacao_id: str) -> list[tuple[str, Par, Sugestao]]:
+    """Sugestões para o vocabulário tiradas dos pares que o sistema ainda não acerta (D-65)."""
+    vocabulario = vocabulario_da_organizacao(sessao, organizacao_id)
+    return [(f"{par.id}-{n}", par, sugestao)
+            for par in pares_da_organizacao(sessao, organizacao_id)
+            for n, sugestao in enumerate(sugerir(par, vocabulario))]
+
+
+def catalogo_com_sugestao(sessao: Session, organizacao_id: str, sugestao: Sugestao) -> dict:
+    """O catálogo de atributos da OSC como ficaria com a sugestão (para conferir e salvar)."""
+    return mesclar_atributos(atributos_da_organizacao(sessao, organizacao_id), sugestao.mudancas)
 
 
 def adicionar_par(sessao: Session, organizacao_id: str, titulo_a: str, titulo_b: str, rotulo: str,

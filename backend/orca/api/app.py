@@ -891,24 +891,61 @@ def _rotas_de_catalogos(app: FastAPI, sv: Servico) -> None:
                     "leitores": sorted(LEITORES), "so_por_pessoa": sorted(cat.SO_POR_PESSOA),
                     "historico": _historico_do_catalogo(s, organizacao_id, "atributos")}
 
+    def _conferir(s: Session, organizacao_id: str, editado: dict) -> dict:
+        mudancas = cat.diferenca_de_atributos(ler_atributos_dados(), editado)
+        r = cat.avaliar_mudanca_de_atributos(s, organizacao_id, mudancas)
+        mudaram = [
+            {"titulo_a": p.titulo_a, "titulo_b": p.titulo_b, "rotulo": p.rotulo, "origem": p.origem,
+             "antes": r.antes.resultados.get(p.id), "depois": r.depois.resultados.get(p.id)}
+            for p in pares_do_sistema() + cat.pares_da_organizacao(s, organizacao_id)
+            if r.antes.resultados.get(p.id) != r.depois.resultados.get(p.id)
+        ]
+        return {"aprovada": r.aprovada, "antes": _resumo_da_avaliacao(r.antes),
+                "depois": _resumo_da_avaliacao(r.depois), "mudancas": mudancas,
+                "novos_falsos_verdes": [{"titulo_a": p.titulo_a, "titulo_b": p.titulo_b} for p in r.novos_falsos_verdes],
+                "pares_que_mudaram": mudaram}
+
     @app.post("/api/organizacoes/{organizacao_id}/catalogos/atributos/conferir")
     def conferir_atributos(organizacao_id: str, dados: e.CatalogoEditado):
         """Roda o teste de correspondência antes e depois da mudança (nada é gravado)."""
         with sv.sessao() as s:
             _org(s, organizacao_id)
-            mudancas = cat.diferenca_de_atributos(ler_atributos_dados(), dados.conteudo)
-            r = cat.avaliar_mudanca_de_atributos(s, organizacao_id, mudancas)
-            mudaram = [
-                {"titulo_a": p.titulo_a, "titulo_b": p.titulo_b, "rotulo": p.rotulo, "origem": p.origem,
-                 "antes": r.antes.resultados.get(p.id), "depois": r.depois.resultados.get(p.id)}
-                for p in pares_do_sistema() + cat.pares_da_organizacao(s, organizacao_id)
-                if r.antes.resultados.get(p.id) != r.depois.resultados.get(p.id)
-            ]
-            return {"aprovada": r.aprovada, "antes": _resumo_da_avaliacao(r.antes),
-                    "depois": _resumo_da_avaliacao(r.depois), "mudancas": mudancas,
-                    "novos_falsos_verdes": [{"titulo_a": p.titulo_a, "titulo_b": p.titulo_b}
-                                            for p in r.novos_falsos_verdes],
-                    "pares_que_mudaram": mudaram}
+            return _conferir(s, organizacao_id, dados.conteudo)
+
+    def _sugestao(s: Session, organizacao_id: str, sugestao_id: str):
+        for chave, par, sugestao in cat.sugestoes_da_organizacao(s, organizacao_id):
+            if chave == sugestao_id:
+                return par, sugestao
+        raise HTTPException(404, "Sugestão não encontrada (o vocabulário pode já ter mudado).")
+
+    @app.get("/api/organizacoes/{organizacao_id}/sugestoes")
+    def sugestoes(organizacao_id: str):
+        """Sugestões para o vocabulário a partir dos pares que o sistema ainda não acerta (D-65)."""
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            return [{"id": chave, "tipo": sug.tipo, "explicacao": sug.explicacao, "mudancas": sug.mudancas,
+                     "par": {"titulo_a": par.titulo_a, "titulo_b": par.titulo_b, "rotulo": par.rotulo,
+                             "origem": par.origem, "categoria": par.categoria}}
+                    for chave, par, sug in cat.sugestoes_da_organizacao(s, organizacao_id)]
+
+    @app.post("/api/organizacoes/{organizacao_id}/sugestoes/{sugestao_id}/conferir")
+    def conferir_sugestao(organizacao_id: str, sugestao_id: str):
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            _, sugestao = _sugestao(s, organizacao_id, sugestao_id)
+            return _conferir(s, organizacao_id, cat.catalogo_com_sugestao(s, organizacao_id, sugestao))
+
+    @app.post("/api/organizacoes/{organizacao_id}/sugestoes/{sugestao_id}/aplicar")
+    def aplicar_sugestao(organizacao_id: str, sugestao_id: str):
+        """Grava a sugestão no catálogo da OSC, só se o teste não criar nenhum 🟢 errado novo (D-65)."""
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            _, sugestao = _sugestao(s, organizacao_id, sugestao_id)
+            editado = cat.catalogo_com_sugestao(s, organizacao_id, sugestao)
+            mudancas = cat.diferenca_de_atributos(ler_atributos_dados(), editado)
+            camada = cat.salvar_atributos(s, organizacao_id, mudancas, f"sugestão aprovada: {sugestao.explicacao}")
+            s.flush()
+            return {"versao": camada.versao, "mudancas": camada.conteudo}
 
     @app.put("/api/organizacoes/{organizacao_id}/catalogos/atributos")
     def salvar_atributos(organizacao_id: str, dados: e.CatalogoEditado):

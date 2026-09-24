@@ -95,7 +95,7 @@ Diferenças só de texto ("Chamex Papel Sulfite A4 75g – 500 fls" × "Papel Su
 
 Cada resultado é gravado (tabela `correspondencia`, imutável) com o status, a origem e os motivos. Uma decisão do usuário (confirmar ou recusar, com justificativa) é um registro novo; vale o mais recente. O perfil de regras diz se o 🟢 do programa já vale sozinho ou espera confirmação: padrão, **EAN automático** e **atributos com aprovação** (§4 de [05](05-regras-padrao.md)).
 
-**Aprendizado (D-64 a D-66):** cada decisão do usuário vira um par rotulado; pares com o mesmo código de barras em lojas diferentes entram sozinhos. A partir deles, o sistema sugere inclusões no vocabulário e no catálogo de atributos (Fase 2); o usuário aprova depois de ver o efeito no teste de correspondência, e nenhuma mudança que crie um 🟢 errado é aceita. Pares, catálogo de lojas, atributos e vocabulário também podem ser editados diretamente na interface, com a mesma conferência.
+**Aprendizado (D-64 a D-66):** cada decisão do usuário vira um par rotulado; pares com o mesmo código de barras em lojas diferentes entram sozinhos. A partir deles, o sistema sugere inclusões no vocabulário e no catálogo de atributos (aba "Sugestões" em Catálogos, Fase 2, etapa 13: valor novo, sinônimo, grupo novo ou atributo que a categoria passa a conferir); o usuário aprova depois de ver o efeito no teste de correspondência, e nenhuma mudança que crie um 🟢 errado é aceita. Pares, catálogo de lojas, atributos e vocabulário também podem ser editados diretamente na interface, com a mesma conferência.
 
 ## 8. Cobertura, lotes e escolha das lojas
 
