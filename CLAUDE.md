@@ -71,6 +71,7 @@ A captura de páginas usa o **Microsoft Edge** do Windows (Playwright, canal `ms
 
 - **Janela visível (D-67):** a captura assistida roda na pista `assistida` da fila (`orca.tarefas.fila`). Nessa janela **quem navega é o usuário**: o sistema só abre a página, espera o sinal ("Capturar agora") e captura. Nunca automatize cliques, login ou captcha nela, nem esconda que o navegador é controlado por programa.
 - **Comprovante da Receita (D-14):** a Receita recusa a verificação feita na janela do sistema. O comprovante é emitido no navegador do usuário e enviado em PDF (`orca.coleta.ler_comprovante_pdf`, rota `/api/comprovantes/pdf`).
+- **Opcionais (D-70):** SerpApi e IA ficam desligadas por padrão e o sistema funciona sem elas. Chaves só pelo `orca.cofre` (Gerenciador de Credenciais do Windows); nunca em arquivo, banco, tarefa, log ou endereço. Nos testes, `CofreEmMemoria` e serviços simulados (httpx `MockTransport`): nunca chave de verdade. A IA só recebe dados públicos de produto e só rebaixa 🟡 para 🔴.
 - **Catálogos da OSC (D-64 a D-66):** as edições ficam em `catalogo_camada` (só a diferença para `catalogos/*.yaml`) e os pares em `par_referencia` (`orca.fluxo.catalogos`). Mudança no vocabulário ou nas categorias só é salva se o teste de correspondência (`orca.correspondencia.avaliar`, pares do sistema + da OSC) não criar nenhum 🟢 errado novo.
 
 ## Cuidados

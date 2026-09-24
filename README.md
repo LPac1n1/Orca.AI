@@ -8,7 +8,7 @@ O Orça.AI pesquisa produtos e vagas, confere se os produtos são idênticos, va
 
 ## Situação
 
-Em construção — **Fase 1** pronta: cálculo, regras, banco local, seleção, otimização do teto, coleta por URL (evidências e CNPJ), captura assistida e PDF enviado para lojas que recusam programas, comprovantes da Receita, correspondência de produtos com catálogos e vocabulário editáveis por OSC, documentos (Excel, PDF e pacote ZIP), API local e interface. Ainda não há instalador. **Fase 2** em construção: o sistema já pesquisa sozinho as lojas de cada lote (botão "Pesquisar nas lojas").
+Em construção — **Fase 1** pronta: cálculo, regras, banco local, seleção, otimização do teto, coleta por URL (evidências e CNPJ), captura assistida e PDF enviado para lojas que recusam programas, comprovantes da Receita, correspondência de produtos com catálogos e vocabulário editáveis por OSC, documentos (Excel, PDF e pacote ZIP), API local e interface. Ainda não há instalador. **Fase 2** pronta para os testes: o sistema pesquisa sozinho as lojas de cada lote ("Pesquisar nas lojas"), abre as buscas de vagas na janela para você escolher, avisa as pesquisas vencidas e pesquisa de novo, sugere melhorias no vocabulário a partir das suas decisões, procura produto de outra marca quando um item passa da média e, se você quiser, usa opcionais gratuitos (buscador SerpApi e IA Gemini ou local) — tudo desligado por padrão.
 
 ## Como usar (versão em desenvolvimento)
 

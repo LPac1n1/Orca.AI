@@ -160,6 +160,20 @@ class PedidoDeBusca(_Entrada):
     lojas: list[str] = Field(min_length=1)
 
 
+class Opcionais(_Entrada):
+    """Opcionais (Fase 2, etapa 15). Chave em branco apaga; ausente não muda."""
+
+    ia_provedor: Literal["nenhum", "gemini", "local"] | None = None
+    ia_modelo: str | None = Field(default=None, max_length=100, pattern=r"^[A-Za-z0-9._:-]*$")
+    ia_endereco: str | None = Field(default=None, max_length=200, pattern=r"^(https?://[^\s]+)?$")
+    chave_serpapi: str | None = Field(default=None, max_length=200, pattern=r"^\S*$")
+    chave_gemini: str | None = Field(default=None, max_length=200, pattern=r"^\S*$")
+
+
+class PedidoDeDescoberta(_Entrada):
+    itens: list[str] | None = None  # sem itens: todos os do lote (uma busca da SerpApi por item)
+
+
 class UsoDeAlternativa(_Entrada):
     """Saída 1 com busca (D-23): a alternativa escolhida no resultado da tarefa `buscar_alternativas`."""
 

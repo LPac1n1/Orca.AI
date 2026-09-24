@@ -19,10 +19,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from orca.banco import Tarefa, agora
+from orca.cofre import Cofre
 from orca.coleta.catalogo import Jornada, LojaCatalogo
 from orca.coleta.registro import CapturaPaginas
 from orca.correspondencia import Vocabulario
 from orca.evidencias import ArmazemArquivos, hoje_em_brasilia
+from orca.ia import ConfigIA
 
 PISTA_ASSISTIDA = frozenset({"captura_assistida", "comprovante"})
 
@@ -51,6 +53,10 @@ class Contexto:
     cliente_http: Callable[[], httpx.Client] | None = None
     hoje: Callable[[], date] = field(default=hoje_em_brasilia)
     intervalo_busca_s: float = 3.0  # entre dois pedidos à mesma loja na busca automática (poucas requisições)
+    # opcionais (Fase 2, etapa 15): chaves no cofre do Windows; a IA desligada por padrão (D-50)
+    cofre: Cofre | None = None
+    ia: ConfigIA = field(default_factory=ConfigIA)
+    intervalo_ia_s: float = 4.0  # entre dois pedidos à IA (o plano grátis limita pedidos por minuto)
 
 
 Executor = Callable[["Fila", str, dict], dict]

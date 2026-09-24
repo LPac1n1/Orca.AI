@@ -4,7 +4,8 @@ import { Aviso, BotaoAcao, Campo, Carregando, Formulario, Modal, Selo, useDecisa
 import { centavosDeTexto, cnpj, dataHora, FORMAS_DE_PAGAMENTO, horas, reais, REGIMES } from "../formatos";
 import { ativa, useDados, useTarefa } from "../ganchos";
 import type {
-  CargoRevisao, ItemRevisao, LojaDoLote, LoteRevisao, Observacao, Oferta, OrcamentoRevisao, Revisao, Status, Tarefa,
+  CargoRevisao, EstadoOpcionais, ItemRevisao, LojaDoLote, LoteRevisao, Observacao, Oferta, OrcamentoRevisao, Revisao, Status,
+  Tarefa,
 } from "../tipos";
 import type { PropsDaAba } from "./Projeto";
 
@@ -288,8 +289,11 @@ interface LojaDeBusca {
   faltam: number;
 }
 
-function BuscarNasLojas({ lote, aoFechar, aoIniciar }: { lote: LoteRevisao; aoFechar: () => void; aoIniciar: () => void }) {
+function BuscarNasLojas({ lote, aoFechar, aoIniciar, aoDescobrir }: {
+  lote: LoteRevisao; aoFechar: () => void; aoIniciar: () => void; aoDescobrir: (tarefaId: string) => void;
+}) {
   const { dados, erro } = useDados<{ itens: number; lojas: LojaDeBusca[] }>(`/api/lotes/${lote.id}/lojas-de-busca`);
+  const { dados: opcionais } = useDados<EstadoOpcionais>("/api/opcionais");
   const [marcadas, setMarcadas] = useState<Set<string> | null>(null);
   const escolhidas = marcadas ?? new Set((dados?.lojas ?? []).filter((l) => l.modo !== "assistida" && l.sugerida && l.faltam > 0).map((l) => l.id));
   const alternar = (id: string) => {
@@ -346,6 +350,90 @@ function BuscarNasLojas({ lote, aoFechar, aoIniciar }: { lote: LoteRevisao; aoFe
             <strong>{janelas}</strong> captura(s) com janela, que vão esperar por você.
           </Aviso>
           <p className="discreto pequeno">Mercado Livre, Shopee e Amazon não entram aqui: cole o link da página do produto.</p>
+        </Formulario>
+      )}
+      <h3>Pela internet, em outras lojas (opcional)</h3>
+      {opcionais?.serpapi.chave ? (
+        <p className="discreto pequeno">
+          A busca do Google (SerpApi) procura cada item e mostra as páginas parecidas; você escolhe quais o sistema lê. Gasta{" "}
+          {lote.itens.length} busca(s) do seu plano grátis.{" "}
+          <BotaoAcao classe="secundario pequeno" aoClicar={async () => {
+            aoDescobrir((await api.criar<Tarefa>(`/api/lotes/${lote.id}/descobrir`, {})).id);
+          }}>Procurar pela internet</BotaoAcao>
+        </p>
+      ) : (
+        <p className="discreto pequeno">Com uma chave grátis da SerpApi (em Opcionais, no alto da página), dá para procurar também em lojas fora do catálogo.</p>
+      )}
+    </Modal>
+  );
+}
+
+// --- Descoberta pela internet (SerpApi, C2; Fase 2, etapa 15) --------------------------------------
+
+interface LinkDescoberto {
+  url: string;
+  titulo: string;
+  dominio: string;
+  loja: string | null;
+  status: Status;
+  preco_centavos: number | null;
+  ja_pesquisada: boolean;
+}
+
+interface ResultadoDescoberta {
+  itens: { item_id: string; item: string; termo: string; links: LinkDescoberto[] }[];
+  avisos: string[];
+  mensagem: string;
+}
+
+function DescobertaNaWeb({ tarefaId, aoFechar, aoColetar }: { tarefaId: string; aoFechar: () => void; aoColetar: () => void }) {
+  const tarefa = useTarefa(tarefaId);
+  const resultado = tarefa?.estado === "concluida" ? (tarefa.resultado as unknown as ResultadoDescoberta) : null;
+  const [marcados, setMarcados] = useState<Set<string> | null>(null);
+  const chave = (itemId: string, url: string) => `${itemId}|${url}`;
+  const escolhidos = marcados ?? new Set((resultado?.itens ?? []).flatMap((i) =>
+    i.links.filter((l) => l.status === "verde" && !l.ja_pesquisada).map((l) => chave(i.item_id, l.url))));
+  const alternar = (k: string) => {
+    const novo = new Set(escolhidos);
+    if (novo.has(k)) novo.delete(k);
+    else novo.add(k);
+    setMarcados(novo);
+  };
+  return (
+    <Modal titulo="Procurar pela internet" aoFechar={aoFechar}>
+      <p className="explicacao">
+        Resultados da busca do Google, só como ponto de partida: não são prova. Marque as páginas que o sistema deve ler; cada uma
+        é conferida como se você tivesse colado o link (prova, preço, CNPJ do vendedor e se é o mesmo produto).
+      </p>
+      {(!tarefa || ativa(tarefa)) && <Aviso tipo="info">Procurando… {tarefa?.mensagem ?? ""}</Aviso>}
+      {tarefa && (tarefa.estado === "falhou" || tarefa.estado === "cancelada") && <Aviso tipo="erro">{tarefa.mensagem ?? "A busca não terminou."}</Aviso>}
+      {resultado && (
+        <Formulario rotulo={`Ler ${escolhidos.size} página(s)`} aoCancelar={aoFechar} aoEnviar={async () => {
+          if (escolhidos.size === 0) throw new Error("Marque ao menos uma página.");
+          for (const k of escolhidos) {
+            const [itemId, ...resto] = k.split("|");
+            await api.criar(`/api/itens/${itemId}/coletas`, { url: resto.join("|") });
+          }
+          aoColetar();
+        }}>
+          <Aviso tipo={resultado.avisos.length ? "atencao" : "info"}>{resultado.mensagem}</Aviso>
+          {resultado.itens.map((i) => (
+            <div key={i.item_id}>
+              <h3>{i.item} <span className="discreto pequeno">· busca por “{i.termo}”</span></h3>
+              {i.links.length === 0 && <p className="discreto pequeno">Nenhuma página parecida.</p>}
+              {i.links.map((l) => (
+                <label key={l.url} className="marcador quebra">
+                  <input type="checkbox" checked={escolhidos.has(chave(i.item_id, l.url))} onChange={() => alternar(chave(i.item_id, l.url))} />
+                  <Selo status={l.status} />
+                  <a href={l.url} target="_blank" rel="noreferrer">{l.titulo || l.url}</a>
+                  <span className="discreto pequeno">
+                    · {l.loja ?? l.dominio}{l.preco_centavos ? ` · prévia ${reais(l.preco_centavos)}` : ""}
+                    {l.ja_pesquisada ? " · já tem página desta loja" : ""}
+                  </span>
+                </label>
+              ))}
+            </div>
+          ))}
         </Formulario>
       )}
     </Modal>
@@ -513,6 +601,7 @@ function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: Or
   const [simulacao, setSimulacao] = useState<null | { sucesso: boolean; mensagem: string; tentativas: { retirada: string; motivo: string }[] }>(null);
   const [alternativas, setAlternativas] = useState<ItemRevisao | null>(null);
   const [buscasDeAlternativas, setBuscasDeAlternativas] = useState<Record<string, string>>({});  // item → tarefa
+  const [descoberta, setDescoberta] = useState<string | null>(null);  // tarefa da SerpApi
   const [janela, pedir] = useDecisao();
   const lojasComPreco = lote.lojas.filter((l) => lote.itens.some((i) => i.ofertas[l.id]));
   const temAcima = lote.itens.some((i) => i.dentro_da_media === false);
@@ -618,7 +707,10 @@ function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: Or
       </div>
 
       {colar && <ColarLink alvo={{ tipo: "item", id: colar.id, nome: colar.descricao }} aoTerminar={() => { setColar(null); atualizar(); }} />}
-      {buscar && <BuscarNasLojas lote={lote} aoFechar={() => setBuscar(false)} aoIniciar={() => { setBuscar(false); atualizar(); }} />}
+      {buscar && <BuscarNasLojas lote={lote} aoFechar={() => setBuscar(false)} aoIniciar={() => { setBuscar(false); atualizar(); }}
+        aoDescobrir={(t) => { setBuscar(false); setDescoberta(t); atualizar(); }} />}
+      {descoberta && <DescobertaNaWeb tarefaId={descoberta} aoFechar={() => setDescoberta(null)}
+        aoColetar={() => { setDescoberta(null); atualizar(); }} />}
       {detalhe && <DetalheDaOferta item={detalhe.item} loja={detalhe.loja} aoFechar={() => setDetalhe(null)} atualizar={atualizar} />}
       {alternativas && (
         <AlternativasDoItem item={alternativas} tarefaId={buscasDeAlternativas[alternativas.id] ?? null}
@@ -836,6 +928,22 @@ function ValidadeDasPesquisas({ projetoId, versao, atualizar }: { projetoId: str
   );
 }
 
+function IaConfereAmarelos({ projetoId, revisao, atualizar }: { projetoId: string; revisao: Revisao; atualizar: () => void }) {
+  const { dados: opcionais } = useDados<EstadoOpcionais>("/api/opcionais");
+  const amarelos = revisao.orcamentos.flatMap((o) => o.lotes).flatMap((l) => l.itens).flatMap((i) => Object.values(i.ofertas))
+    .filter((o) => o.correspondencia?.status === "amarelo" && o.correspondencia.origem !== "humano" && o.correspondencia.origem !== "ia").length;
+  if (!opcionais?.ia.ligada || amarelos === 0) return null;
+  return (
+    <Aviso tipo="info">
+      {amarelos} preço(s) 🟡 esperando conferência. A IA pode olhar primeiro: ela só rebaixa para 🔴 o que for claramente outro
+      produto, com o motivo; os outros continuam 🟡 para você decidir (D-52).{" "}
+      <BotaoAcao classe="secundario pequeno" aoClicar={async () => { await api.criar(`/api/projetos/${projetoId}/julgar-amarelos`); atualizar(); }}>
+        Pedir à IA para conferir
+      </BotaoAcao>
+    </Aviso>
+  );
+}
+
 export function AbaPesquisa({ projeto, versao, atualizar }: PropsDaAba) {
   const { dados, erro } = useDados<Revisao>(`/api/projetos/${projeto.id}/revisao`, versao);
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
@@ -848,6 +956,7 @@ export function AbaPesquisa({ projeto, versao, atualizar }: PropsDaAba) {
         Clique num preço para ver a prova e decidir.
       </p>
       <ValidadeDasPesquisas projetoId={projeto.id} versao={versao} atualizar={atualizar} />
+      <IaConfereAmarelos projetoId={projeto.id} revisao={dados} atualizar={atualizar} />
       {dados.orcamentos.map((o) => (
         <div key={o.id} className="bloco">
           <h2>{o.nome} <span className="discreto">· regra {o.base_preco_final} {o.base_preco_final === "B" ? "(preço da loja de menor total)" : "(média)"}</span></h2>

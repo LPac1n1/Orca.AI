@@ -86,6 +86,20 @@ export interface Projeto {
   orcamentos?: Orcamento[];
 }
 
+export interface EstadoOpcionais {
+  serpapi: { chave: boolean };
+  ia: {
+    provedor: "nenhum" | "gemini" | "local";
+    modelo: string;
+    endereco: string;
+    chave_gemini: boolean;
+    ligada: boolean;
+    modelo_padrao: string;
+    endereco_padrao: string;
+  };
+  erro_cofre: string | null;
+}
+
 export interface Correspondencia {
   id: string;
   status: Status;
@@ -219,7 +233,8 @@ export interface Painel {
 export interface Tarefa {
   id: string;
   projeto_id: string | null;
-  tipo: "coletar_item" | "coletar_cargo" | "captura_assistida" | "comprovante" | "consultar_cnpj" | "fechar_teto" | "exportar" | "buscar_lote" | "buscar_alternativas";
+  tipo: "coletar_item" | "coletar_cargo" | "captura_assistida" | "comprovante" | "consultar_cnpj" | "fechar_teto" | "exportar" | "buscar_lote" | "buscar_alternativas"
+    | "descobrir_na_web" | "julgar_amarelos";
   estado: "pendente" | "rodando" | "esperando_usuario" | "concluida" | "falhou" | "cancelada";
   progresso: number;
   mensagem: string | null;

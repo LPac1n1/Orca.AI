@@ -8,8 +8,10 @@ import getpass
 import json
 import os
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+from orca.ia import PROVEDORES, ConfigIA
 
 PORTA_PADRAO = 8765
 
@@ -39,6 +41,7 @@ class Configuracao:
     pasta_dados: str
     usuario: str
     porta: int = PORTA_PADRAO
+    ia: ConfigIA = field(default_factory=ConfigIA)  # a chave, não: fica no cofre do Windows (orca.cofre)
 
     @property
     def autor(self) -> str:
@@ -53,10 +56,17 @@ def ler_config(caminho: Path | None = None) -> Configuracao:
     caminho = caminho or arquivo_de_config()
     if caminho.exists():
         dados = json.loads(caminho.read_text(encoding="utf-8-sig"))  # aceita o arquivo salvo pelo Bloco de Notas (com BOM)
-        return Configuracao(dados["pasta_dados"], nome_valido(dados["usuario"]), int(dados.get("porta", PORTA_PADRAO)))
+        return Configuracao(dados["pasta_dados"], nome_valido(dados["usuario"]), int(dados.get("porta", PORTA_PADRAO)),
+                            _config_ia(dados.get("ia")))
     config = Configuracao(str(pasta_padrao()), nome_valido(getpass.getuser() or "Usuário"))
     salvar_config(config, caminho)
     return config
+
+
+def _config_ia(dados) -> ConfigIA:
+    dados = dados if isinstance(dados, dict) else {}
+    provedor = dados.get("provedor") if dados.get("provedor") in PROVEDORES else "nenhum"
+    return ConfigIA(provedor, str(dados.get("modelo") or ""), str(dados.get("endereco") or ""))
 
 
 def salvar_config(config: Configuracao, caminho: Path | None = None) -> Path:

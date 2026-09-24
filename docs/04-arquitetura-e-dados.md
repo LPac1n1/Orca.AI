@@ -69,7 +69,8 @@ Orca.AI/                       ← repositório (sem "ç": limite do GitHub)
 │       ├── coleta/            captura (Edge), leitura de preço/vaga/CNPJ, situação cadastral, comprovante, pendências
 │       ├── busca/             Fase 2: lojas pesquisáveis, conectores (API VTEX, página de busca), escolha dos candidatos, alternativas da Saída 1
 │       ├── evidencias/        armazém por impressão digital (SHA-256), validade, manifesto
-│       ├── ia/                provedores plugáveis e tarefas de IA
+│       ├── ia/                Fase 2: provedores plugáveis (Gemini, modelo local) e a conferência dos 🟡
+│       ├── cofre.py           chaves opcionais no Gerenciador de Credenciais do Windows
 │       ├── fluxo/             liga as etapas a partir do banco: estado, seleção, vagas, teto, painel, dossiê
 │       ├── documentos/        Excel, PDF, ZIP
 │       ├── banco/             tabelas, migrações, gatilhos, sessões com autor, regras gravadas
@@ -84,7 +85,7 @@ Regra de dependência: `dominio`, `calculo`, `selecao`, `correspondencia` e `oti
 
 **Grafo incremental:** cada etapa grava o hash das suas entradas. Se as entradas não mudaram, o resultado anterior é reaproveitado. Mudar um item refaz só o que depende dele.
 
-**Fila de tarefas:** uma tabela no SQLite (`tarefa`) e dois trabalhadores em segundo plano, cada um com a sua pista e executando uma tarefa de cada vez (o Playwright síncrono precisa ficar sempre na mesma thread; o navegador fica aberto entre as tarefas). Pista principal, sem janela: coletar página de item ou de vaga, consultar CNPJs, fechar o teto, exportar. Pista assistida, com **janela visível** (D-67): captura assistida — a tarefa fica **esperando o usuário**, que navega na janela e clica em “Capturar agora”; “Cancelar” fecha a espera. (A tarefa de comprovante da Receita pela janela continua existindo, mas a Receita recusa a verificação feita nela: o comprovante vem em PDF, D-14.) Enquanto uma captura assistida espera, a pista principal continua. Uma tarefa que falha não para a fila; as que estavam rodando quando o programa fechou voltam para a fila, menos as assistidas, que são canceladas (a janela fechou). O andamento das tarefas não gera eventos de auditoria (é registro de operação), mas a tarefa guarda quem pediu, quando e o resultado.
+**Fila de tarefas:** uma tabela no SQLite (`tarefa`) e dois trabalhadores em segundo plano, cada um com a sua pista e executando uma tarefa de cada vez (o Playwright síncrono precisa ficar sempre na mesma thread; o navegador fica aberto entre as tarefas). Pista principal, sem janela: coletar página de item ou de vaga, consultar CNPJs, fechar o teto, exportar, e as buscas da Fase 2 (lote nas lojas, alternativas da Saída 1, descoberta pela SerpApi, IA conferindo os 🟡). Pista assistida, com **janela visível** (D-67): captura assistida — a tarefa fica **esperando o usuário**, que navega na janela e clica em “Capturar agora”; “Cancelar” fecha a espera. (A tarefa de comprovante da Receita pela janela continua existindo, mas a Receita recusa a verificação feita nela: o comprovante vem em PDF, D-14.) Enquanto uma captura assistida espera, a pista principal continua. Uma tarefa que falha não para a fila; as que estavam rodando quando o programa fechou voltam para a fila, menos as assistidas, que são canceladas (a janela fechou). O andamento das tarefas não gera eventos de auditoria (é registro de operação), mas a tarefa guarda quem pediu, quando e o resultado.
 
 **API local e segurança:** o comando `orca` abre `http://localhost:8765` no navegador. O servidor escuta só no próprio computador (127.0.0.1), recusa pedidos com outro nome de endereço (proteção contra *DNS rebinding*) e exige o cabeçalho `X-Orca: 1` em todo pedido que muda dados (proteção contra *CSRF*: outros sites abertos no navegador não conseguem enviá-lo). Os arquivos baixáveis ficam restritos à pasta `exportacoes/`; as evidências são conferidas pela impressão digital a cada leitura.
 
@@ -137,6 +138,10 @@ Tarefa `buscar_alternativas` (`orca.tarefas.alternativas`), na pista principal, 
 - **A conta:** a de sempre (`orca.selecao.trocar_produto`: preço na escolhida ≤ nova média e a escolhida continua a de menor total), com os preços da **prévia** da busca (preço no Pix/boleto quando o cartão mostra, D-60). Nada é gravado: o resultado fica na tarefa.
 - **A escolha:** a pessoa escolhe uma alternativa, confere descrição e marca e justifica; a rota `/api/itens/{id}/usar-alternativa` troca o produto (`substituir_item`: item novo, o antigo no histórico, decisão `trocar_produto`) e põe as páginas dela nas 3 lojas na fila de coleta. As provas, o preço e a correspondência que valem são os dessas páginas; 🟢 por atributos espera a confirmação, como qualquer produto.
 - **Saída 2:** a simulação da troca de loja já existia (etapa 9); na tela, o aviso do item acima da média ganhou o atalho "Pesquisar outras lojas" (a busca do lote, etapa 10), para quando a próxima loja da classificação ainda não tem todos os itens.
+
+### 5.1.1c Descoberta pela SerpApi (C2, opcional; Fase 2, etapa 15; D-70)
+
+`orca.busca.serpapi.buscar_na_web` (busca do Google, Brasil, em português) e tarefa `descobrir_na_web` (`orca.tarefas.opcionais`), pedida pela rota `/api/lotes/{id}/descobrir`. Uma busca por item (o plano grátis tem poucas por mês). Os resultados passam pela mesma escolha dos candidatos (🔴 saem); cada link mostra a loja do catálogo (se for uma), a prévia do preço e se o item já tem página daquela loja. Nada é capturado: a pessoa marca os links e cada um entra na fila como link colado. A chave da SerpApi vai como parâmetro (é o único jeito que o serviço aceita, por HTTPS) e não fica gravada na tarefa.
 
 ### 5.1.2 Vagas (Fase 2, etapa 11; D-69)
 
@@ -200,6 +205,8 @@ O **catálogo de lojas** (`catalogos/lojas.yaml`) diz qual conector usar em cada
 | Redigir explicações | fatos estruturados | texto | Números inseridos pelo programa, nunca pela IA |
 
 Só dados públicos são enviados (D-51). Toda chamada é registrada (tarefa, provedor, modelo, entrada resumida, saída).
+
+**Implementado na etapa 15 (D-70):** `orca.ia` com os provedores `gemini` (API do Google AI Studio, plano grátis; modelo padrão `gemini-2.5-flash`, trocável em Opcionais; a chave vai no cabeçalho `x-goog-api-key`) e `local` (Ollama, `/api/chat` com `format: json`), e a tarefa **julgar correspondência 🟡** (`julgar_amarelos`, rota `/api/projetos/{id}/julgar-amarelos`): para cada 🟡 que nem uma pessoa nem a IA já julgaram, manda o produto pedido (descrição, marca, modelo, apresentação, atributos) e o anúncio (título, marca, código de barras) e espera `{"mesmo_produto": "sim"|"nao"|"incerto", "motivo": ...}`, validado. "nao" grava 🔴 com o motivo; "sim" e "incerto" gravam 🟡 com a observação da IA (autor `ia:<provedor>`, origem `ia`). Resposta fora do formato é ignorada; chave recusada, limite do plano grátis ou falta de conexão param a tarefa. No máximo 40 pedidos por tarefa, com 4 s entre eles. A tela Opcionais tem "Testar a IA" (um pedido sem dados). As outras tarefas da tabela continuam para depois.
 
 ## 7. Modelo de dados
 
@@ -281,7 +288,7 @@ Alembic, em `backend/orca/banco/migracoes/`. Ao abrir o banco, o programa aplica
 ## 8. Segurança e privacidade
 
 - Todos os dados ficam no computador da OSC. Nada é enviado a servidores do projeto.
-- Nenhuma senha é pedida nem guardada. Chaves opcionais (Gemini, SerpApi) ficam no Gerenciador de Credenciais do Windows.
+- Nenhuma senha é pedida nem guardada. Chaves opcionais (Gemini, SerpApi) ficam no Gerenciador de Credenciais do Windows (`orca.cofre`, biblioteca keyring); a API só diz se a chave existe, nunca devolve o valor. Os testes usam um cofre em memória.
 - Dados pessoais mínimos: vagas são de empresas; o histórico guarda só o nome de quem usou o sistema.
 - O sistema não contorna captcha nem raspa plataformas que proíbem.
 

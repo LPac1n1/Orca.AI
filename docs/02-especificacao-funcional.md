@@ -89,7 +89,7 @@ Etapas:
    - Algum diferente → 🔴
    - Palavras ou números que sobram de um lado só (ex.: "orgânico", "252°") → 🟡: uma diferença que o vocabulário ainda não conhece nunca vira 🟢.
    - Item sem marca ou sem categoria conhecida → no máximo 🟡.
-3. **IA (opcional)** extrai atributos de textos desestruturados e julga casos 🟡. Ela pode manter 🟡 ou rebaixar para 🔴, **nunca promover para 🟢** (D-52). Só o usuário promove 🟡 para 🟢.
+3. **IA (opcional)** extrai atributos de textos desestruturados e julga casos 🟡. Ela pode manter 🟡 ou rebaixar para 🔴, **nunca promover para 🟢** (D-52). Só o usuário promove 🟡 para 🟢. Na Fase 2 (etapa 15, D-70), o botão "Pedir à IA para conferir" manda os 🟡 do projeto para a IA escolhida em Opcionais; o motivo dela aparece na célula, e a pessoa pode desfazer.
 
 Diferenças só de texto ("Chamex Papel Sulfite A4 75g – 500 fls" × "Papel Sulfite A4 75g Chamex 500 folhas") não impedem 🟢.
 

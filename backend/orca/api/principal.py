@@ -33,7 +33,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Orça.AI em {endereco}")
     print(f"Pasta de dados: {config.pasta}  ·  usuário: {config.usuario}  ·  configuração: {arquivo_de_config()}")
     print("Para encerrar, feche esta janela ou aperte Ctrl+C.")
-    app = criar_app(config)
+    app = criar_app(config, guardar_config=salvar_config)
     if not args.sem_navegador:
         threading.Timer(1.5, webbrowser.open, [endereco]).start()
     uvicorn.run(app, host="127.0.0.1", port=config.porta, log_level="warning")

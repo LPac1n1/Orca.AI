@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager, contextmanager
 from datetime import date
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -73,7 +74,9 @@ from orca.coleta.pendencias import vigentes
 from orca.correspondencia import LEITORES, avaliar, pares_do_sistema
 from orca.documentos import Renderizador, conferir
 from orca.dominio import normalizar_cnpj
+from orca.cofre import CHAVES, CofreDoWindows, ErroCofre
 from orca.evidencias import ArmazemArquivos, ErroIntegridade
+from orca.ia import ENDERECO_LOCAL, MODELO_GEMINI, ErroIA, provedor_configurado
 from orca.fluxo import (
     ErroAcao,
     ErroDossie,
@@ -105,8 +108,10 @@ TIPOS_DE_EVIDENCIA = {"pdf": ("pdf", "application/pdf"), "png": ("png", "image/p
 class Servico:
     """O que as rotas usam: banco, armazém, fila e configuração."""
 
-    def __init__(self, config: Configuracao, contexto: Contexto, fila: Fila):
+    def __init__(self, config: Configuracao, contexto: Contexto, fila: Fila,
+                 guardar_config: Callable[[Configuracao], object] | None = None):
         self.config, self.contexto, self.fila = config, contexto, fila
+        self.guardar_config = guardar_config  # None nos testes: nada é gravado no computador
 
     @contextmanager
     def sessao(self) -> Iterator[Session]:
@@ -130,6 +135,8 @@ def contexto_padrao(config: Configuracao, **trocas) -> Contexto:
         abrir_navegador=trocas.pop("abrir_navegador", None) or (lambda: Navegador()),
         abrir_renderizador=trocas.pop("abrir_renderizador", None) or (lambda: Renderizador()),
         abrir_navegador_visivel=trocas.pop("abrir_navegador_visivel", None) or (lambda: Navegador(sem_janela=False)),
+        cofre=trocas.pop("cofre", None) or CofreDoWindows(),
+        ia=config.ia,
         **trocas,
     )
 
@@ -146,10 +153,11 @@ def _aplicar(objeto, dados: dict) -> None:
         setattr(objeto, campo, valor)
 
 
-def criar_app(config: Configuracao, contexto: Contexto | None = None, iniciar_trabalhador: bool = True) -> FastAPI:
+def criar_app(config: Configuracao, contexto: Contexto | None = None, iniciar_trabalhador: bool = True,
+              guardar_config: Callable[[Configuracao], object] | None = None) -> FastAPI:
     contexto = contexto or contexto_padrao(config)
     fila = Fila(contexto)
-    servico = Servico(config, contexto, fila)
+    servico = Servico(config, contexto, fila, guardar_config)
 
     @asynccontextmanager
     async def ciclo(_app: FastAPI):
@@ -198,6 +206,7 @@ def criar_app(config: Configuracao, contexto: Contexto | None = None, iniciar_tr
     _rotas_de_resultado(app, servico)
     _rotas_de_captura(app, servico)
     _rotas_de_catalogos(app, servico)
+    _rotas_de_opcionais(app, servico)
 
     if (ESTATICO / "index.html").exists():
         app.mount("/", StaticFiles(directory=ESTATICO, html=True), name="interface")
@@ -206,6 +215,92 @@ def criar_app(config: Configuracao, contexto: Contexto | None = None, iniciar_tr
         def inicio():
             return "<h1>Orça.AI</h1><p>A interface ainda não foi compilada. A API está em <a href='/api/docs'>/api/docs</a>.</p>"
     return app
+
+
+# --- Opcionais: SerpApi e IA (Fase 2, etapa 15; D-50 a D-52) ------------------------------------------
+
+
+def _estado_dos_opcionais(sv: Servico) -> dict:
+    erro, chaves = None, dict.fromkeys(CHAVES, False)
+    try:
+        chaves = {nome: bool(sv.contexto.cofre.ler(nome)) for nome in CHAVES} if sv.contexto.cofre else chaves
+    except ErroCofre as e_:
+        erro = str(e_)
+    ia = sv.contexto.ia
+    return {"serpapi": {"chave": chaves["serpapi"]},
+            "ia": {"provedor": ia.provedor, "modelo": ia.modelo, "endereco": ia.endereco, "chave_gemini": chaves["gemini"],
+                   "ligada": ia.provedor != "nenhum", "modelo_padrao": MODELO_GEMINI, "endereco_padrao": ENDERECO_LOCAL},
+            "erro_cofre": erro}
+
+
+def _rotas_de_opcionais(app: FastAPI, sv: Servico) -> None:
+    @app.get("/api/opcionais")
+    def opcionais():
+        """O que está ligado. As chaves nunca voltam: só se existem."""
+        return _estado_dos_opcionais(sv)
+
+    @app.put("/api/opcionais")
+    def mudar_opcionais(dados: e.Opcionais):
+        cofre = sv.contexto.cofre
+        try:
+            for nome, valor in (("serpapi", dados.chave_serpapi), ("gemini", dados.chave_gemini)):
+                if valor is None:
+                    continue
+                if valor:
+                    cofre.gravar(nome, valor)
+                else:
+                    cofre.apagar(nome)
+        except ErroCofre as erro:
+            raise HTTPException(500, str(erro)) from erro
+        ia = sv.contexto.ia
+        if dados.ia_provedor is not None:
+            ia.provedor = dados.ia_provedor
+        if dados.ia_modelo is not None:
+            ia.modelo = dados.ia_modelo
+        if dados.ia_endereco is not None:
+            ia.endereco = dados.ia_endereco
+        sv.config.ia = ia
+        if sv.guardar_config:
+            sv.guardar_config(sv.config)
+        return _estado_dos_opcionais(sv)
+
+    @app.post("/api/opcionais/testar-ia")
+    def testar_ia():
+        """Um pedido sem dados (“responda {"ok": true}”), para conferir a chave, o modelo e a conexão."""
+        cliente = sv.contexto.cliente_http() if sv.contexto.cliente_http else httpx.Client()
+        try:
+            provedor = provedor_configurado(sv.contexto.ia, sv.contexto.cofre, cliente)
+            if provedor is None:
+                raise HTTPException(409, "A IA está desligada.")
+            resposta = provedor.responder_json('Responda só com este JSON: {"ok": true}')
+        except ErroIA as erro:
+            raise HTTPException(502, str(erro)) from erro
+        finally:
+            cliente.close()
+        return {"ok": resposta.get("ok") is True, "mensagem": f"{provedor.nome} ({provedor.modelo}) respondeu."}
+
+    @app.post("/api/lotes/{lote_id}/descobrir", status_code=202)
+    def descobrir(lote_id: str, dados: e.PedidoDeDescoberta):
+        """C2: procura páginas do produto pela SerpApi. Só aponta links; a pessoa escolhe o que capturar."""
+        with sv.sessao() as s:
+            lote = _obter(s, Lote, lote_id, "Lote")
+            if not _estado_dos_opcionais(sv)["serpapi"]["chave"]:
+                raise HTTPException(409, "Falta a chave da SerpApi (em Opcionais).")
+            t = sv.fila.enfileirar(s, "descobrir_na_web", {"lote_id": lote.id, "itens": dados.itens or []},
+                                   lote.orcamento.projeto_id)
+            s.flush()
+            return ap.tarefa_json(t)
+
+    @app.post("/api/projetos/{projeto_id}/julgar-amarelos", status_code=202)
+    def julgar_amarelos(projeto_id: str):
+        """A IA confere os 🟡 do projeto: mantém ou rebaixa para 🔴, nunca aprova (D-52)."""
+        with sv.sessao() as s:
+            projeto = _obter(s, Projeto, projeto_id, "Projeto")
+            if sv.contexto.ia.provedor == "nenhum":
+                raise HTTPException(409, "A IA está desligada (em Opcionais).")
+            t = sv.fila.enfileirar(s, "julgar_amarelos", {"projeto_id": projeto.id}, projeto.id)
+            s.flush()
+            return ap.tarefa_json(t)
 
 
 # --- Gerais ----------------------------------------------------------------------------------------
