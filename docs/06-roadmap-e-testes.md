@@ -71,7 +71,7 @@ Refazer o caso de SJC no Orça.AI revelou e corrigiu: CNPJ consultado logo depoi
 ## 2b. Ordem de construção da Fase 2 (combinada em 24/09/2026)
 
 10. ✅ Busca de produtos nas lojas (D-68): botão "Pesquisar nas lojas" em cada lote, com as lojas sugeridas pelas categorias e o aviso de quantas buscas e capturas com janela serão feitas; API pública (Atacadão), página de busca do site (Kalunga, Gimba, Lepok, Tenda) e janela (Carrefour, Extra); item mais difícil primeiro; código de barras achado numa loja usado nas outras; segunda busca sem medidas; loja sem um item poupada; "não encontrado" com prova; página recusada não volta; busca de loja nova configurável pela OSC. Ensaio real com 1 item em 3 lojas.
-11. Vagas: conectores (Catho primeiro), depois de conferir os termos de uso de cada plataforma; onde for proibido, captura com janela.
+11. ✅ Vagas (D-69): termos de uso e robots.txt conferidos — as plataformas proíbem programas nas buscas, então a busca é com janela: "Pesquisar vagas" em cada cargo abre uma janela por plataforma (Catho, Indeed, InfoJobs, Vagas.com, LinkedIn), já com o cargo e a cidade; link de vaga do Indeed ou do LinkedIn colado vai para a janela; a fila abre as janelas na ordem dos pedidos. Catálogo `catalogos/vagas.yaml`.
 12. Validade e avisos: pesquisa vencendo com "pesquisar de novo" em um clique.
 13. Aprendizado: sugestões de sinônimos e valores a partir das decisões, com o teste de correspondência antes de salvar (D-65).
 14. Saídas 1 e 2 automáticas: busca de produto alternativo e de loja nova quando um item passa da média.

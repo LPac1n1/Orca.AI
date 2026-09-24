@@ -43,6 +43,7 @@ function ColarLink({ alvo, aoTerminar }: { alvo: { tipo: "item" | "cargo"; id: s
   const [arquivoPdf, setArquivoPdf] = useState<File | null>(null);
   const [titulo, setTitulo] = useState("");
   const [resultado, setResultado] = useState<{ mensagem: string; avisos: string[] } | null>(null);
+  const [foiParaJanela, setFoiParaJanela] = useState(false);
   const item = alvo.tipo === "item";
 
   function valor(texto: string, nome: string): number | null {
@@ -75,8 +76,24 @@ function ColarLink({ alvo, aoTerminar }: { alvo: { tipo: "item" | "cargo"; id: s
     const corpo = item
       ? { url: endereco, cnpj_vendedor: cnpjTexto || null, preco_centavos }
       : { url: endereco, cnpj_empresa: cnpjTexto || null, salario_min_centavos: min, salario_max_centavos: max };
-    await api.criar(`${rota}/${modo === "janela" ? "captura-assistida" : "coletas"}`, corpo);
+    const tarefa = await api.criar<{ tipo: string }>(`${rota}/${modo === "janela" ? "captura-assistida" : "coletas"}`, corpo);
+    if (modo === "sistema" && tarefa.tipo === "captura_assistida") {
+      setFoiParaJanela(true);  // D-69: a plataforma não permite programas
+      return;
+    }
     aoTerminar();
+  }
+
+  if (foiParaJanela) {
+    return (
+      <Modal titulo={`Colar link — ${alvo.nome}`} aoFechar={aoTerminar}>
+        <Aviso tipo="info">
+          Esta plataforma não permite que programas abram as vagas (termos de uso). Abri uma janela na página: confira a
+          vaga e clique em <strong>“Capturar agora”</strong>, no quadro Tarefas, ao lado.
+        </Aviso>
+        <div className="acoes"><button onClick={aoTerminar}>Entendi</button></div>
+      </Modal>
+    );
   }
 
   if (resultado) {
@@ -448,10 +465,87 @@ function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: Or
   );
 }
 
+// --- Pesquisar vagas pela janela (Fase 2, etapa 11; D-69) ---------------------------------------------
+
+interface PlataformaDeVagas {
+  id: string;
+  nome: string;
+  abrir_vaga: "sistema" | "janela";
+  motivo: string;
+}
+
+function lerLocal(chave: string): string {
+  try {
+    return localStorage.getItem(chave) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function gravarLocal(chave: string, valor: string) {
+  try {
+    localStorage.setItem(chave, valor);
+  } catch {
+    /* sem armazenamento: só não lembra da cidade */
+  }
+}
+
+function PesquisarVagas({ cargo, aoFechar, aoIniciar }: { cargo: CargoRevisao; aoFechar: () => void; aoIniciar: () => void }) {
+  const { dados: plataformas, erro } = useDados<PlataformaDeVagas[]>("/api/plataformas-de-vagas");
+  const [marcadas, setMarcadas] = useState<Set<string>>(new Set(["catho", "infojobs", "vagas_com"]));
+  const [cidade, setCidade] = useState(() => lerLocal("orca.vagas.cidade"));
+  const [uf, setUf] = useState(() => lerLocal("orca.vagas.uf"));
+  const alternar = (id: string) => {
+    const nova = new Set(marcadas);
+    if (nova.has(id)) nova.delete(id);
+    else nova.add(id);
+    setMarcadas(nova);
+  };
+  return (
+    <Modal titulo={`Pesquisar vagas — ${cargo.nome}`} aoFechar={aoFechar}>
+      <p className="explicacao">
+        As plataformas de vagas não permitem que programas façam buscas (termos de uso ou regras para robôs, conferidos em
+        24/09/2026). Então <strong>quem pesquisa é você</strong>: para cada plataforma, abre uma janela na busca já preenchida
+        com o cargo e a cidade. Clique numa vaga com salário e empresa, e depois em <strong>“Capturar agora”</strong>, no
+        quadro Tarefas. O sistema guarda a prova e lê o salário e a empresa. Repita até ter as vagas válidas que as regras pedem (normalmente 3, D-40).
+      </p>
+      {erro && <Aviso tipo="erro">{erro}</Aviso>}
+      {!plataformas && !erro && <Carregando />}
+      {plataformas && (
+        <Formulario rotulo="Abrir as janelas" aoCancelar={aoFechar} aoEnviar={async () => {
+          if (marcadas.size === 0) throw new Error("Escolha ao menos uma plataforma.");
+          gravarLocal("orca.vagas.cidade", cidade);
+          gravarLocal("orca.vagas.uf", uf);
+          await api.criar(`/api/cargos/${cargo.id}/busca-de-vagas`, {
+            plataformas: [...marcadas], cidade: cidade.trim() || null, uf: uf.trim() || null,
+          });
+          aoIniciar();
+        }}>
+          <div className="lista-lojas">
+            {plataformas.map((p) => (
+              <label key={p.id} className="marcador" title={p.motivo}>
+                <input type="checkbox" checked={marcadas.has(p.id)} onChange={() => alternar(p.id)} />
+                {p.nome}
+                {p.id === "linkedin" && <span className="discreto pequeno"> · pede login: entre com a sua conta só se quiser</span>}
+              </label>
+            ))}
+          </div>
+          <div className="linha-campos">
+            <Campo rotulo="Cidade" ajuda="Em branco: vagas de todo o Brasil."><input value={cidade} onChange={(e) => setCidade(e.target.value)} placeholder="São Paulo" /></Campo>
+            <Campo rotulo="UF"><input value={uf} onChange={(e) => setUf(e.target.value.toUpperCase().slice(0, 2))} placeholder="SP" /></Campo>
+          </div>
+          <p className="discreto pequeno">As janelas abrem uma de cada vez, na ordem; o quadro Tarefas mostra qual está esperando você.</p>
+        </Formulario>
+      )}
+    </Modal>
+  );
+}
+
 // --- Cargo ------------------------------------------------------------------------------------------
 
 function CargoPesquisa({ cargo, atualizar }: { cargo: CargoRevisao; atualizar: () => void }) {
   const [colar, setColar] = useState(false);
+  const [pesquisar, setPesquisar] = useState(false);
   const [janela, pedir] = useDecisao();
   const nomeDaVaga = (id: string) => {
     const v = cargo.vagas.find((x) => x.id === id);
@@ -461,7 +555,10 @@ function CargoPesquisa({ cargo, atualizar }: { cargo: CargoRevisao; atualizar: (
     <div className="lote">
       <div className="cabecalho-secao">
         <h3><Selo status={cargo.status} /> {cargo.nome} <span className="discreto">· {REGIMES[cargo.regime]} · {horas(cargo.horas_planejadas_centesimos)} h/mês · {cargo.postos} posto(s)</span></h3>
-        <button className="secundario pequeno" onClick={() => setColar(true)}>+ colar link de vaga</button>
+        <span className="botoes">
+          <button className="secundario pequeno" onClick={() => setPesquisar(true)}>Pesquisar vagas</button>
+          <button className="secundario pequeno" onClick={() => setColar(true)}>+ colar link de vaga</button>
+        </span>
       </div>
       {cargo.problema && <Aviso tipo="atencao">{cargo.problema}</Aviso>}
       {cargo.incertos.map((p) => (
@@ -497,6 +594,7 @@ function CargoPesquisa({ cargo, atualizar }: { cargo: CargoRevisao; atualizar: (
         </div>
       )}
       {colar && <ColarLink alvo={{ tipo: "cargo", id: cargo.id, nome: cargo.nome }} aoTerminar={() => { setColar(false); atualizar(); }} />}
+      {pesquisar && <PesquisarVagas cargo={cargo} aoFechar={() => setPesquisar(false)} aoIniciar={() => { setPesquisar(false); atualizar(); }} />}
       {janela}
     </div>
   );

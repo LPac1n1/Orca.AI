@@ -1,0 +1,54 @@
+# Plataformas de vagas (Fase 2, etapa 11; D-69).
+# A BUSCA de vagas é sempre feita pela pessoa, na janela do sistema (captura assistida):
+# o sistema abre a busca da plataforma já preenchida com o cargo e a cidade; a pessoa
+# clica na vaga certa e em "Capturar agora"; o sistema guarda a prova e lê salário e empresa.
+# "abrir_vaga" diz como abrir a página de UMA vaga quando a pessoa cola o link:
+#   sistema = o navegador do sistema pode abrir (o robots.txt da plataforma permite);
+#   janela  = só na janela, com a pessoa (termos de uso proíbem programas, ou exige login).
+# Marcadores: {cargo_slug} {cidade_slug} {uf} (endereço) e {cargo_q} {cidade_q} (parâmetros).
+# Verificação dos termos e do robots.txt: 24/09/2026.
+
+versao: 1
+verificado_em: 2026-09-24
+
+plataformas:
+  - id: catho
+    nome: Catho
+    dominio: www.catho.com.br
+    busca: https://www.catho.com.br/vagas/{cargo_slug}/{cidade_slug}-{uf}/
+    busca_sem_cidade: https://www.catho.com.br/vagas/{cargo_slug}/
+    abrir_vaga: sistema
+    motivo: o robots.txt proíbe programas na busca (/buscar/vagas/ e endereços com ?q=); a página de cada vaga é permitida
+    observacoes: Mostra faixa salarial; vale o menor valor (D-46).
+
+  - id: indeed
+    nome: Indeed
+    dominio: br.indeed.com
+    busca: https://br.indeed.com/jobs?q={cargo_q}&l={cidade_q}
+    busca_sem_cidade: https://br.indeed.com/jobs?q={cargo_q}
+    abrir_vaga: janela
+    motivo: os termos de uso proíbem usar sistema automatizado para acessar ou extrair dados sem permissão escrita do Indeed
+
+  - id: infojobs
+    nome: InfoJobs
+    dominio: www.infojobs.com.br
+    busca: https://www.infojobs.com.br/vagas-de-{cargo_slug}-em-{cidade_slug},-{uf}.aspx
+    busca_sem_cidade: https://www.infojobs.com.br/vagas-de-{cargo_slug}.aspx
+    abrir_vaga: sistema
+    motivo: termos de uso ainda não conferidos; por prudência a busca é com janela (o robots.txt permite as páginas de vaga)
+
+  - id: vagas_com
+    nome: Vagas.com
+    dominio: www.vagas.com.br
+    busca: https://www.vagas.com.br/vagas-de-{cargo_slug}-em-{cidade_slug}
+    busca_sem_cidade: https://www.vagas.com.br/vagas-de-{cargo_slug}
+    abrir_vaga: sistema
+    motivo: o robots.txt proíbe programas nas pesquisas (/vagas/pesquisas); a página de cada vaga é permitida
+
+  - id: linkedin
+    nome: LinkedIn
+    dominio: www.linkedin.com
+    busca: https://www.linkedin.com/jobs/search/?keywords={cargo_q}&location={cidade_q}
+    busca_sem_cidade: https://www.linkedin.com/jobs/search/?keywords={cargo_q}
+    abrir_vaga: janela
+    motivo: exige login e proíbe programas; só por captura assistida (docs/02 §10.2)

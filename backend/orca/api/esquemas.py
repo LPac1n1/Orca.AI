@@ -146,6 +146,12 @@ class CorrecaoDePreco(_Entrada):
     justificativa: str = Field(min_length=1)
 
 
+class BuscaDeVagas(_Entrada):
+    plataformas: list[str] = Field(min_length=1)
+    cidade: str | None = Field(default=None, max_length=100)
+    uf: str | None = Field(default=None, max_length=2)
+
+
 class PedidoDeBusca(_Entrada):
     lojas: list[str] = Field(min_length=1)
 

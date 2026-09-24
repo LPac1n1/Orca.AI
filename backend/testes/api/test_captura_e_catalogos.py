@@ -329,3 +329,40 @@ def test_comprovante_emitido_no_navegador_e_enviado_em_pdf(app, api):
     assert kalunga not in _ok(api.get(rota))["pendentes"]
     sem_data = _ok(enviar(comprovante[:4]), 201)
     assert any("data de emissão não aparece" in a for a in sem_data["avisos"])
+
+
+# --- Vagas pela janela (Fase 2, etapa 11; D-69) ---------------------------------------------------------
+
+
+def _cargo(api, ids) -> str:
+    pessoal = _ok(api.post(f"/api/projetos/{ids['projeto']}/orcamentos", json={"nome": "RH", "tipo": "mao_de_obra"}), 201)
+    return _ok(api.post(f"/api/orcamentos/{pessoal['id']}/cargos", json={
+        "nome": "Educador Social", "regime": "recibo", "horas_planejadas_centesimos": 8000, "mes_fim": 12}), 201)["id"]
+
+
+def test_busca_de_vagas_abre_a_janela_na_plataforma(app, api, janela):
+    ids = _projeto(api)
+    cargo = _cargo(api, ids)
+    assert len(_ok(api.get("/api/plataformas-de-vagas"))) == 5
+    tarefas = _ok(api.post(f"/api/cargos/{cargo}/busca-de-vagas",
+                           json={"plataformas": ["catho", "indeed"], "cidade": "São Paulo", "uf": "SP"}), 202)["tarefas"]
+    assert [t["parametros"]["url"] for t in tarefas] == [
+        "https://www.catho.com.br/vagas/educador-social/sao-paulo-sp/", "https://br.indeed.com/jobs?q=Educador+Social&l=S%C3%A3o+Paulo"]
+    trabalhador = _na_pista_assistida(app)
+    _esperar_estado(api, tarefas[0]["id"], "esperando_usuario")
+    janela.pagina = PaginaFalsa("https://www.catho.com.br/vagas/1")  # a pessoa clicou numa vaga da lista
+    _ok(api.post(f"/api/tarefas/{tarefas[0]['id']}/capturar-agora"))
+    trabalhador.join(timeout=5)
+    feita = _ok(api.get(f"/api/tarefas/{tarefas[0]['id']}"))
+    assert feita["estado"] == "concluida" and feita["resultado"]["salario_min_centavos"] == 250_000
+    vaga = _ok(api.get(f"/api/cargos/{cargo}/observacoes"))[0]
+    assert vaga["url"] == "https://www.catho.com.br/vagas/1" and vaga["metodo"] == "C4"
+    _ok(api.post(f"/api/tarefas/{tarefas[1]['id']}/cancelar"))
+
+
+def test_link_de_vaga_do_indeed_vai_para_a_janela(api):
+    ids = _projeto(api)
+    cargo = _cargo(api, ids)
+    indeed = _ok(api.post(f"/api/cargos/{cargo}/coletas", json={"url": "https://br.indeed.com/viewjob?jk=abc"}), 202)
+    catho = _ok(api.post(f"/api/cargos/{cargo}/coletas", json={"url": "https://www.catho.com.br/vagas/2"}), 202)
+    assert (indeed["tipo"], catho["tipo"]) == ("captura_assistida", "coletar_cargo")

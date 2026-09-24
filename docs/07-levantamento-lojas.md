@@ -47,7 +47,7 @@
 - Adicionar mais lojas conforme a OSC usar (o catálogo aceita novas entradas sem mudar o código).
 - Na Fase 2: confirmar cada loja com o navegador automatizado, detalhar a Lepok e escrever o conector de cada uma.
 
-## 4. Buscas das lojas (Fase 2, etapa 10 — 24/09/2026)
+## 5. Buscas das lojas (Fase 2, etapa 10 — 24/09/2026)
 
 Uma busca de teste por loja ("papel sulfite chamex a4"), sem login e sem aceitar cookies:
 

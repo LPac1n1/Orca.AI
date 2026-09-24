@@ -127,6 +127,10 @@ Módulo `orca.busca` (conectores e escolha dos candidatos) e tarefa `buscar_lote
 - **Ritmo:** pelo menos 3 s entre pedidos à mesma loja (`Contexto.intervalo_busca_s`); identificação "Orca.AI/0.1" no pedido à API.
 - **Lojas que precisam de CEP** (ex.: Atacadão sem CEP mostra preço zero): o produto é achado, mas fica "sem preço na página" — a captura com janela resolve.
 
+### 5.1.2 Vagas (Fase 2, etapa 11; D-69)
+
+`catalogos/vagas.yaml` lista as plataformas com o endereço da busca (marcadores `{cargo_slug}`, `{cidade_slug}`, `{uf}`, `{cargo_q}`, `{cidade_q}`), o motivo de a busca ser com janela e se a página de uma vaga pode ser aberta pelo sistema (`abrir_vaga: sistema | janela`). `orca.busca.vagas` monta os endereços; a rota `/api/cargos/{id}/busca-de-vagas` cria uma captura assistida por plataforma. As capturas assistidas passam pela mesma leitura de vaga (JSON-LD `JobPosting`) de quando se cola o link.
+
 ### 5.2 Contrato de um conector
 
 ```python

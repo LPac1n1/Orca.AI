@@ -68,7 +68,7 @@ from orca.coleta import (
     registrar_comprovante_enviado,
     url_do_comprovante,
 )
-from orca.busca import lojas_de_busca, termo_de_busca
+from orca.busca import ler_plataformas, lojas_de_busca, plataforma_do_endereco, termo_de_busca
 from orca.coleta.pendencias import vigentes
 from orca.correspondencia import LEITORES, avaliar, pares_do_sistema
 from orca.documentos import Renderizador, conferir
@@ -421,12 +421,34 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
 
     @app.post("/api/cargos/{cargo_id}/coletas", status_code=202)
     def coletar_cargo(cargo_id: str, dados: e.ColetaDeCargo):
+        """Página de uma vaga. Em plataformas que proíbem programas (D-69), abre na janela, com a pessoa."""
         with sv.sessao() as s:
             cargo = _obter(s, Cargo, cargo_id, "Cargo")
-            t = sv.fila.enfileirar(s, "coletar_cargo", {"cargo_id": cargo.id, **dados.model_dump(exclude_none=True)},
+            plataforma = plataforma_do_endereco(dados.url, ler_plataformas())
+            tipo = "captura_assistida" if plataforma is not None and plataforma.abrir_vaga == "janela" else "coletar_cargo"
+            t = sv.fila.enfileirar(s, tipo, {"cargo_id": cargo.id, **dados.model_dump(exclude_none=True)},
                                    cargo.orcamento.projeto_id)
             s.flush()
             return ap.tarefa_json(t)
+
+    @app.get("/api/plataformas-de-vagas")
+    def plataformas_de_vagas():
+        return [{"id": p.id, "nome": p.nome, "dominio": p.dominio, "abrir_vaga": p.abrir_vaga, "motivo": p.motivo}
+                for p in ler_plataformas()]
+
+    @app.post("/api/cargos/{cargo_id}/busca-de-vagas", status_code=202)
+    def buscar_vagas(cargo_id: str, dados: e.BuscaDeVagas):
+        """Uma janela por plataforma, na busca já preenchida; a pessoa escolhe a vaga (D-69)."""
+        with sv.sessao() as s:
+            cargo = _obter(s, Cargo, cargo_id, "Cargo")
+            escolhidas = [p for p in ler_plataformas() if p.id in set(dados.plataformas)]
+            if not escolhidas:
+                raise HTTPException(400, "Escolha ao menos uma plataforma.")
+            tarefas = [sv.fila.enfileirar(s, "captura_assistida",
+                                          {"cargo_id": cargo.id, "url": p.endereco(cargo.nome, dados.cidade, dados.uf)},
+                                          cargo.orcamento.projeto_id) for p in escolhidas]
+            s.flush()
+            return {"tarefas": [ap.tarefa_json(t) for t in tarefas]}
 
     @app.get("/api/itens/{item_id}/observacoes")
     def observacoes_do_item(item_id: str):

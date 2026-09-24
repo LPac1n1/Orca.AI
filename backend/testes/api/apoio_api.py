@@ -37,7 +37,7 @@ def cnpj_de_teste(n: int) -> str:
 VAGAS = {  # url: (CNPJ, salário mín., salário máx.)
     "https://www.catho.com.br/vagas/1": (cnpj_de_teste(701), 250_000, 300_000),
     "https://www.catho.com.br/vagas/2": (cnpj_de_teste(702), 260_000, None),
-    "https://br.indeed.com/vaga/3": (cnpj_de_teste(703), 270_000, None),
+    "https://www.infojobs.com.br/vaga/3": (cnpj_de_teste(703), 270_000, None),
 }
 
 

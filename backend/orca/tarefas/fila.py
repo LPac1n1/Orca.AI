@@ -11,7 +11,7 @@ import threading
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -79,6 +79,7 @@ class Fila:
         self._sinais: dict[str, threading.Event] = {}
         self._cancelamentos: dict[str, threading.Event] = {}
         self._trava = threading.Lock()
+        self._ultimo_instante: datetime | None = None
 
     # --- Criar e acompanhar ------------------------------------------------------------------------
 
@@ -86,10 +87,20 @@ class Fila:
         if tipo not in EXECUTORES:
             raise ErroTarefa(f"Tipo de tarefa desconhecido: {tipo}")
         nova = Tarefa(tipo=tipo, parametros=parametros, projeto_id=projeto_id, autor=sessao.info["autor"],
+                      criado_em=self._instante(),
                       estado="pendente", progresso=0)
         sessao.add(nova)
         self._acordar[pista_do_tipo(tipo)].set()
         return nova
+
+    def _instante(self) -> datetime:
+        """Hora de criação sempre crescente: a fila anda na ordem dos pedidos, mesmo no mesmo instante do relógio."""
+        with self._trava:
+            instante = agora()
+            if self._ultimo_instante is not None and instante <= self._ultimo_instante:
+                instante = self._ultimo_instante + timedelta(microseconds=1)
+            self._ultimo_instante = instante
+            return instante
 
     def _atualizar(self, tarefa_id: str, **campos) -> None:
         with self.contexto.fabrica() as sessao:

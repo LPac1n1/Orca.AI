@@ -155,6 +155,7 @@ O enquadramento é feito pela tabela de jornadas (mantida e revisada por humano,
 
 ### 10.2 Pesquisa de vagas
 - Plataformas, na ordem: Catho (mostra faixas salariais), Indeed, InfoJobs, Vagas.com e outras do catálogo; Google Jobs (plano grátis da SerpApi, opcional); LinkedIn só por captura assistida.
+- **A busca de vagas é feita pela pessoa, na janela (D-69):** as plataformas proíbem programas nas buscas. O botão "Pesquisar vagas" de cada cargo abre uma janela por plataforma, na busca já preenchida com o cargo e a cidade; a pessoa escolhe a vaga e clica em "Capturar agora". Link de vaga do Indeed ou do LinkedIn colado também abre na janela.
 - Dados de cada vaga: cargo, empresa, CNPJ (quando encontrado), salário ou faixa, localização, descrição, URL, data de publicação, plataforma, identificador, data e hora da coleta, evidência.
 
 ### 10.3 Validação e escolha
