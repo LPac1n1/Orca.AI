@@ -37,7 +37,7 @@
 
 | # | Situação | Decisão |
 |---|---|---|
-| Q1 | Preço **Pix** em destaque (Gimba) | **D-60:** usar o preço normal (cartão/boleto à vista) |
+| Q1 | Preço **Pix** em destaque (Gimba) | **D-60:** usar o preço no Pix; sem Pix, o do boleto; nunca o parcelado (revista no piloto, 24/09/2026; antes: preço normal) |
 | Q2 | Preço de **clube/fidelidade ou assinante** (Extra, Kalunga) | **D-61:** usar o preço para qualquer comprador, sem cadastro |
 | Q3 | Preço **promocional aberto a todos** ("de R$ 29,89 por R$ 25,29") | **D-62:** usar o preço atual (R$ 25,29), registrado na evidência |
 | Q4 | Preço de **atacado por quantidade** (Tenda 4+, Gimba 2+) | **D-63:** usar sempre o preço unitário, para que o preço não mude quando o otimizador ajusta quantidades |

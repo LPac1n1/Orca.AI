@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { api, arquivo } from "../api";
 import { Aviso, BotaoAcao, Carregando } from "../componentes";
 import { cnpj, dataHora, reais, tamanho } from "../formatos";
@@ -7,10 +8,40 @@ import type { PropsDaAba } from "./Projeto";
 
 const SITUACAO = { ok: "OK", atencao: "ATENÇÃO", problema: "PROBLEMA" };
 
+function ComprovantePendente({ cnpj: numero, pagina, aoEnviar }: { cnpj: string; pagina: string; aoEnviar: () => void }) {
+  const [pdf, setPdf] = useState<File | null>(null);
+  const [avisos, setAvisos] = useState<string[]>([]);
+  return (
+    <tr>
+      <td>{cnpj(numero)}</td>
+      <td>
+        <a className="botao secundario pequeno" href={pagina} target="_blank" rel="noreferrer noopener">1. Abrir na Receita</a>
+      </td>
+      <td>
+        <div className="linha-campos">
+          <input type="file" accept="application/pdf,.pdf" aria-label={`PDF do comprovante de ${cnpj(numero)}`}
+            onChange={(e) => setPdf(e.target.files?.[0] ?? null)} />
+          <BotaoAcao classe="pequeno" aoClicar={async () => {
+            if (!pdf) throw new Error("Escolha o PDF do comprovante.");
+            const dados = new FormData();
+            dados.append("arquivo", pdf);
+            dados.append("cnpj", numero);
+            const r = await api.enviar<{ avisos: string[] }>("/api/comprovantes/pdf", dados);
+            setAvisos(r.avisos);
+            aoEnviar();
+          }}>2. Enviar o PDF</BotaoAcao>
+        </div>
+        {avisos.length > 0 && <Aviso tipo="atencao"><ul>{avisos.map((a) => <li key={a}>{a}</li>)}</ul></Aviso>}
+      </td>
+    </tr>
+  );
+}
+
 export function AbaDocumentos({ projeto, versao, atualizar }: PropsDaAba) {
   const conformidade = useDados<{ conferencias: Conferencia[]; pendencias: string | null }>(`/api/projetos/${projeto.id}/conformidade`, versao);
   const exportacoes = useDados<Exportacao[]>(`/api/projetos/${projeto.id}/exportacoes`, versao);
-  const comprovantes = useDados<{ pendentes: string[] }>(`/api/projetos/${projeto.id}/comprovantes-pendentes`, versao);
+  const comprovantes = useDados<{ pendentes: string[]; paginas: Record<string, string> }>(
+    `/api/projetos/${projeto.id}/comprovantes-pendentes`, versao);
   const pendentes = comprovantes.dados?.pendentes ?? [];
   const c = conformidade.dados;
   const problemas = c?.conferencias.filter((x) => x.situacao === "problema").length ?? 0;
@@ -25,30 +56,28 @@ export function AbaDocumentos({ projeto, versao, atualizar }: PropsDaAba) {
       <div className="bloco">
         <h2>Comprovantes da Receita</h2>
         <p className="discreto">
-          Cada CNPJ usado precisa do comprovante de inscrição e situação cadastral (D-13). A página da Receita pede uma
-          verificação que só uma pessoa resolve: o sistema abre a página com o CNPJ preenchido, você resolve a verificação e
-          clica em “Consultar”, e o comprovante é salvo sozinho. Um comprovante vale para vários projetos por alguns dias (D-14).
+          Cada CNPJ usado precisa do comprovante de inscrição e situação cadastral (D-13). Um comprovante vale para vários
+          projetos por alguns dias (D-14). A Receita só aceita a verificação feita no seu navegador de sempre, então:
         </p>
+        <ol className="pequeno">
+          <li>Clique em <strong>Abrir na Receita</strong>: a página abre no seu navegador, com o CNPJ já preenchido.</li>
+          <li>Resolva a verificação e clique em <strong>Consultar</strong>.</li>
+          <li>Na página do comprovante, aperte <strong>Ctrl+P</strong> e escolha <strong>Salvar como PDF</strong>, com
+            “Cabeçalhos e rodapés” ligado.</li>
+          <li>Volte aqui, escolha o arquivo e clique em <strong>Enviar o PDF</strong>. O sistema confere se é o comprovante
+            daquele CNPJ e lê a data de emissão.</li>
+        </ol>
         {comprovantes.erro && <Aviso tipo="erro">{comprovantes.erro}</Aviso>}
         {comprovantes.dados && pendentes.length === 0 && <Aviso tipo="ok">Nenhum comprovante pendente.</Aviso>}
         {pendentes.length > 0 && (
           <table className="tabela">
             <tbody>
               {pendentes.map((c) => (
-                <tr key={c}>
-                  <td>{cnpj(c)}</td>
-                  <td>
-                    <BotaoAcao classe="secundario pequeno" aoClicar={async () => {
-                      await api.criar("/api/comprovantes", { cnpj: c, projeto_id: projeto.id });
-                      atualizar();
-                    }}>Emitir comprovante</BotaoAcao>
-                  </td>
-                </tr>
+                <ComprovantePendente key={c} cnpj={c} pagina={comprovantes.dados!.paginas[c]} aoEnviar={atualizar} />
               ))}
             </tbody>
           </table>
         )}
-        {pendentes.length > 1 && <p className="discreto pequeno">Um de cada vez: o próximo abre quando o anterior terminar.</p>}
       </div>
 
       <div className="bloco">

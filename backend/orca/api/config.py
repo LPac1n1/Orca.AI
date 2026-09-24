@@ -52,7 +52,7 @@ class Configuracao:
 def ler_config(caminho: Path | None = None) -> Configuracao:
     caminho = caminho or arquivo_de_config()
     if caminho.exists():
-        dados = json.loads(caminho.read_text(encoding="utf-8"))
+        dados = json.loads(caminho.read_text(encoding="utf-8-sig"))  # aceita o arquivo salvo pelo Bloco de Notas (com BOM)
         return Configuracao(dados["pasta_dados"], nome_valido(dados["usuario"]), int(dados.get("porta", PORTA_PADRAO)))
     config = Configuracao(str(pasta_padrao()), nome_valido(getpass.getuser() or "Usuário"))
     salvar_config(config, caminho)

@@ -65,7 +65,7 @@ O sistema mantém um **catálogo de lojas** por categoria (papelaria, supermerca
 - **O item mais difícil primeiro:** o item encontrado em menos lojas é pesquisado antes. Uma loja que não o tem é descartada sem gastar as outras buscas.
 - **Busca pelo código de barras:** achado o EAN do produto em uma loja, as outras lojas são pesquisadas por ele.
 - **Coleta em camadas** (detalhes em [04 §5](04-arquitetura-e-dados.md)): dados estruturados → busca do próprio site → navegador automático → agente de IA (opcional) → captura assistida pelo usuário.
-- Todas as pesquisas usam o **CEP do projeto**, sem frete, com o preço de referência das decisões D-60 a D-63: preço normal (sem Pix), para qualquer comprador (sem clube, assinatura ou cupom), promoção aberta a todos vale, e sempre o preço unitário.
+- Todas as pesquisas usam o **CEP do projeto**, sem frete, com o preço de referência das decisões D-60 a D-63: o preço no Pix (sem Pix, no boleto; nunca o parcelado), para qualquer comprador (sem clube, assinatura ou cupom), promoção aberta a todos vale, e sempre o preço unitário.
 - Cada loja do catálogo diz **qual dos preços da página** corresponde a essa regra. Os dados estruturados da própria loja às vezes trazem o preço especial (ex.: Pix ou clube), por isso não são aceitos sem essa indicação.
 - Conteúdo que só carrega ao rolar a página (inclusive quadros incorporados) é carregado antes da captura.
 - **Lojas que recusam acesso automático** (D-67): página do produto pelo link; link achado pelo código de barras num buscador; captura assistida numa janela em que o usuário navega (em fila); ou PDF salvo pelo usuário e enviado. Sem nada disso, a loja fica de fora e o dossiê registra o motivo. Antes de começar, o sistema avisa quantas capturas assistidas serão necessárias.
@@ -174,7 +174,7 @@ Sequência D-43, detalhada em [03 §3](03-modelo-matematico.md). A memória de c
 
 **Situação cadastral:** consulta automática em API gratuita (OpenCNPJ, BrasilAPI ou outra configurada). CNPJ não ativo **bloqueia** o uso da fonte quando o perfil exigir.
 
-**Comprovante oficial (D-13, D-14):** o sistema abre a página da Receita no navegador com o CNPJ preenchido. O usuário resolve o captcha e o sistema salva o PDF automaticamente, liga-o à empresa e o reaproveita por 30 dias. Os comprovantes pendentes aparecem numa fila, para resolver todos de uma vez.
+**Comprovante oficial (D-13, D-14):** os comprovantes pendentes aparecem em Documentos. Para cada um, o sistema abre a página da Receita no navegador do usuário, com o CNPJ preenchido; o usuário resolve o captcha, clica em "Consultar", salva o comprovante em PDF (Ctrl+P) e o envia. O sistema confere se o PDF é o comprovante daquele CNPJ, lê a data de emissão, liga-o à empresa e o reaproveita por 30 dias. (A janela aberta pelo próprio sistema não serve: a Receita recusa a verificação feita nela.)
 
 ## 12. Evidências e validade
 
@@ -208,7 +208,7 @@ Ações: aprovar, rejeitar, pedir nova pesquisa, trocar produto, trocar fonte, m
 Os **níveis de automação** (automático, automático com aprovação, manual) são definidos por tipo de ação no perfil de regras ([05 §4](05-regras-padrao.md)).
 
 Outras telas:
-- **Colar link**, com três jeitos de ler a página: o sistema lê sozinho; janela do navegador em que o usuário navega e clica em "Capturar agora"; ou PDF salvo pelo usuário (D-67). As capturas com janela e os comprovantes da Receita aparecem no quadro de tarefas, com "Capturar agora" e "Cancelar".
+- **Colar link**, com três jeitos de ler a página: o sistema lê sozinho; janela do navegador em que o usuário navega e clica em "Capturar agora"; ou PDF salvo pelo usuário (D-67). As capturas com janela aparecem no quadro de tarefas, com "Capturar agora" e "Cancelar".
 - **Regras** do projeto: as regras que mais mudam de um edital para outro, com o valor em uso e de onde ele vem (padrão do sistema, projeto, orçamento); a regra A/B de cada orçamento; a lista completa para consulta. Cada gravação é uma versão nova.
 - **Catálogos da OSC** (valem para todos os projetos da OSC): vocabulário, categorias, lojas e pares de exemplo. Mudanças no vocabulário e nas categorias passam por "Conferir e salvar", que mostra o teste de correspondência antes e depois (D-65, D-66).
 

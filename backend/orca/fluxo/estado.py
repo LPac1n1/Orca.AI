@@ -180,7 +180,7 @@ def _estado_do_lote(
     observacoes = list(sessao.scalars(
         select(Observacao)
         .where(Observacao.item_id.in_([i.id for i in itens]))
-        .order_by(Observacao.coletado_em, Observacao.id)
+        .order_by(Observacao.coletado_em, Observacao.criado_em, Observacao.id)  # a corrigida vem depois
     ))
     vigentes: dict[tuple, Observacao] = {}
     for obs in observacoes:  # a mais recente de cada (item, página); "não encontrado" também vale
@@ -214,6 +214,7 @@ def _estado_do_lote(
             cnpj=exemplo.cnpj_vendedor,
             ofertas={item_id: oferta for item_id, (oferta, _) in ofertas.items()},
             cnpj_ativo=consulta is not None and consulta.situacao == "ATIVA",
+            cnpj_consultado=consulta is not None,
         ))
         usadas |= {(loja_id, item_id): obs for item_id, (_, obs) in ofertas.items()}
     retiradas = lojas_retiradas(sessao, lote)

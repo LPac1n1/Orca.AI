@@ -13,7 +13,7 @@ async function pedir<T>(metodo: string, caminho: string, corpo?: unknown): Promi
   const dados = texto ? JSON.parse(texto) : null;
   if (!resposta.ok) {
     const detalhes = Array.isArray(dados?.detalhes)
-      ? ": " + dados.detalhes.map((d: { loc?: unknown[]; msg?: string }) => `${(d.loc ?? []).slice(-1)} ${d.msg}`).join("; ")
+      ? ": " + dados.detalhes.map((d: { loc?: unknown[]; msg?: string }) => `${(d.loc ?? []).slice(-1)}: ${(d.msg ?? "").replace(/^Value error, /, "")}`).join("; ")
       : "";
     throw new ErroApi((dados?.erro ?? `Erro ${resposta.status}`) + detalhes);
   }

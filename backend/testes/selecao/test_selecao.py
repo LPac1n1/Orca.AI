@@ -103,7 +103,7 @@ def test_item_bloqueador():  # T-14
     r = analisar_lote(itens, lojas, P)
     assert isinstance(r, SemTrio)
     assert [(i.nome, c) for i, c in r.bloqueadores] == [("Item Z raro", 2)]
-    assert r.mensagem == "Não há 3 lojas com todos os itens. Itens que impedem: Item Z raro (em 2 lojas)."
+    assert r.mensagem == "Não há 3 lojas com todos os itens. Itens que impedem: Item Z raro (em 2 lojas válidas)."
     assert "criar um lote separado para o item, com o seu próprio trio" in r.sugestoes
 
 

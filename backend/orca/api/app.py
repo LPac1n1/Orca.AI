@@ -43,6 +43,7 @@ from orca.banco import (
     abrir_banco,
     agora,
     correspondencia_vigente,
+    corresponder,
     decidir_correspondencia,
     definir_camadas_do_projeto,
     perfil_do_orcamento,
@@ -55,11 +56,15 @@ from orca.coleta import (
     Navegador,
     captura_de_pdf,
     comprovantes_pendentes,
+    corrigir_preco,
     ler_atributos_dados,
+    ler_comprovante_pdf,
     ler_catalogo,
     ler_catalogo_dados,
     ler_jornadas,
     ler_vocabulario,
+    registrar_comprovante_enviado,
+    url_do_comprovante,
 )
 from orca.correspondencia import LEITORES, avaliar, pares_do_sistema
 from orca.documentos import Renderizador, conferir
@@ -424,7 +429,7 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
         with sv.sessao() as s:
             item = _obter(s, Item, item_id, "Item")
             regras = perfil_do_projeto(s, item.lote.orcamento.projeto).regras
-            obs = s.scalars(select(Observacao).where(Observacao.item_id == item.id).order_by(Observacao.coletado_em.desc()))
+            obs = s.scalars(select(Observacao).where(Observacao.item_id == item.id).order_by(Observacao.coletado_em.desc(), Observacao.criado_em.desc()))
             return [ap.observacao_json(o, ap.correspondencia_json(correspondencia_vigente(s, item.id, o.id), regras))
                     for o in obs]
 
@@ -432,7 +437,7 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
     def observacoes_do_cargo(cargo_id: str):
         with sv.sessao() as s:
             cargo = _obter(s, Cargo, cargo_id, "Cargo")
-            obs = s.scalars(select(Observacao).where(Observacao.cargo_id == cargo.id).order_by(Observacao.coletado_em.desc()))
+            obs = s.scalars(select(Observacao).where(Observacao.cargo_id == cargo.id).order_by(Observacao.coletado_em.desc(), Observacao.criado_em.desc()))
             return [ap.observacao_json(o) for o in obs]
 
     @app.post("/api/correspondencias", status_code=201)
@@ -447,6 +452,26 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
             cat.par_da_decisao(s, c)  # D-64: a decisão ensina o teste de correspondência
             regras = perfil_do_projeto(s, item.lote.orcamento.projeto).regras
             return ap.correspondencia_json(c, regras)
+
+    @app.post("/api/observacoes/{observacao_id}/corrigir-preco", status_code=201)
+    def corrigir(observacao_id: str, dados: e.CorrecaoDePreco):
+        """Outro valor escrito na mesma página (ex.: o preço no Pix). A leitura anterior fica no histórico."""
+        with sv.sessao() as s:
+            anterior = s.get(Observacao, observacao_id)
+            if anterior is None or anterior.item is None:
+                raise HTTPException(404, "Observação não encontrada")
+            item = anterior.item
+            nova = corrigir_preco(s, sv.contexto.armazem, anterior, dados.preco_centavos, dados.justificativa)
+            s.flush()
+            decisao = correspondencia_vigente(s, item.id, anterior.id)
+            if decisao is not None and decisao.origem == "humano":  # o produto é o mesmo: a decisão da pessoa continua
+                decidir_correspondencia(s, item, nova, decisao.status,
+                                        "mesmo produto já decidido nesta página; só o preço foi corrigido")
+            else:
+                corresponder(s, item, nova, cat.vocabulario_da_organizacao(s, item.lote.orcamento.projeto.organizacao_id))
+            s.flush()
+            regras = perfil_do_projeto(s, item.lote.orcamento.projeto).regras
+            return ap.observacao_json(nova, ap.correspondencia_json(correspondencia_vigente(s, item.id, nova.id), regras))
 
     @app.post("/api/lotes/{lote_id}/retirar-loja", status_code=201)
     def retirar(lote_id: str, dados: e.DecisaoDeLoja):
@@ -541,7 +566,8 @@ def _rotas_de_resultado(app: FastAPI, sv: Servico) -> None:
             cnpjs = sorted({o.cnpj_vendedor for _, l in estado.lotes() for o in l.observacoes.values() if o.cnpj_vendedor}
                            | {o.cnpj_vendedor for _, c in estado.cargos() for o in c.anuncios.values() if o.cnpj_vendedor})
             dias = estado.perfil.regras.evidencia.reaproveitar_comprovante_dias
-            return {"pendentes": comprovantes_pendentes(s, cnpjs, estado.hoje, dias)}
+            pendentes = comprovantes_pendentes(s, cnpjs, estado.hoje, dias)
+            return {"pendentes": pendentes, "paginas": {c: url_do_comprovante(c) for c in pendentes}}
 
     @app.get("/api/projetos/{projeto_id}/conformidade")
     def conformidade(projeto_id: str):
@@ -691,6 +717,17 @@ def _rotas_de_captura(app: FastAPI, sv: Servico) -> None:
         return registrar_cargo(sv.contexto, {"cargo_id": cargo_id, "salario_min_centavos": salario_min_centavos,
                                              "salario_max_centavos": salario_max_centavos, "cnpj_empresa": cnpj_empresa},
                                captura, sv.config.autor, avisos)
+
+    @app.post("/api/comprovantes/pdf", status_code=201)
+    def comprovante_enviado(arquivo: UploadFile = File(...), cnpj: str = Form(...)):
+        """Comprovante emitido no navegador da pessoa e salvo em PDF (a Receita recusa a janela do sistema)."""
+        cnpj = normalizar_cnpj(cnpj)
+        conteudo = arquivo.file.read(5 * 1024 * 1024 + 1)
+        emitido, avisos = ler_comprovante_pdf(conteudo, cnpj, agora())
+        with sv.sessao() as s:
+            registro = registrar_comprovante_enviado(s, sv.contexto.armazem, cnpj, conteudo, emitido)
+            s.flush()
+            return {"id": registro.id, "cnpj": cnpj, "emitido_em": ap._data(emitido), "avisos": list(avisos)}
 
     @app.post("/api/comprovantes", status_code=202)
     def emitir_comprovante(dados: e.PedidoDeComprovante):

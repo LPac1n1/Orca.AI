@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
 import { Link, NavLink, Route, Routes, useParams } from "react-router-dom";
 import { api } from "../api";
-import { Aviso, BotaoAcao, Carregando } from "../componentes";
-import { dataHora, reais, TIPOS_DE_TAREFA } from "../formatos";
+import { Aviso, BotaoAcao, Campo, Carregando, Formulario, Modal } from "../componentes";
+import { centavosDeTexto, data, dataHora, reais, textoDeCentavos, TIPOS_DE_TAREFA } from "../formatos";
 import { useDados, useTarefas } from "../ganchos";
 import type { Projeto, Tarefa } from "../tipos";
 import { AbaCadastro } from "./Cadastro";
@@ -58,12 +58,53 @@ function Tarefas({ tarefas, atualizar }: { tarefas: Tarefa[]; atualizar: () => v
   );
 }
 
+function EditarProjeto({ projeto, aoFechar, aoSalvar }: { projeto: Projeto; aoFechar: () => void; aoSalvar: () => void }) {
+  const [v, setV] = useState({
+    nome: projeto.nome, teto: textoDeCentavos(projeto.teto_centavos), duracao: String(projeto.duracao_meses),
+    orgao: projeto.orgao ?? "", instrumento: projeto.instrumento ?? "", processo: projeto.processo ?? "",
+    cep: projeto.cep ? `${projeto.cep.slice(0, 5)}-${projeto.cep.slice(5)}` : "", entrega: projeto.data_entrega ?? "",
+  });
+  const campo = (chave: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [chave]: e.target.value });
+  return (
+    <Modal titulo="Dados do projeto" aoFechar={aoFechar}>
+      <Formulario aoCancelar={aoFechar} aoEnviar={async () => {
+        const teto_centavos = centavosDeTexto(v.teto);
+        if (!teto_centavos) throw new Error("Informe o teto em reais, por exemplo 150.000,00.");
+        await api.mudar(`/api/projetos/${projeto.id}`, {
+          nome: v.nome, teto_centavos, duracao_meses: Number(v.duracao), orgao: v.orgao || null,
+          instrumento: v.instrumento || null, processo: v.processo || null, cep: v.cep || null, data_entrega: v.entrega || null,
+        });
+        aoSalvar();
+        aoFechar();
+      }}>
+        <Campo rotulo="Nome do projeto"><input value={v.nome} onChange={campo("nome")} required /></Campo>
+        <div className="linha-campos">
+          <Campo rotulo="Teto do projeto (R$)" ajuda="Mudar o teto desatualiza o fechamento: feche o teto de novo.">
+            <input value={v.teto} onChange={campo("teto")} inputMode="decimal" required />
+          </Campo>
+          <Campo rotulo="Duração (meses)"><input type="number" min={1} max={120} value={v.duracao} onChange={campo("duracao")} required /></Campo>
+        </div>
+        <div className="linha-campos">
+          <Campo rotulo="Órgão ou secretaria"><input value={v.orgao} onChange={campo("orgao")} /></Campo>
+          <Campo rotulo="Instrumento"><input value={v.instrumento} onChange={campo("instrumento")} /></Campo>
+        </div>
+        <div className="linha-campos">
+          <Campo rotulo="Nº do processo"><input value={v.processo} onChange={campo("processo")} /></Campo>
+          <Campo rotulo="CEP de referência"><input value={v.cep} onChange={campo("cep")} placeholder="00000-000" /></Campo>
+          <Campo rotulo="Entrega prevista" ajuda="confere a validade das pesquisas"><input type="date" value={v.entrega} onChange={campo("entrega")} /></Campo>
+        </div>
+      </Formulario>
+    </Modal>
+  );
+}
+
 export function PaginaProjeto() {
   const { id } = useParams();
   const [versao, setVersao] = useState(0);
   const atualizar = useCallback(() => setVersao((v) => v + 1), []);
   const { dados: projeto, erro } = useDados<Projeto>(`/api/projetos/${id}`, versao);
   const { tarefas, emAndamento, atualizar: atualizarTarefas } = useTarefas(id!, atualizar, versao);
+  const [editando, setEditando] = useState(false);
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (!projeto) return <Carregando />;
@@ -85,11 +126,15 @@ export function PaginaProjeto() {
           <p className="discreto">
             {projeto.organizacao.nome} · teto {reais(projeto.teto_centavos)} · {projeto.duracao_meses} meses
             {projeto.orgao ? ` · ${projeto.orgao}` : ""}
+            {projeto.cep ? ` · CEP ${projeto.cep.slice(0, 5)}-${projeto.cep.slice(5)}` : " · sem CEP"}
+            {projeto.data_entrega ? ` · entrega ${data(projeto.data_entrega)}` : ""}
+            {" · "}<button className="link" onClick={() => setEditando(true)}>editar dados</button>
             {" · "}<Link to={`/catalogos/${projeto.organizacao.id}`}>catálogos da OSC</Link>
           </p>
         </div>
         {emAndamento && <span className="selo amarelo">trabalhando…</span>}
       </div>
+      {editando && <EditarProjeto projeto={projeto} aoFechar={() => setEditando(false)} aoSalvar={atualizar} />}
       <nav className="abas">
         {abas.map(([caminho, rotulo]) => (
           <NavLink key={caminho} to={`/projetos/${id}/${caminho}`} end={caminho === ""}>{rotulo}</NavLink>

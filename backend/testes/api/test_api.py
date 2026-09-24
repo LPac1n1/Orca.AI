@@ -95,12 +95,15 @@ def test_fluxo_completo_pela_api(app, api, navegador):
     pdf = api.get(f"/api/evidencias/{observacoes[0]['evidencia_id']}/pdf")
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF-")
 
-    # CNPJs: sem consulta, nenhuma loja entra no trio
-    assert _ok(api.get(f"/api/projetos/{ids['projeto']}/revisao"))["orcamentos"][0]["lotes"][0]["situacao"] == "sem_trio"
-    _ok(api.post(f"/api/projetos/{ids['projeto']}/consultar-cnpjs"), 202)
-    _processar(app)
+    # CNPJs: consultados logo depois de ler cada página; a loja X não é encontrada nas APIs
+    loja_x = LOJAS["loja-x.com.br"][0]
+    coleta_x = next(t for t in tarefas if "loja-x" in t["parametros"].get("url", ""))
+    assert any("não deu para consultar o CNPJ" in a for a in coleta_x["resultado"]["avisos"])
     painel = _ok(api.get(f"/api/projetos/{ids['projeto']}/painel"))
-    assert painel["cnpjs_sem_consulta"] == [LOJAS["loja-x.com.br"][0]]
+    assert painel["cnpjs_sem_consulta"] == [loja_x]
+    _ok(api.post(f"/api/projetos/{ids['projeto']}/consultar-cnpjs"), 202)  # tenta de novo só a loja X
+    _processar(app)
+    assert _ok(api.get(f"/api/projetos/{ids['projeto']}/painel"))["cnpjs_sem_consulta"] == [loja_x]
 
     revisao = _ok(api.get(f"/api/projetos/{ids['projeto']}/revisao"))
     lote = revisao["orcamentos"][0]["lotes"][0]
@@ -207,3 +210,13 @@ def test_interface_e_conformidade(app, api):
     assert conformidade["conferencias"] == [] and "Ainda não dá" in conformidade["pendencias"]
     painel = _ok(api.get(f"/api/projetos/{ids['projeto']}/painel"))
     assert any("nenhuma loja pesquisada" in m for l in painel["linhas"] for m in l["motivos"])
+
+
+def test_editar_dados_do_projeto(api):
+    ids = _projeto(api)
+    rota = f"/api/projetos/{ids['projeto']}"
+    projeto = _ok(api.patch(rota, json={"cep": "03977-015", "orgao": "Secretaria de teste", "data_entrega": "2026-11-30"}))
+    assert (projeto["cep"], projeto["orgao"], projeto["data_entrega"]) == ("03977015", "Secretaria de teste", "2026-11-30")
+    errado = api.patch(rota, json={"cep": "0397"})
+    assert errado.status_code == 422 and "8 números" in str(errado.json()["detalhes"])
+    assert _ok(api.patch(rota, json={"cep": ""}))["cep"] is None

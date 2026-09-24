@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, evidencia } from "../api";
 import { Aviso, BotaoAcao, Campo, Carregando, Formulario, Modal, Selo, useDecisao } from "../componentes";
-import { centavosDeTexto, cnpj, dataHora, horas, reais, REGIMES } from "../formatos";
+import { centavosDeTexto, cnpj, dataHora, FORMAS_DE_PAGAMENTO, horas, reais, REGIMES } from "../formatos";
 import { useDados } from "../ganchos";
 import type {
   CargoRevisao, ItemRevisao, LojaDoLote, LoteRevisao, Observacao, Oferta, OrcamentoRevisao, Revisao, Status,
@@ -166,11 +166,32 @@ function DetalheDaOferta({ item, loja, aoFechar, atualizar }: {
         aoFechar();
       },
     });
+  const corrigir = (centavos: number, forma: string | null) =>
+    pedir({
+      titulo: `Usar ${reais(centavos)} como preço desta loja`,
+      explicacao: (
+        <p>
+          O valor {reais(centavos)}{forma ? ` (${forma})` : ""} está escrito na mesma página salva, então a prova continua
+          a mesma e a loja não é acessada de novo. A leitura anterior ({reais(oferta.preco_centavos)}) fica no histórico.
+        </p>
+      ),
+      rotulo: "Corrigir o preço",
+      sugestao: forma && forma !== "parcelado" ? `Preço ${forma} (D-60).` : "",
+      aoConfirmar: async (justificativa) => {
+        await api.criar(`/api/observacoes/${oferta.observacao_id}/corrigir-preco`, { preco_centavos: centavos, justificativa });
+        atualizar();
+        aoFechar();
+      },
+    });
+  const outros = (obs?.precos_da_pagina ?? []).filter((p) => p.centavos !== oferta.preco_centavos);
   const c = oferta.correspondencia;
   return (
     <Modal titulo={`${item.descricao} — ${loja.nome}`} aoFechar={aoFechar}>
       <div className="detalhe">
-        <p className="grande">{reais(oferta.preco_centavos)}</p>
+        <p className="grande">
+          {reais(oferta.preco_centavos)}
+          {obs?.forma_de_pagamento && <span className="discreto pequeno"> {FORMAS_DE_PAGAMENTO[obs.forma_de_pagamento]}</span>}
+        </p>
         {obs && (
           <>
             <p><strong>Na página:</strong> {obs.titulo ?? "—"}{obs.marca ? ` · marca ${obs.marca}` : ""}{obs.ean ? ` · EAN ${obs.ean}` : ""}</p>
@@ -187,6 +208,23 @@ function DetalheDaOferta({ item, loja, aoFechar, atualizar }: {
             <a className="botao secundario" href={evidencia(oferta.evidencia_id, "mhtml")} download>Página salva</a>
           </p>
         )}
+        <details className="corrigir-preco">
+          <summary>O preço está errado?</summary>
+          <p className="discreto pequeno">
+            Pela regra D-60, vale o preço no Pix; sem Pix, o do boleto; nunca o parcelado. Escolha outro valor que aparece
+            nesta página:
+          </p>
+          <div className="botoes">
+            {outros.map((p) => (
+              <button key={p.centavos} className="secundario pequeno" disabled={p.forma === "parcelado"}
+                title={p.forma === "parcelado" ? "preço parcelado: não vale (D-60)" : undefined}
+                onClick={() => corrigir(p.centavos, p.forma ? FORMAS_DE_PAGAMENTO[p.forma] : null)}>
+                {reais(p.centavos)}{p.forma ? ` · ${FORMAS_DE_PAGAMENTO[p.forma]}` : ""}
+              </button>
+            ))}
+          </div>
+          <OutroValor aoEscolher={(centavos) => corrigir(centavos, null)} />
+        </details>
         <h3>É o mesmo produto?</h3>
         {c ? (
           <div>
@@ -202,6 +240,24 @@ function DetalheDaOferta({ item, loja, aoFechar, atualizar }: {
       </div>
       {janela}
     </Modal>
+  );
+}
+
+function OutroValor({ aoEscolher }: { aoEscolher: (centavos: number) => void }) {
+  const [texto, setTexto] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  return (
+    <div className="linha-campos">
+      <Campo rotulo="Outro valor que aparece na página" ajuda="O sistema confere na página salva.">
+        <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="16,59" inputMode="decimal" />
+      </Campo>
+      <button className="secundario" onClick={() => {
+        const centavos = centavosDeTexto(texto);
+        setErro(centavos ? null : "Valor em formato inválido (ex.: 16,59).");
+        if (centavos) aoEscolher(centavos);
+      }}>Usar este valor</button>
+      {erro && <span className="erro-curto">{erro}</span>}
+    </div>
   );
 }
 
@@ -254,7 +310,7 @@ function Lote({ lote, orcamento, atualizar }: { lote: LoteRevisao; orcamento: Or
                 <th key={l.id} className={`loja ${l.situacao}`}>
                   <div>{l.posicao ? `Orçamento ${l.posicao}` : SITUACAO_DA_LOJA[l.situacao]}</div>
                   <div className="nome-loja">{l.nome}</div>
-                  <div className="discreto pequeno">{cnpj(l.cnpj)}{!l.cnpj_ativo && l.cnpj ? " · CNPJ não confirmado" : ""}</div>
+                  <div className="discreto pequeno">{cnpj(l.cnpj)}{l.cnpj && !l.cnpj_consultado ? " · CNPJ ainda não consultado" : l.cnpj && !l.cnpj_ativo ? " · CNPJ não ativo" : ""}</div>
                   {l.total_centavos !== null && <div className="pequeno">total {reais(l.total_centavos)}</div>}
                   {l.motivo && <div className="erro-curto pequeno">{l.motivo}</div>}
                   <div>

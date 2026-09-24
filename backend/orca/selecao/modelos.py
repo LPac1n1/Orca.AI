@@ -73,6 +73,7 @@ class Loja:
     cnpj: str | None  # do vendedor, normalizado
     ofertas: Mapping[str, Oferta]  # item_id → oferta
     cnpj_ativo: bool = True
+    cnpj_consultado: bool = True  # False: a situação na Receita ainda não foi consultada
     qualidade_evidencia: int = 0  # desempate: maior primeiro
 
 

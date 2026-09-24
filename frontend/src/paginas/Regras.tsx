@@ -25,6 +25,8 @@ const SECOES: { titulo: string; regras: Regra[] }[] = [
       { caminho: "fontes.validade_dias", rotulo: "Validade da pesquisa (dias)", tipo: "numero", ajuda: "Depois disso a pesquisa vence e precisa ser refeita (D-12)." },
       { caminho: "fontes.lojas_virtuais", rotulo: "Lojas virtuais", tipo: "opcoes", opcoes: [["permitidas", "permitidas"], ["proibidas", "proibidas"]] },
       { caminho: "fontes.marketplace.permitido", rotulo: "Aceitar marketplace", tipo: "sim_nao", ajuda: "Vale o CNPJ do vendedor, não o da plataforma (D-16)." },
+      { caminho: "preco_referencia.desconto_pix", rotulo: "Preço à vista", tipo: "opcoes", ajuda: "D-60 (revista no piloto, 24/09/2026).",
+        opcoes: [["usar", "no Pix; sem Pix, no boleto; nunca o parcelado"], ["ignorar", "o preço cheio da página"]] },
       { caminho: "preco_referencia.cep", rotulo: "CEP para o preço", tipo: "texto", ajuda: "“do_projeto” usa o CEP do projeto; ou escreva um CEP como 03977-015." },
       { caminho: "produto.exige_ean_igual", rotulo: "Só aceitar 🟢 com código de barras igual", tipo: "sim_nao" },
     ],

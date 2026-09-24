@@ -16,6 +16,7 @@ from orca.banco import (
     vale_como_verde,
 )
 from orca.calculo import formatar_exato
+from orca.coleta import precos_da_pagina
 from orca.fluxo import EstadoCargo, EstadoLote, EstadoProjeto, Painel
 from orca.selecao import AnaliseLote, SemTrio
 
@@ -92,6 +93,8 @@ def observacao_json(o: Observacao, correspondencia: dict | None = None) -> dict:
         "encontrado": o.encontrado, "disponivel": o.disponivel, "coletado_em": _data(o.coletado_em), "metodo": o.metodo,
         "preco_no_html": o.preco_no_html, "evidencia_id": o.evidencia_id, "avisos": brutos.get("avisos", []),
         "autor": o.autor, "correspondencia": correspondencia,
+        "precos_da_pagina": precos_da_pagina(o) if o.alvo_tipo == "item" else [],
+        "forma_de_pagamento": (brutos.get("escolha_d60") or {}).get("forma"),
     }
 
 
@@ -112,7 +115,7 @@ def _lojas_do_lote(estado: EstadoLote) -> list[dict]:
     for loja_id in estado.retiradas:
         situacao[loja_id], motivos[loja_id] = "retirada", "retirada por decisão do usuário"
     return [
-        {"id": l.id, "nome": l.nome, "cnpj": l.cnpj, "cnpj_ativo": l.cnpj_ativo, "posicao": posicoes.get(l.id),
+        {"id": l.id, "nome": l.nome, "cnpj": l.cnpj, "cnpj_ativo": l.cnpj_ativo, "cnpj_consultado": l.cnpj_consultado, "posicao": posicoes.get(l.id),
          "total_centavos": totais.get(l.id), "situacao": situacao.get(l.id, "incompleta"), "motivo": motivos.get(l.id)}
         for l in sorted(estado.lojas, key=lambda l: (posicoes.get(l.id) or 99, totais.get(l.id) or 10**15, l.nome))
     ]

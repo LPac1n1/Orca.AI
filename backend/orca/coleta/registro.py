@@ -23,14 +23,17 @@ from orca.coleta.extracao import (
     cnpjs_no_texto,
     extrair_produto,
     extrair_vaga,
+    preco_a_vista,
     preco_aparece,
     precos_perto,
+    precos_rotulados,
     precos_visiveis,
 )
 from orca.dominio import normalizar_cnpj
 from orca.evidencias import ArmazemArquivos
 
 SEM_VALIDACAO = "Não foi possível validar automaticamente"
+FORMAS = {"pix": "no Pix", "boleto": "no boleto", "pix_ou_boleto": "no Pix ou boleto", "parcelado": "parcelado"}
 CEP_REGIONAL = ("regiao_por_cep", "pede_cep")
 
 
@@ -130,17 +133,33 @@ def registrar_observacao_item(
     cnpj_vendedor: str | None = None,
     catalogo: Mapping[str, LojaCatalogo] | None = None,
     avisos_extras: tuple[str, ...] = (),
+    preco_no_pix: bool = True,
 ) -> ResultadoColeta:
-    """Observação de um produto. O preço informado pelo usuário (captura assistida) também é conferido na página."""
+    """Observação de um produto. O preço informado pelo usuário (captura assistida) também é conferido na página.
+
+    D-60 (revisada em 24/09/2026): com `preco_no_pix`, vale o preço no Pix; sem Pix, o do boleto; nunca o
+    parcelado. O valor escolhido é um dos escritos na página, perto do preço dos dados estruturados.
+    """
     entrada = (catalogo or {}).get(dominio_da_url(captura.url_final))
     extraido = extrair_produto("\n".join([captura.html, *captura.html_quadros]))
-    preco = preco_informado if preco_informado is not None else (extraido.preco_centavos if extraido else None)
+    lido = extraido.preco_centavos if extraido else None
+    lido_na_pagina = lido is not None and preco_aparece(lido, captura.texto_visivel)
+    rotulados = precos_rotulados(lido, captura.texto_visivel) if lido_na_pagina else []
+    escolher = preco_no_pix and preco_informado is None and lido_na_pagina
+    escolha = preco_a_vista(lido, captura.texto_visivel) if escolher else None
+    preco = preco_informado if preco_informado is not None else (escolha.centavos if escolha else lido)
     conferido = preco_aparece(preco, captura.texto_visivel) if preco is not None else None
     cnpjs_pagina = cnpjs_no_texto(captura.texto_visivel)
     cnpj, aviso_cnpj = _cnpj_identificado(cnpj_vendedor, cnpjs_pagina, bool(entrada and entrada.marketplace))
     distintos = sorted(set(precos_visiveis(captura.texto_visivel)))
 
     avisos = list(avisos_extras)
+    if escolha is not None and escolha.centavos != lido:
+        avisos.append(f"preço {FORMAS[escolha.forma]} (D-60): {formatar(escolha.centavos)}; "
+                      f"o preço cheio da página é {formatar(lido)}")
+    elif escolher and escolha is None and any(r.forma == "parcelado" and r.distancia == 0 for r in rotulados):
+        avisos.append(f"{SEM_VALIDACAO}: o preço {formatar(lido)} parece ser o parcelado; "
+                      "informe o preço no Pix ou no boleto (D-60)")
     if captura.bloqueio:
         avisos.append(f"possível bloqueio de acesso automático: {captura.bloqueio}; use a captura assistida")
     if preco is None:
@@ -153,13 +172,14 @@ def registrar_observacao_item(
             avisos.append(f"preço em outra moeda: {extraido.moeda}")
         if extraido.disponivel is False:
             avisos.append("produto indisponível na página")
-    vizinhos = precos_perto(preco, captura.texto_visivel) if conferido else []
+    explicados = ({lido} | {r.centavos for r in rotulados if r.forma}) if escolha is not None else set()
+    vizinhos = [v for v in precos_perto(preco, captura.texto_visivel) if v not in explicados] if conferido else []
     if vizinhos:
         regra = f" (nesta loja: {entrada.preco_a_usar})" if entrada and entrada.preco_a_usar else ""
         valores = ", ".join(formatar(v) for v in vizinhos[:5])
         avisos.append(
-            f"perto do preço aparecem outros valores ({valores}); confira se {formatar(preco)} é o preço normal"
-            f"{regra}: sem Pix, sem clube ou assinatura, preço unitário (D-60 a D-63)"
+            f"perto do preço aparecem outros valores ({valores}); confira se {formatar(preco)} é o preço certo"
+            f"{regra}: no Pix ou no boleto, nunca parcelado; sem clube ou assinatura; preço unitário (D-60 a D-63)"
         )
     if entrada and entrada.cep in CEP_REGIONAL and captura.cep is None:
         avisos.append("o preço desta loja depende do CEP e a página foi capturada sem CEP aplicado")
@@ -186,7 +206,10 @@ def registrar_observacao_item(
         dados_brutos=_json({
             "extraido": asdict(extraido) if extraido else None,
             "preco_informado": preco_informado,
-            "precos_visiveis": distintos[:20],
+            "preco_lido": lido,
+            "escolha_d60": {"forma": escolha.forma, "trecho": escolha.trecho} if escolha else None,
+            "precos_rotulados": [{"centavos": r.centavos, "forma": r.forma} for r in rotulados],
+            "precos_visiveis": distintos[:60],
             "precos_perto": vizinhos,
             "cnpjs_na_pagina": cnpjs_pagina,
             "avisos": avisos,
@@ -312,6 +335,77 @@ def refazer_pesquisa(
     return coletar_cargo(sessao, armazem, navegador, anterior.cargo, anterior.url, cnpj_empresa=anterior.cnpj_vendedor)
 
 
+# --- Preço escolhido pelo usuário na mesma página -----------------------------------
+
+
+def precos_da_pagina(observacao: Observacao) -> list[dict]:
+    """Os valores lidos perto do preço do produto, com a forma de pagamento (para o usuário escolher)."""
+    brutos = json.loads(observacao.dados_brutos or "{}")
+    rotulados = brutos.get("precos_rotulados")
+    if rotulados:
+        vistos, lista = set(), []
+        for r in rotulados:
+            if r["centavos"] not in vistos:
+                vistos.add(r["centavos"])
+                lista.append({"centavos": r["centavos"], "forma": r.get("forma")})
+        return lista
+    valores = sorted({*(brutos.get("precos_perto") or []), *([observacao.preco_centavos] if observacao.preco_centavos else [])})
+    return [{"centavos": v, "forma": None} for v in valores]
+
+
+def _aparece_na_prova(armazem: ArmazemArquivos, observacao: Observacao, preco: int) -> bool:
+    brutos = json.loads(observacao.dados_brutos or "{}")
+    lidos = {*(brutos.get("precos_visiveis") or []), *(brutos.get("precos_perto") or []),
+             *(r["centavos"] for r in brutos.get("precos_rotulados") or [])}
+    if preco in lidos:
+        return True
+    if observacao.evidencia is None or observacao.evidencia.pdf is None:
+        return False
+    import io
+
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+
+    try:
+        leitor = PdfReader(io.BytesIO(armazem.ler(observacao.evidencia.pdf.caminho)))
+        texto = "\n".join(pagina.extract_text() or "" for pagina in leitor.pages)
+    except (PdfReadError, ValueError, OSError):
+        return False
+    return preco_aparece(preco, texto)
+
+
+def corrigir_preco(sessao: Session, armazem: ArmazemArquivos, anterior: Observacao, preco_centavos: int,
+                   justificativa: str) -> Observacao:
+    """O usuário escolhe outro valor escrito na mesma página (a mesma prova, sem acessar a loja de novo).
+
+    A observação anterior não muda (princípio 5): nasce uma nova, que passa a valer, com o motivo.
+    O valor precisa aparecer na página salva; senão é recusado (princípio 1).
+    """
+    if anterior.alvo_tipo != "item":
+        raise ValueError("Só dá para corrigir o preço de um produto.")
+    if not justificativa or not justificativa.strip():
+        raise ValueError("Escreva o motivo da correção (fica no histórico).")
+    if preco_centavos <= 0:
+        raise ValueError("O preço precisa ser maior que zero.")
+    if preco_centavos == anterior.preco_centavos:
+        raise ValueError("Esse já é o preço usado.")
+    if not _aparece_na_prova(armazem, anterior, preco_centavos):
+        raise ValueError(f"{formatar(preco_centavos)} não aparece na página salva. Se o preço mudou, cole o link de novo.")
+    brutos = json.loads(anterior.dados_brutos or "{}")
+    brutos["avisos"] = [f"preço corrigido por uma pessoa: {formatar(preco_centavos)} no lugar de "
+                        f"{formatar(anterior.preco_centavos)} (motivo: {justificativa.strip()})"]
+    brutos["corrige_observacao"] = anterior.id
+    nova = Observacao(
+        alvo_tipo="item", item=anterior.item, fonte=anterior.fonte, cnpj_vendedor=anterior.cnpj_vendedor,
+        url=anterior.url, titulo=anterior.titulo, marca=anterior.marca, modelo=anterior.modelo,
+        apresentacao=anterior.apresentacao, ean=anterior.ean, preco_centavos=preco_centavos, encontrado=True,
+        disponivel=anterior.disponivel, coletado_em=anterior.coletado_em, cep=anterior.cep, metodo=anterior.metodo,
+        evidencia=anterior.evidencia, preco_no_html=True, dados_brutos=_json(brutos), autor=sessao.info["autor"],
+    )
+    sessao.add(nova)
+    return nova
+
+
 # --- CNPJ e comprovante -------------------------------------------------------------
 
 
@@ -355,6 +449,14 @@ def registrar_comprovante(sessao: Session, armazem: ArmazemArquivos, cnpj: str, 
         arquivo=_arquivo(sessao, armazem, captura.pdf, "application/pdf"),
         emitido_em=captura.capturado_em,
     )
+    sessao.add(comprovante)
+    return comprovante
+
+
+def registrar_comprovante_enviado(sessao: Session, armazem: ArmazemArquivos, cnpj: str, pdf: bytes,
+                                  emitido_em) -> Comprovante:
+    """Comprovante emitido pela pessoa no próprio navegador e enviado em PDF (já conferido)."""
+    comprovante = Comprovante(cnpj=cnpj, arquivo=_arquivo(sessao, armazem, pdf, "application/pdf"), emitido_em=emitido_em)
     sessao.add(comprovante)
     return comprovante
 

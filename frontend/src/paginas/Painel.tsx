@@ -53,7 +53,7 @@ export function AbaPainel({ projeto, versao, atualizar }: PropsDaAba) {
               Consultar {p.cnpjs_sem_consulta.length > 0 ? `${p.cnpjs_sem_consulta.length} CNPJ(s)` : "CNPJs"}
             </BotaoAcao>
           </li>
-          <li>Emita os comprovantes da Receita de cada CNPJ em <Link to={`${base}/documentos`}>Documentos</Link> (você resolve a verificação; o sistema salva).</li>
+          <li>Emita os comprovantes da Receita de cada CNPJ em <Link to={`${base}/documentos`}>Documentos</Link> (no seu navegador; depois envie o PDF).</li>
           <li>Feche o teto em <Link to={`${base}/teto`}>Fechar o teto</Link> e gere os documentos em <Link to={`${base}/documentos`}>Documentos</Link>.</li>
         </ol>
       </div>

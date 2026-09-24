@@ -57,6 +57,10 @@ export function tamanho(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
 }
 
+export const FORMAS_DE_PAGAMENTO = {
+  pix: "no Pix", boleto: "no boleto", pix_ou_boleto: "no Pix ou boleto", parcelado: "parcelado",
+} as const;
+
 export const TIPOS_DE_ORCAMENTO = { materiais: "Materiais", mao_de_obra: "Mão de obra", servicos: "Serviços" } as const;
 export const REGIMES = { mei: "MEI", recibo: "Recibo (RPA)", clt: "CLT" } as const;
 export const TIPOS_DE_TAREFA = {

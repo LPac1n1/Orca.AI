@@ -18,14 +18,18 @@ from orca.coleta.catalogo import (
 )
 from orca.coleta.cnpj import PROVEDORES, DadosCnpj, ErroCnpj, consultar_cnpj
 from orca.coleta.extracao import (
+    EscolhaDoPreco,
+    PrecoRotulado,
     ProdutoExtraido,
     VagaExtraida,
     cnpjs_no_texto,
     extrair_produto,
     extrair_vaga,
     objetos_jsonld,
+    preco_a_vista,
     preco_aparece,
     precos_perto,
+    precos_rotulados,
     precos_visiveis,
 )
 from orca.coleta.pendencias import (
@@ -36,18 +40,27 @@ from orca.coleta.pendencias import (
     observacoes_do_projeto,
     vigentes,
 )
-from orca.coleta.receita import comprovante_na_tela, emitir_comprovante, url_do_comprovante
+from orca.coleta.receita import (
+    ErroComprovante,
+    comprovante_na_tela,
+    emitir_comprovante,
+    ler_comprovante_pdf,
+    url_do_comprovante,
+)
 from orca.coleta.registro import (
     LIMITE_PDF,
     ErroPdf,
     ResultadoColeta,
     captura_de_pdf,
     coletar_cargo,
+    corrigir_preco,
+    precos_da_pagina,
     coletar_item,
     fonte_da_url,
     refazer_pesquisa,
     registrar_captura,
     registrar_comprovante,
+    registrar_comprovante_enviado,
     registrar_consulta_cnpj,
     registrar_observacao_cargo,
     registrar_observacao_item,
@@ -57,6 +70,10 @@ from orca.coleta.registro import (
 )
 
 __all__ = [
+    "EscolhaDoPreco",
+    "PrecoRotulado",
+    "preco_a_vista",
+    "precos_rotulados",
     "ATRIBUTOS_PADRAO",
     "CATALOGO_PADRAO",
     "JORNADAS_PADRAO",
@@ -75,6 +92,11 @@ __all__ = [
     "VagaExtraida",
     "cabecalho_pdf",
     "captura_de_pdf",
+    "ErroComprovante",
+    "ler_comprovante_pdf",
+    "registrar_comprovante_enviado",
+    "corrigir_preco",
+    "precos_da_pagina",
     "catalogo_de_dados",
     "cnpjs_do_projeto",
     "cnpjs_no_texto",

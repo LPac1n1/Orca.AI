@@ -1,6 +1,7 @@
 # Documentos reais de projetos (dados de processos, nomes de pessoas).
 # Nunca publicar: servem só como referência local.
 Modelo de Orçamento/
+modelo-de-orcamento/
 
 # Dados gerados pelo sistema (pasta de dados local; dados de teste ficam em backend/testes/dados/)
 /dados/

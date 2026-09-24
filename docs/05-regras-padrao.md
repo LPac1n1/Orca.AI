@@ -9,7 +9,7 @@ Arquivo usado pelo sistema: [`backend/orca/regras/padrao-sistema.yaml`](../backe
 ```yaml
 perfil: padrao-sistema
 camada: sistema
-versao: 1
+versao: 2
 descricao: Perfil padrão do Orça.AI. As camadas seguintes declaram só o que muda.
 
 fontes:
@@ -31,7 +31,7 @@ fontes:
 
 preco_referencia:                          # D-15, D-60 a D-63
   frete: excluir
-  desconto_pix: ignorar                    # D-60 — usar o preço normal
+  desconto_pix: usar                       # D-60 (revista em 24/09/2026): Pix; sem Pix, boleto; nunca parcelado
   cupom: ignorar                           # D-61
   clube_assinatura_ou_login: ignorar       # D-61
   promocao_aberta_a_todos: usar            # D-62 — vale o preço atual ("por")

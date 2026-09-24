@@ -3,7 +3,7 @@
 import threading
 import time
 from contextlib import contextmanager
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -301,3 +301,31 @@ def test_regras_do_projeto_e_do_orcamento(api):
     assert trava.status_code == 400
     _ok(api.put(f"/api/orcamentos/{ids['orcamento']}/regras", json={"conteudo": {}}))
     assert _ok(api.get(rota))["orcamentos"][0]["proprias"] == {}
+
+
+def test_comprovante_emitido_no_navegador_e_enviado_em_pdf(app, api):
+    """A Receita recusa a verificação na janela do sistema (piloto, 24/09/2026): a pessoa emite e envia o PDF."""
+    ids = _projeto(api)
+    _ok(api.post(f"/api/itens/{ids['papel']}/coletas", json={"url": f"https://www.kalunga.com.br/p/{PAPEL}"}), 202)
+    app.state.servico.fila.processar_todas()
+    kalunga = LOJAS["kalunga.com.br"][0]
+    rota = f"/api/projetos/{ids['projeto']}/comprovantes-pendentes"
+    pendentes = _ok(api.get(rota))
+    assert kalunga in pendentes["pendentes"] and pendentes["paginas"][kalunga].endswith(f"cnpj={kalunga}")
+
+    def enviar(linhas, cnpj=kalunga):
+        return api.post("/api/comprovantes/pdf", data={"cnpj": cnpj},
+                        files={"arquivo": ("comprovante.pdf", pdf_com_texto(linhas), "application/pdf")})
+
+    comprovante = ["https://solucoes.receita.fazenda.gov.br/Servicos/cnpjreva/Cnpjreva_Comprovante.asp",
+                   "COMPROVANTE DE INSCRICAO E DE SITUACAO CADASTRAL", f"NUMERO DE INSCRICAO {formatar_cnpj(kalunga)}",
+                   "SITUACAO CADASTRAL ATIVA", "Emitido no dia 24/09/2026 as 10:15:30 (data e hora de Brasilia)."]
+    outro = enviar(comprovante, cnpj=LOJAS["gimba.com.br"][0])
+    assert outro.status_code == 400 and "não é do CNPJ" in outro.json()["erro"]
+    assert "não é o “Comprovante" in enviar(["Nota fiscal", formatar_cnpj(kalunga)]).json()["erro"]
+    recebido = _ok(enviar(comprovante), 201)
+    emitido = datetime.fromisoformat(recebido["emitido_em"])
+    assert emitido == datetime(2026, 9, 24, 13, 15, 30, tzinfo=UTC) and recebido["avisos"] == []
+    assert kalunga not in _ok(api.get(rota))["pendentes"]
+    sem_data = _ok(enviar(comprovante[:4]), 201)
+    assert any("data de emissão não aparece" in a for a in sem_data["avisos"])

@@ -5,7 +5,7 @@
 #   C2 = descoberta por buscador | C3 = agente de IA | C4 = captura assistida
 #   proposta = cotação por e-mail com o fornecedor
 # "precos_na_pagina" lista os preços encontrados; "preco_a_usar" segue as
-# decisões D-60 a D-63 (docs/01): preço normal, sem Pix, sem clube/assinatura,
+# decisões D-60 a D-63 (docs/01): preço no Pix (sem Pix, boleto; nunca parcelado), sem clube/assinatura,
 # promoção aberta a todos vale, sempre o preço unitário.
 
 versao: 1
@@ -102,7 +102,7 @@ lojas:
     cep: a_verificar
     acesso_simples: parcial
     precos_na_pagina: [preco_pix, preco_normal, leve_mais_pague_menos]
-    preco_a_usar: preco_normal                   # D-60, D-63
+    preco_a_usar: preco_pix                      # D-60 (revista em 24/09/2026), D-63
     observacoes: "Preço em destaque e JSON-LD = preço Pix (-3%)."
 
   - id: lepok

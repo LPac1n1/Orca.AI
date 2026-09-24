@@ -53,9 +53,14 @@ def vigentes(observacoes: Iterable[Observacao]) -> list[Observacao]:
     ultima: dict[tuple, Observacao] = {}
     for obs in observacoes:
         chave = (obs.alvo_tipo, obs.item_id or obs.cargo_id, obs.url)
-        if chave not in ultima or (obs.coletado_em, obs.id) > (ultima[chave].coletado_em, ultima[chave].id):
+        if chave not in ultima or _ordem(obs) > _ordem(ultima[chave]):
             ultima[chave] = obs
-    return sorted(ultima.values(), key=lambda o: (o.coletado_em, o.id))
+    return sorted(ultima.values(), key=_ordem)
+
+
+def _ordem(obs: Observacao) -> tuple:
+    """Da captura mais antiga para a mais nova; na mesma captura, a gravada por último (preço corrigido)."""
+    return (obs.coletado_em, obs.criado_em, obs.id)
 
 
 def _alertas_abertos(sessao: Session, projeto: Projeto) -> dict[tuple[str, str], Alerta]:

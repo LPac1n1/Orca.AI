@@ -92,8 +92,10 @@ def test_varios_precos_avisam_qual_usar_na_loja(fabrica, armazem, ids):
         html=pagina_produto("24.53"),
         texto="R$ 24,53 no Pix · R$ 25,29 · Supricorp CNPJ 54.651.716/0011-50",
     )
-    _, avisos = _coletar(fabrica, armazem, ids, captura)
-    assert any("outros valores (R$ 25,29)" in a and "nesta loja: preco_normal" in a for a in avisos)
+    obs_id, avisos = _coletar(fabrica, armazem, ids, captura)
+    with sessao_como(fabrica, USUARIO) as s:
+        assert s.get(Observacao, obs_id).preco_centavos == 2453  # D-60 (revista em 24/09/2026): o preço no Pix
+    assert any("outros valores (R$ 25,29)" in a and "nesta loja: preco_pix" in a for a in avisos)
 
 
 def test_marketplace_exige_cnpj_do_vendedor(fabrica, armazem, ids):

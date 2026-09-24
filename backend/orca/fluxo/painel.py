@@ -59,8 +59,14 @@ def _status_itens(estado_lote: EstadoLote, n: int) -> list[StatusLinha]:
         if isinstance(analise, SemTrio):
             if item.id in bloqueadores:
                 k = bloqueadores[item.id]
-                motivo = (f"encontrado em só {k} de {n} lojas válidas" if k
-                          else "ainda não encontrado em nenhuma loja válida: cole os links das páginas")
+                com_preco = sum(1 for loja in estado_lote.lojas if item.id in loja.ofertas)
+                if k:
+                    motivo = f"encontrado em só {k} de {n} lojas válidas"
+                elif com_preco:
+                    motivo = (f"tem preço em {com_preco} loja(s), mas nenhuma vale ainda: veja o motivo em vermelho "
+                              "no alto de cada loja")
+                else:
+                    motivo = "ainda sem preço em nenhuma loja: cole os links das páginas"
                 resultado.append(StatusLinha(item.id, item.descricao, "item", VERMELHO, (motivo, *motivos)))
             else:
                 resultado.append(StatusLinha(item.id, item.descricao, "item", AMARELO,

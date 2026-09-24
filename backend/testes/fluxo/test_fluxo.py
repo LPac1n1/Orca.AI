@@ -67,7 +67,7 @@ def test_selecao_a_partir_do_banco(fabrica, ids):
         assert analise.trio[0].loja.nome == "Loja G"
         assert [v.item.id for v in analise.violacoes] == [ids["leite"]]  # leite condensado acima da média
         descartadas = dict((l.id, motivo) for l, motivo in analise.descartadas)
-        assert descartadas[loja(ids, "X")] == "CNPJ não está ativo"  # sem consulta, não dá para confirmar
+        assert descartadas[loja(ids, "X")] .startswith("CNPJ ainda não consultado")  # sem consulta, não dá para confirmar
         status = {l.id: l for l in painel(estado, None).linhas}
         assert status[ids["papel"]].status == VERDE
         assert status[ids["leite"]].status == VERMELHO and "passa da média" in status[ids["leite"]].motivos[0]

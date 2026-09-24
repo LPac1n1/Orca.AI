@@ -31,7 +31,9 @@ def _motivo_cnpj(loja: Loja, p: ParametrosSelecao) -> str | None:
     if p.exige_cnpj and not loja.cnpj:
         return "sem CNPJ do vendedor identificado (D-16)"
     if p.cnpj_ativo_obrigatorio and loja.cnpj and not loja.cnpj_ativo:
-        return "CNPJ não está ativo"
+        if not loja.cnpj_consultado:
+            return "CNPJ ainda não consultado na Receita (use “Consultar CNPJs” no Painel)"
+        return "CNPJ não está ativo na Receita"
     return None
 
 
@@ -128,7 +130,7 @@ def _sem_trio(
     bloqueadores = sorted(((i, c) for i, c in cobertura if c < n), key=lambda x: (x[1], x[0].nome))
     lojas_completas = tuple(lc.loja for lc in completas if lc.loja.id not in excluir)
     if bloqueadores:
-        lista = ", ".join(f"{i.nome} (em {c} {'loja' if c == 1 else 'lojas'})" for i, c in bloqueadores)
+        lista = ", ".join(f"{i.nome} (em {c} {'loja válida' if c == 1 else 'lojas válidas'})" for i, c in bloqueadores)
         mensagem = f"Não há {n} lojas com todos os itens. Itens que impedem: {lista}."
     elif len(lojas_completas) >= n:
         mensagem = f"Há {len(lojas_completas)} lojas completas, mas não {n} empresas diferentes (P-03)."

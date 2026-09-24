@@ -69,12 +69,13 @@ A API tem documentação em `http://localhost:8765/api/docs`. Pedidos que mudam 
 
 A captura de páginas usa o **Microsoft Edge** do Windows (Playwright, canal `msedge`); não baixe outro navegador. Testes marcados `navegador` usam uma loja sintética servida no próprio computador.
 
-- **Janela visível (D-67):** captura assistida e comprovante da Receita rodam na pista `assistida` da fila (`orca.tarefas.fila`). Nessa janela **quem navega é o usuário**: o sistema só abre a página, espera o sinal ("Capturar agora" ou o comprovante na tela) e captura. Nunca automatize cliques, login ou captcha nela.
+- **Janela visível (D-67):** a captura assistida roda na pista `assistida` da fila (`orca.tarefas.fila`). Nessa janela **quem navega é o usuário**: o sistema só abre a página, espera o sinal ("Capturar agora") e captura. Nunca automatize cliques, login ou captcha nela, nem esconda que o navegador é controlado por programa.
+- **Comprovante da Receita (D-14):** a Receita recusa a verificação feita na janela do sistema. O comprovante é emitido no navegador do usuário e enviado em PDF (`orca.coleta.ler_comprovante_pdf`, rota `/api/comprovantes/pdf`).
 - **Catálogos da OSC (D-64 a D-66):** as edições ficam em `catalogo_camada` (só a diferença para `catalogos/*.yaml`) e os pares em `par_referencia` (`orca.fluxo.catalogos`). Mudança no vocabulário ou nas categorias só é salva se o teste de correspondência (`orca.correspondencia.avaliar`, pares do sistema + da OSC) não criar nenhum 🟢 errado novo.
 
 ## Cuidados
 
-- O repositório é **público**. A pasta `Modelo de Orçamento/` (documentos reais de processos, com nomes de pessoas) está no `.gitignore` e **nunca** deve ser publicada. Dados de teste derivados de casos reais: só preços, produtos e CNPJs de empresas.
+- O repositório é **público**. A pasta de documentos reais de processos (com nomes de pessoas), hoje `modelo-de-orcamento/` (antes `Modelo de Orçamento/`), está no `.gitignore` e **nunca** deve ser publicada. Se ela mudar de nome, proteja o nome novo antes de qualquer commit. Dados de teste derivados de casos reais: só preços, produtos e CNPJs de empresas.
 - Não fazer commit nem push sem o usuário pedir. Trabalho novo em branch própria; junção ao `main` com aprovação do usuário.
 - Ao consultar sites de lojas: poucas requisições, sem login, sem aceitar cookies, sem contornar captcha.
 - Catálogo de atributos e vocabulário (`catalogos/atributos.yaml`): toda mudança passa pelo caso T-11 (`testes/correspondencia/test_referencia.py`), que exige **nenhum falso 🟢**. Na dúvida, a correspondência fica 🟡.

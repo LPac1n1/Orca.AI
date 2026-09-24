@@ -24,7 +24,7 @@ Todas foram tomadas em 22/09/2026, salvo indicação. Decisões marcadas **(conf
 | D-11 | Lojas virtuais são aceitas. | Usuário |
 | D-12 | Validade das pesquisas: **180 dias**. **(configurável)** | Usuário |
 | D-13 | Evidência de cada fonte: **PDF com print da página, link, data e hora**, agrupado por cotação, mais o **comprovante oficial da Receita** de cada empresa, loja ou órgão. | Usuário |
-| D-14 | O comprovante oficial tem captcha: é obtido por **captura assistida** (o usuário resolve o captcha e o sistema salva o PDF). Um comprovante é reaproveitado por **30 dias**. **(configurável)** | Proposta aceita |
+| D-14 | O comprovante oficial tem captcha. A Receita recusa a verificação feita na janela aberta pelo sistema, mesmo resolvida pela pessoa ("Erro ao validar captcha", piloto, 24/09/2026), e o sistema não se disfarça (D-67). Por isso o comprovante é emitido **no navegador da própria pessoa** (o sistema abre a página com o CNPJ preenchido), salvo em PDF e **enviado ao sistema**, que confere se é o comprovante daquele CNPJ e lê a data de emissão. Um comprovante é reaproveitado por **30 dias**. **(configurável)** | Proposta aceita; revista no piloto |
 | D-15 | Preço **sem frete**. O **CEP de referência** é definido no sistema, por projeto. | Usuário |
 | D-16 | Marketplace é aceito. Vale o **CNPJ do vendedor**. Cada orçamento comparativo tem **um único vendedor (CNPJ)**. Anúncio sem CNPJ do vendedor identificável é descartado. | Usuário / Proposta aceita |
 | D-17 | **Mesmo produto = mesma marca, mesmo modelo e mesma apresentação** (tamanho, peso, volume, quantidade na embalagem). | Usuário |
@@ -80,7 +80,7 @@ Todas foram tomadas em 22/09/2026, salvo indicação. Decisões marcadas **(conf
 
 | Código | Decisão | Origem |
 |---|---|---|
-| D-60 | **Pix:** usa-se o preço normal (cartão ou boleto à vista), nunca o preço com desconto Pix. **(configurável)** | Proposta aceita |
+| D-60 | **Forma de pagamento (revista no piloto, 24/09/2026):** usa-se o preço **no Pix**; se a página não tiver preço no Pix, o preço **no boleto**; **nunca o preço parcelado**. Sem forma de pagamento escrita junto do preço, vale o preço mostrado. O valor escolhido é sempre um dos escritos na página, perto do preço do produto, e a prova registra qual foi. *Antes: preço normal, sem o desconto Pix.* **(configurável: `preco_referencia.desconto_pix`)** | Usuário |
 | D-61 | **Clube, fidelidade, assinatura ou cadastro:** usa-se o preço para qualquer comprador, sem cadastro, login ou cupom. **(configurável)** | Proposta aceita |
 | D-62 | **Promoção aberta a todos** ("de R$ X por R$ Y"): vale o preço atual (Y), que fica registrado na evidência. **(configurável)** | Proposta aceita |
 | D-63 | **Preço por quantidade** (atacado, "leve mais, pague menos"): usa-se sempre o **preço unitário**. Assim o preço não muda quando o otimizador ajusta quantidades. **(configurável)** | Proposta aceita |

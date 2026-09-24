@@ -104,18 +104,21 @@ def detectar_bloqueio(status: int | None, url: str, texto: str) -> str | None:
     return f"a página pede verificação ({sinal.group(0)})" if sinal else None
 
 
+ESCALA_PDF = 0.7  # 70%: a página cabe na folha no formato de computador e o preço aparece (pedido no piloto, 24/09/2026)
+
+
 def _pdf(pagina: Page, cabecalho: str) -> bytes:
     pagina.emulate_media(media="screen")
     try:
         return pagina.pdf(
-            format="A4", print_background=True, display_header_footer=True,
+            format="A4", print_background=True, display_header_footer=True, scale=ESCALA_PDF,
             header_template=cabecalho, footer_template=_RODAPE, margin=_MARGENS,
         )
     except ErroPlaywright:  # versões antigas só geram PDF sem janela: usa o protocolo do navegador
         cdp = pagina.context.new_cdp_session(pagina)
         resposta = cdp.send("Page.printToPDF", {
             "paperWidth": 8.27, "paperHeight": 11.69, "printBackground": True, "displayHeaderFooter": True,
-            "headerTemplate": cabecalho, "footerTemplate": _RODAPE,
+            "headerTemplate": cabecalho, "footerTemplate": _RODAPE, "scale": ESCALA_PDF,
             "marginTop": 0.95, "marginBottom": 0.48, "marginLeft": 0.32, "marginRight": 0.32,
         })
         return base64.b64decode(resposta["data"])

@@ -112,6 +112,7 @@ export interface LojaDoLote {
   nome: string;
   cnpj: string | null;
   cnpj_ativo: boolean;
+  cnpj_consultado: boolean;
   posicao: number | null;
   total_centavos: number | null;
   situacao: "trio" | "elegivel" | "descartada" | "retirada" | "completa" | "incompleta";
@@ -290,7 +291,11 @@ export interface Observacao {
   evidencia_id: string | null;
   avisos: string[];
   correspondencia: Correspondencia | null;
+  precos_da_pagina: { centavos: number; forma: FormaDePagamento | null }[];
+  forma_de_pagamento: FormaDePagamento | null;
 }
+
+export type FormaDePagamento = "pix" | "boleto" | "pix_ou_boleto" | "parcelado";
 
 export interface Jornada {
   id: string;

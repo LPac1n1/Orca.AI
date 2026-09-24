@@ -268,6 +268,85 @@ def precos_perto(preco_centavos: int, texto: str, antes: int = 200, depois: int 
     return sorted({p for p in precos_visiveis(trecho) if p != preco_centavos})
 
 
+# --- Forma de pagamento de cada preço (D-60) --------------------------------------
+
+# Depois do valor: "R$ 16,59 no boleto ou PIX", "R$ 19,30 no PIX (3% desc.)", "R$ 10,38 3% OFF no boleto ou PIX".
+_DEPOIS_A_VISTA = re.compile(
+    r"^\s*(?:\(?\s*\d{1,2}\s*%\s*(?:off|de desconto|desconto|desc\.?)\s*\)?\s*)?(?:à vista\s*)?"
+    r"(?:no|pelo|via|com|pagando no|pagando com|em)\s+(?:o\s+)?(pix|boleto)(?:\s+(?:ou|e)\s+(?:no\s+)?(pix|boleto))?",
+    re.I,
+)
+# Antes do valor: "No PIX: R$ 19,30", "Pix por R$ 19,30", "à vista no boleto R$ 19,30".
+_ANTES_A_VISTA = re.compile(r"(pix|boleto)\s*(?:\(\s*\d{1,2}\s*%[^)]{0,15}\))?\s*(?:por|:|-)?\s*$", re.I)
+# Parcelado: "R$ 17,10 em 1x", "em até 10x de R$ 7,80", "3x de R$ 5,00", "no cartão".
+_DEPOIS_PARCELADO = re.compile(r"^\s*(?:em\s+(?:até\s+)?\d{1,2}\s*x|no cartão|parcelad|sem juros)", re.I)
+_ANTES_PARCELADO = re.compile(r"(?:\d{1,2}\s*x\s*(?:de|sem juros de)?|parcelas? de|no cartão)\s*$", re.I)
+
+
+@dataclass(frozen=True)
+class PrecoRotulado:
+    """Um valor perto do preço do produto e a forma de pagamento escrita junto dele."""
+
+    centavos: int
+    forma: str | None  # "pix", "boleto", "pix_ou_boleto", "parcelado" ou None (sem rótulo)
+    trecho: str
+    distancia: int = 0  # em letras, até o preço lido nos dados da página
+
+
+def _forma(depois: str, antes: str) -> str | None:
+    if (m := _DEPOIS_A_VISTA.match(depois)) is not None:
+        formas = {f.lower() for f in m.groups() if f}
+        return "pix_ou_boleto" if len(formas) == 2 else formas.pop()
+    if _DEPOIS_PARCELADO.match(depois) or _ANTES_PARCELADO.search(antes):
+        return "parcelado"
+    if (m := _ANTES_A_VISTA.search(antes)) is not None:
+        return m.group(1).lower()
+    return None
+
+
+def precos_rotulados(preco_centavos: int, texto: str, antes: int = 150, depois: int = 250) -> list[PrecoRotulado]:
+    """Os valores em volta do preço do produto (na primeira vez que ele aparece), com a forma de pagamento."""
+    achado = _procurar_preco(preco_centavos, texto)
+    if achado is None:
+        return []
+    inicio = max(0, achado.start() - antes - 3)
+    trecho = texto[inicio : achado.end() + depois]
+    ancora = achado.start() - inicio
+    resultado = []
+    for m in _PRECO_BRL.finditer(trecho):
+        valor = int(m.group(1).replace(".", "")) * 100 + int(m.group(2))
+        pos_antes, pos_depois = trecho[max(0, m.start() - 25) : m.start()], trecho[m.end() : m.end() + 45]
+        contexto = " ".join(trecho[max(0, m.start() - 25) : m.end() + 45].split())
+        resultado.append(PrecoRotulado(valor, _forma(pos_depois, pos_antes), contexto, abs(m.start() - ancora)))
+    return resultado
+
+
+@dataclass(frozen=True)
+class EscolhaDoPreco:
+    centavos: int
+    forma: str  # "pix", "boleto" ou "pix_ou_boleto"
+    trecho: str
+
+
+def preco_a_vista(preco_centavos: int, texto: str) -> EscolhaDoPreco | None:
+    """D-60 (revisada no piloto, 24/09/2026): o preço no Pix; sem Pix, o do boleto; nunca o parcelado.
+
+    Procura, perto do preço lido nos dados da página, um valor com "Pix" ou "boleto" escrito junto.
+    Só aceita valores entre 70% e 100% do preço lido (o desconto à vista é pequeno); fora disso, é de
+    outro produto da página. Sem rótulo, devolve None e vale o preço lido.
+    """
+    candidatos = [
+        p for p in precos_rotulados(preco_centavos, texto)
+        if p.forma in ("pix", "pix_ou_boleto", "boleto") and preco_centavos * 7 <= p.centavos * 10 <= preco_centavos * 10
+    ]
+    for formas in (("pix", "pix_ou_boleto"), ("boleto",)):
+        escolhidos = [p for p in candidatos if p.forma in formas]
+        if escolhidos:
+            melhor = min(escolhidos, key=lambda p: p.distancia)  # o mais perto: é o bloco de preço do produto
+            return EscolhaDoPreco(melhor.centavos, melhor.forma, melhor.trecho)
+    return None
+
+
 def cnpjs_no_texto(texto: str) -> list[str]:
     """CNPJs válidos (numéricos ou alfanuméricos) escritos no texto, sem repetição."""
     encontrados: list[str] = []

@@ -11,6 +11,7 @@ from orca.coleta import (
     registrar_observacao_cargo,
     registrar_observacao_item,
     registrar_pdf_enviado,
+    ultima_consulta,
     url_do_comprovante,
     validar_cnpj,
 )
@@ -24,6 +25,28 @@ from orca.tarefas.fila import Contexto, ErroTarefa, Fila, TarefaCancelada, taref
 ESPERA_MAXIMA_S = 1800  # 30 minutos para a pessoa navegar
 
 
+def consultar_cnpj_novo(ctx: Contexto, cnpj: str | None, provedores: list[str]) -> str | None:
+    """Consulta a situação do CNPJ na hora, se ele ainda não foi consultado (APIs gratuitas).
+
+    Sem a consulta a loja não entra no trio; por isso ela é feita logo depois de ler a página.
+    Devolve um aviso se não deu para consultar agora.
+    """
+    if not cnpj:
+        return None
+    with sessao_como(ctx.fabrica, "sistema:cnpj") as s:
+        if ultima_consulta(s, cnpj) is not None:
+            return None
+        cliente = ctx.cliente_http() if ctx.cliente_http else None
+        try:
+            validar_cnpj(s, cnpj, provedores, cliente)
+            return None
+        except (ErroCnpj, ValueError) as erro:
+            return f"não deu para consultar o CNPJ {formatar_cnpj(cnpj)} agora ({erro}); use “Consultar CNPJs” no Painel"
+        finally:
+            if cliente is not None:
+                cliente.close()
+
+
 def registrar_item(ctx: Contexto, p: dict, captura: Captura, autor: str = "sistema:coleta",
                    avisos_extras: tuple[str, ...] = ()) -> dict:
     """Guarda a evidência, registra a observação e compara com o item (com o vocabulário da OSC)."""
@@ -32,14 +55,19 @@ def registrar_item(ctx: Contexto, p: dict, captura: Captura, autor: str = "siste
         if item is None or item.excluido_em is not None:
             raise ErroTarefa("O item não existe mais.")
         organizacao_id = item.lote.orcamento.projeto.organizacao_id
+        regras = perfil_do_projeto(s, item.lote.orcamento.projeto).regras
         so_pdf = not captura.png and not captura.mhtml  # PDF enviado pelo usuário (D-67)
         evidencia = registrar_pdf_enviado(s, ctx.armazem, captura) if so_pdf else registrar_captura(s, ctx.armazem, captura)
         r = registrar_observacao_item(s, item, captura, evidencia, cnpj_vendedor=p.get("cnpj_vendedor") or None,
                                       preco_informado=p.get("preco_centavos"),
-                                      catalogo=catalogo_da_organizacao(s, organizacao_id), avisos_extras=avisos_extras)
+                                      catalogo=catalogo_da_organizacao(s, organizacao_id), avisos_extras=avisos_extras,
+                                      preco_no_pix=regras.preco_referencia.desconto_pix == "usar")  # D-60
         s.flush()
         observacao_id, preco, avisos = r.observacao.id, r.observacao.preco_centavos, list(r.avisos)
         tem_ean = r.observacao.ean is not None
+        cnpj, provedores = r.observacao.cnpj_vendedor, list(regras.cnpj.provedores)
+    if (aviso := consultar_cnpj_novo(ctx, cnpj, provedores)) is not None:
+        avisos.append(aviso)
     status = None
     if preco is not None:
         with sessao_como(ctx.fabrica, "sistema:correspondencia") as s:
@@ -68,10 +96,15 @@ def registrar_cargo(ctx: Contexto, p: dict, captura: Captura, autor: str = "sist
         )
         s.flush()
         referencia = r.observacao.salario_min_centavos or r.observacao.salario_max_centavos
-        return {"observacao_id": r.observacao.id, "salario_min_centavos": r.observacao.salario_min_centavos,
-                "salario_max_centavos": r.observacao.salario_max_centavos, "avisos": list(r.avisos),
-                "bloqueio": captura.bloqueio,
-                "mensagem": f"salário {formatar(referencia)}" if referencia else "salário não encontrado na página"}
+        resultado = {"observacao_id": r.observacao.id, "salario_min_centavos": r.observacao.salario_min_centavos,
+                     "salario_max_centavos": r.observacao.salario_max_centavos, "avisos": list(r.avisos),
+                     "bloqueio": captura.bloqueio,
+                     "mensagem": f"salário {formatar(referencia)}" if referencia else "salário não encontrado na página"}
+        cnpj = r.observacao.cnpj_vendedor
+        provedores = list(perfil_do_projeto(s, cargo.orcamento.projeto).regras.cnpj.provedores)
+    if (aviso := consultar_cnpj_novo(ctx, cnpj, provedores)) is not None:
+        resultado["avisos"].append(aviso)
+    return resultado
 
 
 @tarefa("coletar_item")

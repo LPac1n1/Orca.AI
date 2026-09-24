@@ -1,13 +1,27 @@
 """Entradas da API, validadas. Dinheiro em centavos, horas em centésimos (como no resto do sistema)."""
 
+import re
 from datetime import date
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 Centavos = Annotated[int, Field(ge=0)]
 Mes = Annotated[int, Field(ge=1, le=120)]
 Margem = Annotated[int, Field(ge=-100, le=1000)]
+
+
+def _cep(valor: str | None) -> str | None:
+    """"03977-015" ou "03977015" → "03977015"; vazio → sem CEP."""
+    if valor is None or not valor.strip():
+        return None
+    digitos = re.sub(r"\D", "", valor)
+    if len(digitos) != 8:
+        raise ValueError("o CEP deve ter 8 números, por exemplo 03977-015")
+    return digitos
+
+
+Cep = Annotated[str | None, AfterValidator(_cep)]
 
 
 class _Entrada(BaseModel):
@@ -27,7 +41,7 @@ class NovoProjeto(_Entrada):
     orgao: str | None = None
     instrumento: str | None = None
     processo: str | None = None
-    cep: str | None = None
+    cep: Cep = None
     data_entrega: date | None = None
 
 
@@ -38,7 +52,7 @@ class MudancaProjeto(_Entrada):
     orgao: str | None = None
     instrumento: str | None = None
     processo: str | None = None
-    cep: str | None = None
+    cep: Cep = None
     data_entrega: date | None = None
 
 
@@ -124,6 +138,11 @@ class DecisaoDeCorrespondencia(_Entrada):
     item_id: str
     observacao_id: str
     status: Literal["verde", "amarelo", "vermelho"]
+    justificativa: str = Field(min_length=1)
+
+
+class CorrecaoDePreco(_Entrada):
+    preco_centavos: Annotated[int, Field(gt=0)]
     justificativa: str = Field(min_length=1)
 
 
