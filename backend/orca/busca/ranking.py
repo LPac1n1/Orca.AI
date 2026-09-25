@@ -39,6 +39,7 @@ class CandidatoAvaliado:
 
 def _palavras(texto: str) -> set[str]:
     palavras = [p.strip(".;:|()[]") for p in normalizar(texto).replace(",", " ").split()]  # "500 fl." = 500 folhas
+    palavras = [re.sub(r"^c/(?=\d)", "", p) for p in palavras]  # "caixa c/50" = caixa com 50
     return {_ABREVIACOES.get(p, p) for p in palavras if len(p) > 1 or p.isdigit()}
 
 
@@ -92,6 +93,15 @@ def mesmo_tipo(especificacao: Especificacao, titulo: str, parecido: float, marca
     if tipo and tipo == _primeira_palavra(titulo, marca or especificacao.marca):
         return parecido >= PARECENCA_COM_TIPO
     return parecido >= PARECENCA_MINIMA
+
+
+def algum_do_mesmo_tipo(especificacao: Especificacao, candidatos: list[Candidato]) -> bool:
+    """A busca trouxe algum produto do tipo do item, de qualquer marca? (Sem nenhum, a busca não serve.)"""
+    for c in candidatos:
+        titulo = c.titulo or titulo_do_endereco(c.url)
+        if mesmo_tipo(especificacao, titulo, parecenca(especificacao, titulo), c.marca):
+            return True
+    return False
 
 
 def avaliar_candidatos(especificacao: Especificacao, candidatos: list[Candidato], vocabulario: Vocabulario,

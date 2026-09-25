@@ -45,23 +45,26 @@ def fechar_lote(fila: Fila, tarefa_id: str, p: dict) -> dict:
         buscas = {dominio_da_url("https://" + l.dominio): l
                   for l in lojas_de_busca(lojas_da_organizacao(s, organizacao_id)) if l.automatica}
         busca_da_loja = {}
-        for loja in f.melhores:
+        for loja in f.lojas:
             obs = next((estado_lote.observacoes[(loja.id, i)] for i in loja.tem
                         if (loja.id, i) in estado_lote.observacoes), None)
             busca_da_loja[loja.id] = buscas.get(dominio_da_url(obs.url)) if obs else None
+        # as sugestões de outra marca só podem ser buscadas nas lojas com busca automática: as 3 mais completas delas
+        pesquisaveis = tuple(l for l in f.lojas if busca_da_loja.get(l.id) is not None)[:3]
+        faltando_nelas = [i.id for i in estado_lote.itens if any(i.id in l.faltam for l in pesquisaveis)]
         especificacoes = {i.id: especificacao_do_item(i) for i in estado_lote.itens}
         nomes = {i.id: i.descricao for i in estado_lote.itens}
         vocabulario = vocabulario_da_organizacao(s, organizacao_id)
 
     alternativas: dict[str, list[dict]] = {}
     avisos = []
-    faltando = list(f.faltando)[:ITENS_PARA_TROCAR]
+    faltando = faltando_nelas[:ITENS_PARA_TROCAR]
     sem_busca = [l.nome for l in f.melhores if busca_da_loja.get(l.id) is None]
-    if faltando and len(f.melhores) < 3:
-        avisos.append("ainda não há 3 lojas com itens do lote: pesquise mais lojas")
-    elif faltando and sem_busca:
-        avisos.append("sem busca automática em " + ", ".join(sem_busca)
-                      + ": procure lá, na janela, um produto de outra marca para os itens que faltam")
+    if sem_busca:
+        avisos.append("sem busca automática em " + ", ".join(sem_busca) + ": as sugestões de outra marca foram "
+                      "procuradas nas lojas que o sistema pesquisa sozinho; confira essas lojas na janela")
+    if faltando and len(pesquisaveis) < 3:
+        avisos.append("ainda não há 3 lojas com busca automática que tenham itens do lote: pesquise mais lojas")
     elif faltando:
         ritmo = Ritmo(ctx.intervalo_busca_s)
         cliente = ctx.cliente_http() if ctx.cliente_http else httpx.Client()
@@ -70,7 +73,7 @@ def fechar_lote(fila: Fila, tarefa_id: str, p: dict) -> dict:
                 if cancelamento.is_set():
                     raise TarefaCancelada()
                 fila.progresso(tarefa_id, 70 + int(29 * n / len(faltando)), f"outra marca: {nomes[item_id]}")
-                alternativas[item_id] = _outras_marcas(fila, cliente, ritmo, f.melhores, busca_da_loja, item_id,
+                alternativas[item_id] = _outras_marcas(fila, cliente, ritmo, pesquisaveis, busca_da_loja, item_id,
                                                         especificacoes[item_id], vocabulario, avisos)
         finally:
             cliente.close()

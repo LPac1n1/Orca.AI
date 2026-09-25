@@ -135,10 +135,11 @@ lojas:
     plataforma: propria
     coleta: C1
     modo: navegador
-    busca:                     # a busca devolve muitos produtos; o sistema ordena pela semelhança com o item
+    busca:                     # a busca mudou (25/09/2026): /busca/<termo-com-hifens>; sem resultado, mostra os mais vendidos
       modo: pagina
-      url: https://www.lepok.com.br/busca/1?q={termo}
+      url: https://www.lepok.com.br/busca/{termo_slug}
       produto: /produto/
+      seletor: .box-product-div-busca
     ean: a_verificar
     cnpj_site: [19.576.717/0001-04]
     cep: a_verificar

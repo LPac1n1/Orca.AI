@@ -16,6 +16,15 @@ o robots.txt dela (levantamento em docs/07 §5).
 from dataclasses import dataclass
 from urllib.parse import quote
 
+def slug(texto: str) -> str:
+    """ "Grampeador de mesa 26/6" → "grampeador-de-mesa-26-6" (sem acentos, só letras, números e hífens)."""
+    import re
+    import unicodedata
+
+    sem_acento = unicodedata.normalize("NFD", texto).encode("ascii", "ignore").decode()
+    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", sem_acento.lower())).strip("-")
+
+
 MODOS_AUTOMATICOS = ("api_vtex", "api_vtex_is", "api_woocommerce", "pagina")
 MODOS_COM_EAN = ("api_vtex", "api_vtex_is")  # buscas que aceitam o código de barras
 
@@ -48,7 +57,13 @@ class LojaDeBusca:
         return self.modo in MODOS_COM_EAN
 
     def endereco(self, termo: str) -> str:
-        """Endereço da busca (para a página e para a janela da captura assistida)."""
+        """Endereço da busca (para a página e para a janela da captura assistida).
+
+        `{termo}` vai como texto ("papel%20a4"); `{termo_slug}`, com hífens ("papel-a4"), para as lojas
+        cuja busca é um endereço (ex.: Lepok, desde 25/09/2026).
+        """
+        if "{termo_slug}" in self.url:
+            return self.url.replace("{termo_slug}", quote(slug(termo)))
         return self.url.replace("{termo}", quote(termo)) if "{termo}" in self.url else self.url
 
     def atende(self, categorias_dos_itens: set[str | None]) -> bool:

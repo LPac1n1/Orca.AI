@@ -48,7 +48,7 @@ def consultar_cnpj_novo(ctx: Contexto, cnpj: str | None, provedores: list[str]) 
 
 
 def registrar_item(ctx: Contexto, p: dict, captura: Captura, autor: str = "sistema:coleta",
-                   avisos_extras: tuple[str, ...] = ()) -> dict:
+                   avisos_extras: tuple[str, ...] = (), preco_da_busca: int | None = None) -> dict:
     """Guarda a evidência, registra a observação e compara com o item (com o vocabulário da OSC)."""
     with sessao_como(ctx.fabrica, autor) as s:
         item = s.get(Item, p["item_id"])
@@ -61,7 +61,8 @@ def registrar_item(ctx: Contexto, p: dict, captura: Captura, autor: str = "siste
         r = registrar_observacao_item(s, item, captura, evidencia, cnpj_vendedor=p.get("cnpj_vendedor") or None,
                                       preco_informado=p.get("preco_centavos"),
                                       catalogo=catalogo_da_organizacao(s, organizacao_id), avisos_extras=avisos_extras,
-                                      preco_no_pix=regras.preco_referencia.desconto_pix == "usar")  # D-60
+                                      preco_no_pix=regras.preco_referencia.desconto_pix == "usar",  # D-60
+                                      preco_da_busca=preco_da_busca)
         s.flush()
         observacao_id, preco, avisos = r.observacao.id, r.observacao.preco_centavos, list(r.avisos)
         tem_ean = r.observacao.ean is not None

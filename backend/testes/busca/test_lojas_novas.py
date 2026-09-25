@@ -138,3 +138,29 @@ def test_catalogo_aceita_os_modos_novos():
         validar_lojas({"lojas": [base | {"busca": {"modo": "api_magica", "url": "https://www.x.com.br/"}}]})
     with pytest.raises(ErroCatalogo, match="lista de resultados"):
         validar_lojas({"lojas": [base | {"busca": {"modo": "pagina", "url": "https://www.x.com.br/b?q={termo}"}}]})
+
+
+# --- rodada 2 do piloto (25/09/2026) -----------------------------------------------------------------
+
+
+def test_lepok_busca_pelo_endereco_com_hifens():
+    from orca.busca.lojas import slug
+    assert slug("Grampeador de mesa 26/6 Goller Até 20 Folhas") == "grampeador-de-mesa-26-6-goller-ate-20-folhas"
+    assert slug("Clips Nº2/0 Bacchi") == "clips-n2-0-bacchi"
+    assert LOJAS["lepok"].endereco("Clips Bacchi") == "https://www.lepok.com.br/busca/clips-bacchi"
+    assert LOJAS["lepok"].seletor == ".box-product-div-busca"
+
+
+def test_caixa_com_50_conta_como_50():
+    item = Especificacao("Caneta esferográfica 50 unidades", "caneta", "Bic")
+    assert parecenca(item, "Caneta Bic Cristal Azul Caixa c/50") > parecenca(item, "Caneta Bic Cristal Azul Caixa")
+
+
+def test_busca_sem_nenhum_produto_do_tipo():
+    from orca.busca import algum_do_mesmo_tipo
+    grampo = Especificacao("Grampo 5000 unidades", "papelaria", "Bacchi")
+    # a Kalunga vende grampo de outra marca: a busca serve (só não tem a marca)
+    assert algum_do_mesmo_tipo(grampo, [Candidato("https://k/1", "Grampo para grampeador 26/6 Spiral - PT 5000")])
+    # "mais vendidos" no lugar do resultado: a busca não serve
+    assert not algum_do_mesmo_tipo(grampo, [Candidato("https://l/1", "Kit 2 pacotes papel sulfite A4 75g"),
+                                            Candidato("https://l/2", "Borracha Dust Free com 2 unidades")])

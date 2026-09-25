@@ -13,7 +13,7 @@ from orca.coleta import Captura
 from orca.dominio import formatar_cnpj
 
 CNPJ = {"kalunga.com.br": LOJAS["kalunga.com.br"][0], "lepok.com.br": LOJAS["lepok.com.br"][0],
-        "artpel.com.br": cnpj_de_teste(800)}
+        "artpel.com.br": cnpj_de_teste(800), "gimba.com.br": LOJAS["gimba.com.br"][0]}
 PAPEL = ("papel", "Papel Sulfite A4 75g 500 folhas Chamex", "Chamex", "7891173023001")
 GOLLER = ("goller", "Grampeador de Mesa Goller 26/6 até 20 Folhas GE-309", "Goller", "7896001300309")
 SPIRAL = ("spiral", "Grampeador de Mesa Spiral 26/6 até 20 Folhas 2933A", "Spiral", "7908727610263")
@@ -21,6 +21,7 @@ PRODUTOS = {  # o que cada loja vende: (produto, preço) — o Goller só existe
     "kalunga.com.br": [(PAPEL, 3450), (SPIRAL, 2990)],
     "lepok.com.br": [(PAPEL, 3390), (GOLLER, 1869), (SPIRAL, 3100)],
     "artpel.com.br": [(PAPEL, 3500), (SPIRAL, 2850)],
+    "gimba.com.br": [(PAPEL, 3300), (GOLLER, 1800)],  # só com janela (robots.txt): entra colando o link
 }
 
 
@@ -37,7 +38,8 @@ class Lojas:
         termo = unquote(url).lower()
         self.buscas.append(unquote(url))
         dominio = url.split("/")[2].removeprefix("www.")
-        palavras = [p for p in termo.split("=")[-1].replace("+", " ").split() if len(p) > 2]
+        consulta = termo.split("=")[-1] if "=" in termo else termo.rsplit("/", 1)[-1].replace("-", " ")  # Lepok: /busca/a-b
+        palavras = [p for p in consulta.replace("+", " ").split() if len(p) > 2]
         cartoes = []
         for (slug, titulo, marca, _), preco in PRODUTOS[dominio]:
             if all(p in titulo.lower() for p in palavras if not p[0].isdigit()):  # busca exige as palavras
@@ -142,3 +144,20 @@ def test_sugestao_de_outro_lote_nao_vale(ambiente):
     resposta = api.post(f"/api/itens/{b['grampeador']}/usar-alternativa", json={
         "tarefa_id": tarefa["id"], "indice": 0, "descricao": "x", "marca": "y", "justificativa": "z"})
     assert resposta.status_code == 409
+
+
+def test_sugestoes_mesmo_com_a_loja_mais_completa_so_na_janela(ambiente):
+    """Rodada 2 do piloto: a Gimba (só com janela) era a mais completa e as sugestões não eram procuradas."""
+    api, app, _ = ambiente
+    ids = _lote(api)
+    for slug, item in (("papel", ids["papel"]), ("goller", ids["grampeador"])):
+        _ok(api.post(f"/api/itens/{item}/coletas", json={"url": f"https://www.gimba.com.br/p/{slug}"}), 202)
+    app.state.servico.fila.processar_todas()
+    [tarefa] = _ok(api.post(f"/api/lotes/{ids['lote']}/fechar",
+                            json={"lojas": ["kalunga", "lepok", "artpel"]}), 202)["tarefas"]
+    app.state.servico.fila.processar_proxima("principal")
+    r = _ok(api.get(f"/api/tarefas/{tarefa['id']}"))["resultado"]
+    [opcao] = r["alternativas"][ids["grampeador"]]
+    assert "Spiral" in opcao["titulo"] and len(opcao["lojas"]) == 3
+    assert any("sem busca automática" in a for a in r["avisos"])
+

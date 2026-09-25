@@ -19,6 +19,7 @@ from orca.busca import (
     ErroBusca,
     LojaDeBusca,
     Ritmo,
+    algum_do_mesmo_tipo,
     avaliar_candidatos,
     bom_o_bastante,
     buscar_na_pagina,
@@ -38,6 +39,7 @@ from orca.tarefas.executores import registrar_item
 from orca.tarefas.fila import ErroTarefa, Fila, TarefaCancelada, tarefa
 
 TENTATIVAS_POR_ITEM = 2  # páginas de produto capturadas, no máximo, para cada item em cada loja
+SEM_CANDIDATOS_SEGUIDOS = 3  # buscas seguidas sem nenhum produto do tipo: a loja não vende o lote (ou a busca mudou)
 
 
 def _buscar(fila: Fila, cliente: httpx.Client, ritmo: Ritmo, loja: LojaDeBusca, consulta: Consulta):
@@ -100,6 +102,7 @@ def pesquisar_lote(fila: Fila, tarefa_id: str, lote_id: str, lojas_escolhidas: l
             dominio = dominio_da_url("https://" + loja.dominio)
             r = {"loja": loja.nome, "loja_id": loja.id, "encontrados": 0, "sem_preco": [], "nao_encontrados": [],
                  "erro": None}
+            vazias = 0  # buscas seguidas sem nenhum candidato do tipo do item
             resumo.append(r)
             for item_id in ordem:
                 passo += 1
@@ -116,7 +119,12 @@ def pesquisar_lote(fila: Fila, tarefa_id: str, lote_id: str, lojas_escolhidas: l
                     candidatos = _candidatos(fila, cliente, ritmo, loja, item_id, termo, especificacoes[item_id],
                                              vocabulario, eans, recusadas)
                 except (ErroBusca, ErroCaptura) as erro:
-                    r["erro"] = str(erro)
+                    r["erro"] = _curto(str(erro))
+                    break
+                vazias = 0 if algum_do_mesmo_tipo(especificacoes[item_id], candidatos) else vazias + 1
+                if vazias >= SEM_CANDIDATOS_SEGUIDOS:
+                    r["erro"] = (f"a busca não trouxe nenhum produto parecido em {vazias} itens seguidos: "
+                                 "a loja não parece vender este tipo de produto; os outros itens nela foram poupados")
                     break
                 try:
                     situacao = _capturar_melhor(fila, ritmo, dominio, loja, item_id, termo, candidatos,
@@ -166,7 +174,8 @@ def _capturar_melhor(fila, ritmo, dominio, loja, item_id, termo, candidatos, esp
         except ErroCaptura:
             continue
         resultado = registrar_item(ctx, {"item_id": item_id}, captura, autor="sistema:busca",
-                                   avisos_extras=(f"achado pela busca automática na {loja.nome} (termo: “{termo}”)",))
+                                   avisos_extras=(f"achado pela busca automática na {loja.nome} (termo: “{termo}”)",),
+                                   preco_da_busca=avaliado.candidato.preco_centavos)
         if resultado["correspondencia"] not in ("verde", "amarelo"):
             if resultado["preco_centavos"] is None and resultado["correspondencia"] is None:
                 sem_preco = True  # a página abriu, mas sem preço (ex.: a loja pede CEP)
@@ -191,6 +200,11 @@ def _registrar_nao_encontrado(fila, ritmo, dominio, loja, item_id, termo, candid
         evidencia = registrar_captura(s, ctx.armazem, captura)
         registrar_nao_encontrado(s, s.get(Item, item_id), captura, evidencia, termo,
                                  [c.titulo for c in candidatos if c.titulo], catalogo)
+
+
+def _curto(erro: str) -> str:
+    """A primeira linha do erro (sem o registro técnico do navegador)."""
+    return erro.split("\n")[0][:200]
 
 
 def _mensagem(resumo: list[dict], n_itens: int) -> str:

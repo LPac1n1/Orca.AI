@@ -135,6 +135,7 @@ def registrar_observacao_item(
     catalogo: Mapping[str, LojaCatalogo] | None = None,
     avisos_extras: tuple[str, ...] = (),
     preco_no_pix: bool = True,
+    preco_da_busca: int | None = None,
 ) -> ResultadoColeta:
     """Observação de um produto. O preço informado pelo usuário (captura assistida) também é conferido na página.
 
@@ -149,12 +150,21 @@ def registrar_observacao_item(
     escolher = preco_no_pix and preco_informado is None and lido_na_pagina
     escolha = preco_a_vista(lido, captura.texto_visivel) if escolher else None
     preco = preco_informado if preco_informado is not None else (escolha.centavos if escolha else lido)
+    # A página não traz o preço nos dados (ex.: WooCommerce, produto com variações): vale o preço que a busca
+    # da loja mostrou, só se ele estiver escrito na página capturada (princípio 5: o preço é o da prova).
+    da_busca = (preco is None and preco_da_busca is not None and preco_da_busca > 0
+                and preco_aparece(preco_da_busca, captura.texto_visivel))
+    if da_busca:
+        preco = preco_da_busca
     conferido = preco_aparece(preco, captura.texto_visivel) if preco is not None else None
     cnpjs_pagina = cnpjs_no_texto(captura.texto_visivel)
     cnpj, aviso_cnpj = _cnpj_identificado(cnpj_vendedor, cnpjs_pagina, bool(entrada and entrada.marketplace))
     distintos = sorted(set(precos_visiveis(captura.texto_visivel)))
 
     avisos = list(avisos_extras)
+    if da_busca:
+        avisos.append(f"a página não traz o preço nos dados; {formatar(preco)} foi mostrado pela busca da loja "
+                      "e está escrito na página")
     if escolha is not None and escolha.centavos != lido:
         avisos.append(f"preço {FORMAS[escolha.forma]} (D-60): {formatar(escolha.centavos)}; "
                       f"o preço cheio da página é {formatar(lido)}")
@@ -207,6 +217,7 @@ def registrar_observacao_item(
         dados_brutos=_json({
             "extraido": asdict(extraido) if extraido else None,
             "preco_informado": preco_informado,
+            "preco_da_busca": preco_da_busca,
             "preco_lido": lido,
             "escolha_d60": {"forma": escolha.forma, "trecho": escolha.trecho} if escolha else None,
             "precos_rotulados": [{"centavos": r.centavos, "forma": r.forma} for r in rotulados],

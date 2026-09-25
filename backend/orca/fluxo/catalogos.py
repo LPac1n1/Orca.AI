@@ -180,7 +180,7 @@ def _problemas_da_busca(loja: dict) -> list[str]:
     problemas = []
     if not url.startswith("https://"):
         problemas.append(f"{nome}: o endereço da busca deve começar com https://")
-    if not busca["modo"].startswith("api_") and "{termo}" not in url:
+    if not busca["modo"].startswith("api_") and "{termo}" not in url and "{termo_slug}" not in url:
         problemas.append(f"{nome}: o endereço da busca precisa ter {{termo}} no lugar do que se pesquisa")
     if busca["modo"] == "pagina" and not str(busca.get("produto") or "").strip() and not busca.get("seletor"):
         problemas.append(f"{nome}: diga que pedaço aparece nos endereços de produto (ex.: /produto/) "

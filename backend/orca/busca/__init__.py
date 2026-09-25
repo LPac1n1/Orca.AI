@@ -20,6 +20,7 @@ from orca.busca.vagas import PlataformaDeVagas, ler_plataformas, plataforma_do_e
 from orca.busca.ranking import (
     Candidato,
     CandidatoAvaliado,
+    algum_do_mesmo_tipo,
     avaliar_candidatos,
     bom_o_bastante,
     ordem_dos_itens,
@@ -39,6 +40,7 @@ __all__ = [
     "LojaDeBusca",
     "PlataformaDeVagas",
     "Ritmo",
+    "algum_do_mesmo_tipo",
     "avaliar_candidatos",
     "bom_o_bastante",
     "buscar_na_pagina",

@@ -230,10 +230,10 @@ class Navegador:
         Não gera prova: a prova é a página do produto, capturada depois.
         """
         pagina = self._contexto.new_page()
-        try:
-            resposta = pagina.goto(url, wait_until="domcontentloaded", timeout=self.tempo_limite_ms)
+        try:  # página de busca: limite menor (a loja que não responde é pulada, não trava a busca toda)
+            resposta = pagina.goto(url, wait_until="domcontentloaded", timeout=min(self.tempo_limite_ms, 25_000))
             try:
-                pagina.wait_for_load_state("networkidle", timeout=15_000)
+                pagina.wait_for_load_state("networkidle", timeout=10_000)
             except ErroPlaywright:
                 pass
             for _ in range(3):  # os resultados podem carregar ao rolar
