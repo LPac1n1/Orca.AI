@@ -5,12 +5,14 @@ import { centesimosDeTexto, horas, REGIMES, TIPOS_DE_ORCAMENTO } from "../format
 import { useDados } from "../ganchos";
 import type { Cargo, Categoria, Item, Jornada, Orcamento } from "../tipos";
 import type { PropsDaAba } from "./Projeto";
+import { VitrineDoItem } from "./Vitrine";
 
 type Janela =
   | { tipo: "orcamento" }
   | { tipo: "lote"; orcamento: Orcamento }
   | { tipo: "item"; loteId: string; item?: Item; trocar?: boolean }
-  | { tipo: "cargo"; orcamentoId: string; cargo?: Cargo };
+  | { tipo: "cargo"; orcamentoId: string; cargo?: Cargo }
+  | { tipo: "vitrine"; item: Item };
 
 function numeroOuNulo(texto: string): number | null {
   return texto.trim() === "" ? null : Number(texto);
@@ -47,7 +49,7 @@ function FormLote({ orcamento, aoTerminar }: { orcamento: Orcamento; aoTerminar:
 }
 
 function FormItem({ loteId, item, trocar, duracao, aoTerminar }: {
-  loteId: string; item?: Item; trocar?: boolean; duracao: number; aoTerminar: () => void;
+  loteId: string; item?: Item; trocar?: boolean; duracao: number; aoTerminar: (novo?: Item) => void;
 }) {
   const { dados: categorias } = useDados<Categoria[]>("/api/catalogos/categorias");
   const [v, setV] = useState({
@@ -72,12 +74,12 @@ function FormItem({ loteId, item, trocar, duracao, aoTerminar }: {
     };
     if (trocar && item) await api.criar(`/api/itens/${item.id}/trocar-produto`, { ...corpo, justificativa: v.justificativa });
     else if (item) await api.mudar(`/api/itens/${item.id}`, corpo);
-    else await api.criar(`/api/lotes/${loteId}/itens`, corpo);
+    else return aoTerminar(await api.criar<Item>(`/api/lotes/${loteId}/itens`, corpo));
     aoTerminar();
   }
 
   return (
-    <Formulario rotulo={trocar ? "Trocar produto" : item ? "Salvar" : "Adicionar item"} aoEnviar={enviar} aoCancelar={aoTerminar}>
+    <Formulario rotulo={trocar ? "Trocar produto" : item ? "Salvar" : "Adicionar item"} aoEnviar={enviar} aoCancelar={() => aoTerminar()}>
       {trocar && <p className="explicacao">O item atual sai do orçamento e fica no histórico, com as pesquisas. O produto novo precisa ser pesquisado nas lojas (Saída 1).</p>}
       <Campo rotulo="Descrição" ajuda="Como o produto é chamado, ex.: Papel sulfite A4 75 g">
         <input value={v.descricao} onChange={mudar("descricao")} required autoFocus />
@@ -177,6 +179,7 @@ function FormCargo({ orcamentoId, cargo, duracao, aoTerminar }: { orcamentoId: s
 
 export function AbaCadastro({ projeto, atualizar }: PropsDaAba) {
   const [janela, setJanela] = useState<Janela | null>(null);
+  const [vitrines, setVitrines] = useState<Record<string, string>>({});  // item → tarefa da vitrine
   const fechar = () => { setJanela(null); atualizar(); };
   const orcamentos = projeto.orcamentos ?? [];
   const excluir = (rota: string, id: string) => async () => { await api.criar(`/api/${rota}/${id}/excluir`); atualizar(); };
@@ -220,6 +223,7 @@ export function AbaCadastro({ projeto, atualizar }: PropsDaAba) {
                         <td>{i.mes_inicio}–{i.mes_fim}</td>
                         <td className="pequeno">{i.ean ?? "—"}</td>
                         <td className="botoes">
+                          <button className="link" onClick={() => setJanela({ tipo: "vitrine", item: i })} title="O sistema mostra os produtos das lojas; você clica no certo (D-75)">escolher o produto</button>
                           <button className="link" onClick={() => setJanela({ tipo: "item", loteId: l.id, item: i })}>editar</button>
                           <button className="link" onClick={() => setJanela({ tipo: "item", loteId: l.id, item: i, trocar: true })}>trocar produto</button>
                           <BotaoAcao classe="link perigo" aoClicar={excluir("itens", i.id)} confirmar={`Excluir "${i.descricao}"?`}>excluir</BotaoAcao>
@@ -256,8 +260,15 @@ export function AbaCadastro({ projeto, atualizar }: PropsDaAba) {
       {janela?.tipo === "lote" && <Modal titulo={`Novo lote em ${janela.orcamento.nome}`} aoFechar={fechar}><FormLote orcamento={janela.orcamento} aoTerminar={fechar} /></Modal>}
       {janela?.tipo === "item" && (
         <Modal titulo={janela.trocar ? "Trocar produto" : janela.item ? "Editar item" : "Novo item"} aoFechar={fechar}>
-          <FormItem loteId={janela.loteId} item={janela.item} trocar={janela.trocar} duracao={projeto.duracao_meses} aoTerminar={fechar} />
+          <FormItem loteId={janela.loteId} item={janela.item} trocar={janela.trocar} duracao={projeto.duracao_meses}
+            aoTerminar={(novo) => {  // item novo sem código de barras: já mostra a vitrine (D-75)
+              if (novo && !novo.ean) { setJanela({ tipo: "vitrine", item: novo }); atualizar(); } else fechar();
+            }} />
         </Modal>
+      )}
+      {janela?.tipo === "vitrine" && (
+        <VitrineDoItem item={janela.item} tarefaId={vitrines[janela.item.id] ?? null}
+          aoIniciar={(t) => setVitrines({ ...vitrines, [janela.item.id]: t })} aoFechar={fechar} atualizar={atualizar} />
       )}
       {janela?.tipo === "cargo" && (
         <Modal titulo={janela.cargo ? "Editar cargo" : "Novo cargo"} aoFechar={fechar}>

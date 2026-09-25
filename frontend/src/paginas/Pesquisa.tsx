@@ -15,6 +15,7 @@ function Foto({ src, alt }: { src: string | null | undefined; alt: string }) {
   return <img className="foto" src={src} alt={alt} loading="lazy" referrerPolicy="no-referrer" onError={() => setErro(true)} />;
 }
 import type { PropsDaAba } from "./Projeto";
+import { VitrineDoItem } from "./Vitrine";
 
 const SITUACAO_DA_LOJA: Record<LojaDoLote["situacao"], string> = {
   trio: "no trio", elegivel: "completa, fora do trio", descartada: "fora", retirada: "retirada por você",
@@ -824,8 +825,8 @@ function TrocaDoFechamento({ item, tarefaId, indice, opcao, aoFechar, aoTrocar }
   );
 }
 
-function FechamentoDoLote({ lote, versao, atualizar, aoFechar }: {
-  lote: LoteRevisao; versao: number; atualizar: () => void; aoFechar: () => void;
+function FechamentoDoLote({ lote, versao, atualizar, aoFechar, aoEscolher }: {
+  lote: LoteRevisao; versao: number; atualizar: () => void; aoFechar: () => void; aoEscolher: (item: ItemRevisao) => void;
 }) {
   const { dados } = useDados<SituacaoDoFechamento>(`/api/lotes/${lote.id}/fechamento`, versao);
   const [confirmar, setConfirmar] = useState(false);
@@ -868,6 +869,10 @@ function FechamentoDoLote({ lote, versao, atualizar, aoFechar }: {
                 return (
                   <li key={f.item_id}>
                     {f.item} <span className="discreto">— falta em {f.lojas.join(", ")}</span>
+                    {item && !item.referencia && (
+                      <>{" "}<button className="link pequeno" onClick={() => aoEscolher(item)}
+                        title="Escolha o produto certo; o código de barras dele guia a busca nas outras lojas (D-75)">escolher o produto</button></>
+                    )}
                     {opcoes.map((o, n) => (
                       <div key={n} className="opcao-troca pequeno">
                         <span>outra marca: <strong>{o.titulo}</strong>{o.soma_centavos ? ` · soma ${reais(o.soma_centavos)}` : ` · ${o.motivo}`}</span>
@@ -936,6 +941,8 @@ function Lote({ lote, orcamento, versao, atualizar }: {
   const [alternativas, setAlternativas] = useState<ItemRevisao | null>(null);
   const [buscasDeAlternativas, setBuscasDeAlternativas] = useState<Record<string, string>>({});  // item → tarefa
   const [descoberta, setDescoberta] = useState<string | null>(null);  // tarefa da SerpApi
+  const [vitrine, setVitrine] = useState<ItemRevisao | null>(null);
+  const [vitrines, setVitrines] = useState<Record<string, string>>({});  // item → tarefa da vitrine
   const [janela, pedir] = useDecisao();
   const lojasComPreco = lote.lojas.filter((l) => lote.itens.some((i) => i.ofertas[l.id]));
   const temAcima = lote.itens.some((i) => i.dentro_da_media === false);
@@ -964,7 +971,7 @@ function Lote({ lote, orcamento, versao, atualizar }: {
       </div>
       {lote.mensagem && <p className="discreto">{lote.mensagem}</p>}
       {lote.sugestoes.length > 0 && <Aviso tipo="info"><ul>{lote.sugestoes.map((s) => <li key={s}>{s}</li>)}</ul></Aviso>}
-      <FechamentoDoLote lote={lote} versao={versao} atualizar={atualizar} aoFechar={() => setBuscar("fechar")} />
+      <FechamentoDoLote lote={lote} versao={versao} atualizar={atualizar} aoFechar={() => setBuscar("fechar")} aoEscolher={setVitrine} />
       {temAcima && orcamento.base_preco_final === "B" && (
         <Aviso tipo="atencao">
           <p>Na regra B, o preço da loja escolhida precisa estar dentro da média. Há duas saídas, e você escolhe (D-23):</p>
@@ -1015,6 +1022,7 @@ function Lote({ lote, orcamento, versao, atualizar }: {
                   <div className="discreto pequeno">{[i.marca, i.apresentacao].filter(Boolean).join(" · ")} · {i.qtd_planejada} {i.unidade}/mês × {i.meses}</div>
                   {i.motivos.map((m) => <div key={m} className="pequeno motivo">{m}</div>)}
                   {i.referencia && <div className="discreto pequeno">produto de referência: {i.referencia.loja}</div>}
+                  {!i.referencia && <><button className="link pequeno" onClick={() => setVitrine(i)}>escolher o produto</button> · </>}
                   <button className="link pequeno" onClick={() => setColar(i)}>+ colar link</button>
                   {i.dentro_da_media === false && orcamento.base_preco_final === "B" && (
                     <> · <button className="link pequeno" onClick={() => setAlternativas(i)}>procurar outra marca</button></>
@@ -1056,6 +1064,11 @@ function Lote({ lote, orcamento, versao, atualizar }: {
         <AlternativasDoItem item={alternativas} tarefaId={buscasDeAlternativas[alternativas.id] ?? null}
           aoIniciar={(t) => { setBuscasDeAlternativas({ ...buscasDeAlternativas, [alternativas.id]: t }); atualizar(); }}
           aoFechar={() => setAlternativas(null)} aoTrocar={() => { setAlternativas(null); atualizar(); }} />
+      )}
+      {vitrine && (
+        <VitrineDoItem item={vitrine} tarefaId={vitrines[vitrine.id] ?? null}
+          aoIniciar={(t) => { setVitrines({ ...vitrines, [vitrine.id]: t }); atualizar(); }}
+          aoFechar={() => { setVitrine(null); atualizar(); }} atualizar={atualizar} />
       )}
       {simulacao && (
         <Modal titulo="Simulação da troca de loja (Saída 2)" aoFechar={() => setSimulacao(null)}>

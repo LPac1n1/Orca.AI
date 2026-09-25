@@ -426,3 +426,29 @@ def categorias_aprendidas(sessao: Session, organizacao_id: str) -> dict[str, set
             resultado[dominio_da_url(url)].add(CATEGORIA_DA_LOJA.get(categoria, categoria))
     return dict(resultado)
 
+
+def lojas_pelo_que_vendem(sessao: Session, organizacao_id: str, pedidas: set[str]) -> list[tuple]:
+    """(loja de busca, situação, tipos que vende, tipos aprendidos) para os tipos pedidos (D-74).
+
+    Situação: "todas" (vende todos os tipos pedidos), "parte", "nenhuma", "desconhecida" (sem tipo) ou
+    "itens_sem_categoria" (nada foi pedido).
+    """
+    from orca.busca import lojas_de_busca
+    from orca.coleta.catalogo import dominio_da_url
+
+    aprendidas = categorias_aprendidas(sessao, organizacao_id)
+    resultado = []
+    for loja in lojas_de_busca(lojas_da_organizacao(sessao, organizacao_id)):
+        aprendido = aprendidas.get(dominio_da_url("https://" + loja.dominio), set()) - set(loja.categorias)
+        vende = set(loja.categorias) | aprendido
+        if not pedidas:
+            situacao = "itens_sem_categoria"
+        elif not vende:
+            situacao = "desconhecida"
+        elif pedidas <= vende:
+            situacao = "todas"
+        else:
+            situacao = "parte" if pedidas & vende else "nenhuma"
+        resultado.append((loja, situacao, vende, aprendido))
+    return resultado
+

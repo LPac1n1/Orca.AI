@@ -247,7 +247,8 @@ export interface Tarefa {
   id: string;
   projeto_id: string | null;
   tipo: "coletar_item" | "coletar_cargo" | "captura_assistida" | "comprovante" | "consultar_cnpj" | "fechar_teto" | "exportar" | "buscar_lote" | "buscar_alternativas"
-    | "descobrir_na_web" | "julgar_amarelos" | "fechar_lote" | "descobrir_vagas" | "classificar_loja";
+    | "descobrir_na_web" | "julgar_amarelos" | "fechar_lote" | "descobrir_vagas" | "classificar_loja"
+    | "vitrine_do_item";
   estado: "pendente" | "rodando" | "esperando_usuario" | "concluida" | "falhou" | "cancelada";
   progresso: number;
   mensagem: string | null;

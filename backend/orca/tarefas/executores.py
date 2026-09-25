@@ -1,6 +1,17 @@
 """O que cada tipo de tarefa faz. Cada executor recebe a fila, o id da tarefa e os parâmetros."""
 
-from orca.banco import Cargo, Item, Observacao, Projeto, corresponder, perfil_do_projeto, sessao_como
+from orca.banco import (
+    Cargo,
+    Item,
+    Observacao,
+    Projeto,
+    Tarefa,
+    corresponder,
+    decidir_correspondencia,
+    definir_referencia,
+    perfil_do_projeto,
+    sessao_como,
+)
 from orca.calculo import formatar
 from orca.coleta import (
     Captura,
@@ -17,7 +28,7 @@ from orca.coleta import (
 )
 from orca.documentos import gerar_pacote, salvar_pacote
 from orca.dominio import formatar_cnpj, normalizar_cnpj
-from orca.fluxo import dossie_do_projeto, estado_do_projeto, execucao_vigente, fechar_teto_do_projeto
+from orca.fluxo import dossie_do_projeto, estado_do_projeto, execucao_vigente, fechar_teto_do_projeto, recomparar_item
 from orca.fluxo.catalogos import catalogo_da_organizacao, sincronizar_pares_de_ean, vocabulario_da_organizacao
 from orca.otimizacao import SemSolucao
 from orca.tarefas.fila import Contexto, ErroTarefa, Fila, TarefaCancelada, tarefa
@@ -116,7 +127,34 @@ def coletar_item(fila: Fila, tarefa_id: str, p: dict) -> dict:
     fila.progresso(tarefa_id, 10, "abrindo a página")
     captura = fila.navegador().capturar(p["url"])
     fila.progresso(tarefa_id, 70, "guardando a evidência")
-    return registrar_item(fila.contexto, p, captura)
+    resultado = registrar_item(fila.contexto, p, captura)
+    if p.get("escolha_da_pessoa"):
+        resultado |= _escolha_da_pessoa(fila, tarefa_id, p, resultado)
+    return resultado
+
+
+def _escolha_da_pessoa(fila: Fila, tarefa_id: str, p: dict, resultado: dict) -> dict:
+    """Vitrine (D-75): a pessoa clicou "é este" antes da captura; a decisão dela vira o produto de referência.
+
+    A decisão é gravada em nome de quem pediu a tarefa (a escolha foi dela), e as outras páginas do
+    item são comparadas de novo com a referência (D-71).
+    """
+    ctx = fila.contexto
+    if resultado.get("preco_centavos") is None:
+        return {"referencia": None, "mensagem": resultado["mensagem"] + " — sem preço na página: a escolha não virou "
+                                                "referência (use a janela ou o PDF)"}
+    with sessao_como(ctx.fabrica, "sistema") as s:
+        autor = s.get(Tarefa, tarefa_id).autor
+    with sessao_como(ctx.fabrica, autor) as s:
+        item, obs = s.get(Item, p["item_id"]), s.get(Observacao, resultado["observacao_id"])
+        justificativa = p["escolha_da_pessoa"].get("justificativa") or "escolhido na vitrine: é o produto do item (D-75)"
+        decidir_correspondencia(s, item, obs, "verde", justificativa)
+        definir_referencia(s, item, obs, justificativa)
+    with sessao_como(ctx.fabrica, "sistema:referencia") as s:
+        item = s.get(Item, p["item_id"])
+        recomparar_item(s, item, vocabulario_da_organizacao(s, item.lote.orcamento.projeto.organizacao_id))
+    return {"referencia": resultado["observacao_id"], "correspondencia": "verde",
+            "mensagem": resultado["mensagem"] + " — produto de referência escolhido por você"}
 
 
 @tarefa("coletar_cargo")

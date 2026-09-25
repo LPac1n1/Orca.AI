@@ -74,6 +74,7 @@ export const TIPOS_DE_TAREFA = {
   fechar_lote: "Fechar o lote",
   descobrir_vagas: "Google Vagas",
   classificar_loja: "Descobrir o que a loja vende",
+  vitrine_do_item: "Vitrine do item",
   comprovante: "Comprovante da Receita",
   consultar_cnpj: "Consultar CNPJs",
   fechar_teto: "Fechar o teto",

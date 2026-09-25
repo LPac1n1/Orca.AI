@@ -179,6 +179,13 @@ class PedidoDeDescoberta(_Entrada):
     itens: list[str] | None = None  # sem itens: todos os do lote (uma busca da SerpApi por item)
 
 
+class EscolhaNaVitrine(_Entrada):
+    """D-75: o produto que a pessoa escolheu na vitrine (a página vira prova e produto de referência)."""
+
+    url: str = Field(pattern=r"^https?://")
+    justificativa: str | None = Field(default=None, max_length=300)
+
+
 class EscolhaDeReferencia(_Entrada):
     """D-71: esta página é o produto do item; as outras lojas passam a ser comparadas com ela."""
 

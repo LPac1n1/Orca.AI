@@ -27,6 +27,7 @@ class Candidato:
     ean: str | None = None
     preco_centavos: int | None = None  # só para mostrar; o preço que vale é o da página do produto
     texto: str = ""  # o texto do cartão do produto na busca
+    imagem: str | None = None  # foto do produto na busca (vitrine, D-75)
 
 
 @dataclass(frozen=True)

@@ -615,6 +615,27 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
             item_id = item.id
         return resposta | {"referencia_mudou": mudou, "recomparadas": _recomparar(item_id) if mudou else 0}
 
+    @app.post("/api/itens/{item_id}/vitrine", status_code=202)
+    def vitrine(item_id: str):
+        """D-75: pesquisa as lojas que vendem o tipo do item e mostra os produtos para a pessoa escolher."""
+        with sv.sessao() as s:
+            item = _obter(s, Item, item_id, "Item")
+            t = sv.fila.enfileirar(s, "vitrine_do_item", {"item_id": item.id}, item.lote.orcamento.projeto_id)
+            s.flush()
+            return ap.tarefa_json(t)
+
+    @app.post("/api/itens/{item_id}/escolher-produto", status_code=202)
+    def escolher_produto(item_id: str, dados: e.EscolhaNaVitrine):
+        """D-75: a página escolhida é capturada; a escolha da pessoa vira o produto de referência (D-71)."""
+        with sv.sessao() as s:
+            item = _obter(s, Item, item_id, "Item")
+            t = sv.fila.enfileirar(s, "coletar_item", {
+                "item_id": item.id, "url": dados.url,
+                "escolha_da_pessoa": {"justificativa": (dados.justificativa or "").strip() or None}},
+                item.lote.orcamento.projeto_id)
+            s.flush()
+            return ap.tarefa_json(t)
+
     @app.post("/api/itens/{item_id}/referencia", status_code=201)
     def escolher_referencia(item_id: str, dados: e.EscolhaDeReferencia):
         """Esta página é o produto do item (D-71): confirma, se preciso, e compara as outras lojas com ela."""
@@ -665,24 +686,13 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
         with sv.sessao() as s:
             lote = _obter(s, Lote, lote_id, "Lote")
             organizacao_id = lote.orcamento.projeto.organizacao_id
-            lojas = lojas_de_busca(cat.lojas_da_organizacao(s, organizacao_id))
-            aprendidas = cat.categorias_aprendidas(s, organizacao_id)
             itens = [i for i in lote.itens if i.excluido_em is None]
             do_lote = {CATEGORIA_DA_LOJA.get(i.categoria, i.categoria) for i in itens if i.categoria}
-            faltando = _faltando_por_loja(s, lote, lojas)
+            separadas = cat.lojas_pelo_que_vendem(s, organizacao_id, do_lote)
+            faltando = _faltando_por_loja(s, lote, [l for l, *_ in separadas])
             classificando = _classificando(s)
             resposta = []
-            for l in lojas:
-                aprendido = aprendidas.get(dominio_da_url("https://" + l.dominio), set()) - set(l.categorias)
-                vende = set(l.categorias) | aprendido
-                if not do_lote:
-                    situacao = "itens_sem_categoria"
-                elif not vende:
-                    situacao = "desconhecida"
-                elif do_lote <= vende:
-                    situacao = "todas"
-                else:
-                    situacao = "parte" if do_lote & vende else "nenhuma"
+            for l, situacao, vende, aprendido in separadas:
                 resposta.append({"id": l.id, "nome": l.nome, "modo": l.modo, "faltam": len(faltando[l.id]),
                                  "situacao": situacao, "sugerida": situacao == "todas",
                                  "tipos": nomes_dos_tipos(sorted(vende)), "do_lote": nomes_dos_tipos(sorted(do_lote & vende)),

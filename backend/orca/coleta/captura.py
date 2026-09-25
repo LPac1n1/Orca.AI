@@ -176,7 +176,10 @@ _JS_RESULTADOS = """([padrao, seletor]) => {
         for (let i = 0; i < 6 && cartao.parentElement && !(cartao.innerText || '').includes('R$'); i++) {
             cartao = cartao.parentElement;
         }
-        vistos.set(href, {href, titulo, texto: (cartao.innerText || '').slice(0, 600)});
+        const foto = img || cartao.querySelector('img');
+        const imagem = foto ? (foto.currentSrc || foto.src || foto.getAttribute('data-src') || '') : '';
+        vistos.set(href, {href, titulo, texto: (cartao.innerText || '').slice(0, 600),
+                          imagem: imagem.startsWith('http') ? imagem : ''});
     }
     return [...vistos.values()];
 }"""

@@ -60,6 +60,11 @@ def _centavos(valor) -> int | None:
     return centavos if centavos > 0 else None
 
 
+def _imagem_vtex(item: dict) -> str | None:
+    imagens = item.get("images") or [{}]
+    return imagens[0].get("imageUrl") or None
+
+
 def buscar_vtex(cliente: httpx.Client, loja: LojaDeBusca, consulta: Consulta) -> list[Candidato]:
     """API pública de catálogo VTEX: por código de barras, se houver; senão, por texto."""
     parametros = {"fq": f"alternateIds_Ean:{consulta.ean}"} if consulta.ean else {"ft": consulta.texto}
@@ -81,7 +86,7 @@ def buscar_vtex(cliente: httpx.Client, loja: LojaDeBusca, consulta: Consulta) ->
             continue
         candidatos.append(Candidato(
             url=_no_dominio(p["link"], loja.dominio), titulo=p.get("productName") or "", marca=p.get("brand"),
-            ean=item.get("ean") or None, preco_centavos=_centavos(oferta.get("Price")),
+            ean=item.get("ean") or None, preco_centavos=_centavos(oferta.get("Price")), imagem=_imagem_vtex(item),
         ))
     return candidatos
 
@@ -119,7 +124,7 @@ def buscar_vtex_is(cliente: httpx.Client, loja: LojaDeBusca, consulta: Consulta,
         oferta = ((item.get("sellers") or [{}])[0].get("commertialOffer") or {})
         candidatos.append(Candidato(
             url=_no_dominio(p["link"], loja.dominio), titulo=p.get("productName") or "", marca=p.get("brand"),
-            ean=item.get("ean") or None, preco_centavos=_centavos(oferta.get("Price")),
+            ean=item.get("ean") or None, preco_centavos=_centavos(oferta.get("Price")), imagem=_imagem_vtex(item),
         ))
     if consulta.ean:  # a busca por texto pode trazer outros produtos: fica só o do código
         return [c for c in candidatos if c.ean == consulta.ean]
@@ -142,8 +147,10 @@ def buscar_woocommerce(cliente: httpx.Client, loja: LojaDeBusca, consulta: Consu
             preco = valor * 10 ** (2 - casas) if casas <= 2 else None
         except ValueError:
             pass
+        imagens = p.get("images") or [{}]
         candidatos.append(Candidato(url=link, titulo=html.unescape(p.get("name") or ""),
-                                    preco_centavos=preco if preco and preco > 0 else None))
+                                    preco_centavos=preco if preco and preco > 0 else None,
+                                    imagem=imagens[0].get("src") or None))
     return candidatos
 
 
@@ -154,7 +161,8 @@ def candidatos_da_pagina(resultados: list[dict]) -> list[Candidato]:
         texto = " ".join((r.get("texto") or "").split())
         precos = precos_visiveis(texto)
         candidatos.append(Candidato(url=r["href"], titulo=" ".join((r.get("titulo") or "").split())[:300],
-                                    preco_centavos=precos[0] if precos else None, texto=texto[:600]))
+                                    preco_centavos=precos[0] if precos else None, texto=texto[:600],
+                                    imagem=r.get("imagem") or None))
     return candidatos
 
 
