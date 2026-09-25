@@ -58,7 +58,8 @@ Uma busca de teste por loja ("papel sulfite chamex a4"), sem login e sem aceitar
 | Gimba | **Janela** desde 25/09/2026: o robots.txt proíbe `/?txt-busca=` para programas | O preço principal da página de produto é o preço no Pix |
 | Lepok | Página de busca `/busca/<termo-com-hifens>` desde 25/09/2026 (o endereço antigo `/busca/1?q=` passou a mostrar os mais vendidos), só a lista `.box-product-div-busca`, links `/produto/` | Sem resultado, mostra os mais vendidos na mesma lista: o filtro de "mesmo tipo" os descarta |
 | Tenda | **Janela** desde 25/09/2026: o robots.txt proíbe `/busca?q=` para programas | Mostra "Sugestões" de outros produtos quando acha pouco (no piloto: louro, acelga e ventilador no lugar de material de escritório) |
-| Carrefour, Extra | Janela (a busca recusa o navegador sem janela, D-67) | `mercado.carrefour.com.br/s?q=` e `extramercado.com.br/busca?terms=` |
+| Carrefour | **Só PDF** desde 25/09/2026: o site recusa o navegador do sistema até na janela, com a pessoa navegando; a página entra pelo PDF salvo no navegador da própria pessoa | — |
+| Extra | Janela (a busca recusa o navegador sem janela, D-67); funcionou no piloto | `extramercado.com.br/busca?terms=` |
 
 ## 6. Lojas novas (25/09/2026)
 

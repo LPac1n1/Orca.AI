@@ -90,9 +90,12 @@ def pesquisar_lote(fila: Fila, tarefa_id: str, lote_id: str, lojas_escolhidas: l
         ja_pesquisados = {(o.item_id, dominio_da_url(o.url)) for o in observacoes
                           if o.encontrado and status[o.id] != "vermelho"}
         cobertura = Counter(o.item_id for o in observacoes if o.encontrado and o.preco_centavos)
-        for o in observacoes:  # código de barras de uma página já confirmada como o mesmo produto
-            if o.ean and status[o.id] == "verde":
-                eans.setdefault(o.item_id, o.ean)
+        # Código de barras para buscar nas outras lojas: o do item; senão, o de uma página 🟢; senão, o de uma
+        # página 🟡 (só como pista de busca: quem confirma continua sendo a comparação ou a pessoa, D-71).
+        for estado_da_pagina in ("verde", "amarelo"):
+            for o in observacoes:
+                if o.ean and status[o.id] == estado_da_pagina:
+                    eans.setdefault(o.item_id, o.ean)
 
     ordem = ordem_dos_itens([(i, i in eans) for i in especificacoes], cobertura)
     total = max(1, len(lojas) * len(ordem))
@@ -103,7 +106,7 @@ def pesquisar_lote(fila: Fila, tarefa_id: str, lote_id: str, lojas_escolhidas: l
         for loja in lojas:
             dominio = dominio_da_url("https://" + loja.dominio)
             r = {"loja": loja.nome, "loja_id": loja.id, "encontrados": 0, "sem_preco": [], "nao_encontrados": [],
-                 "erro": None}
+                 "indisponiveis": [], "erro": None}
             sem_relacao = 0  # buscas seguidas que trouxeram produtos, mas nenhum do tipo do item
             resumo.append(r)
             for item_id in ordem:
@@ -143,6 +146,8 @@ def pesquisar_lote(fila: Fila, tarefa_id: str, lote_id: str, lojas_escolhidas: l
                     r["encontrados"] += 1
                 elif situacao == "sem_preco":
                     r["sem_preco"].append(nomes[item_id])
+                elif situacao == "indisponivel":
+                    r["indisponiveis"].append(nomes[item_id])
                 else:
                     _registrar_nao_encontrado(fila, ritmo, dominio, loja, item_id, termo, candidatos, catalogo)
                     r["nao_encontrados"].append(nomes[item_id])  # D-68 (revista): a busca segue nos outros itens
@@ -153,10 +158,15 @@ def pesquisar_lote(fila: Fila, tarefa_id: str, lote_id: str, lojas_escolhidas: l
 
 def _candidatos(fila, cliente, ritmo, loja, item_id, termo, especificacao, vocabulario, eans, recusadas):
     """Pelo código de barras (se a loja aceita), pelo termo e, se não bastar, por um termo mais curto."""
-    candidatos = _buscar(fila, cliente, ritmo, loja, Consulta(termo, eans.get(item_id)))
-    if not candidatos and eans.get(item_id) and loja.aceita_ean:
-        candidatos = _buscar(fila, cliente, ritmo, loja, Consulta(termo))  # sem resultado pelo código: texto
-    candidatos = [c for c in candidatos if (item_id, c.url) not in recusadas]
+    candidatos = []
+    if eans.get(item_id) and loja.aceita_ean:
+        candidatos = [c for c in _buscar(fila, cliente, ritmo, loja, Consulta(termo, eans[item_id]))
+                      if (item_id, c.url) not in recusadas]
+        if avaliar_candidatos(especificacao, candidatos, vocabulario):
+            return candidatos  # o código de barras achou o produto: não precisa buscar pelo texto
+    vistos = {c.url for c in candidatos}  # sem resultado bom pelo código (ou sem código): pelo texto
+    candidatos += [c for c in _buscar(fila, cliente, ritmo, loja, Consulta(termo))
+                   if c.url not in vistos and (item_id, c.url) not in recusadas]
     tentados = {termo}
     for outro in (termo_curto(especificacao), termo_minimo(especificacao)):  # buscas mais abertas, se preciso
         if not outro or outro in tentados or bom_o_bastante(avaliar_candidatos(especificacao, candidatos, vocabulario)):
@@ -171,7 +181,7 @@ def _candidatos(fila, cliente, ritmo, loja, item_id, termo, especificacao, vocab
 def _capturar_melhor(fila, ritmo, dominio, loja, item_id, termo, candidatos, especificacao, vocabulario, eans) -> str:
     """Captura o melhor candidato (e o seguinte, se a página mostrar outro produto)."""
     ctx = fila.contexto
-    sem_preco = False
+    sem_preco = indisponivel = False
     for avaliado in avaliar_candidatos(especificacao, candidatos, vocabulario)[:TENTATIVAS_POR_ITEM]:
         ritmo.esperar(dominio)
         try:
@@ -183,14 +193,18 @@ def _capturar_melhor(fila, ritmo, dominio, loja, item_id, termo, candidatos, esp
                                    preco_da_busca=avaliado.candidato.preco_centavos)
         if resultado["correspondencia"] not in ("verde", "amarelo"):
             if resultado["preco_centavos"] is None and resultado["correspondencia"] is None:
-                sem_preco = True  # a página abriu, mas sem preço (ex.: a loja pede CEP)
+                if resultado.get("disponivel") is False:
+                    indisponivel = True  # a loja tem o produto, mas está em falta
+                else:
+                    sem_preco = True  # a página abriu, mas sem preço (ex.: a loja pede CEP)
             continue
-        if resultado["correspondencia"] == "verde":
-            with sessao_como(ctx.fabrica, "sistema:busca") as s:
-                ean = s.get(Observacao, resultado["observacao_id"]).ean
-            if ean:
-                eans.setdefault(item_id, ean)
+        with sessao_como(ctx.fabrica, "sistema:busca") as s:
+            ean = s.get(Observacao, resultado["observacao_id"]).ean
+        if ean:  # pista para as lojas seguintes (🟢 ou 🟡)
+            eans.setdefault(item_id, ean)
         return "encontrado"
+    if indisponivel:
+        return "indisponivel"
     return "sem_preco" if sem_preco else "nao_encontrado"
 
 
@@ -221,6 +235,8 @@ def _mensagem(resumo: list[dict], n_itens: int) -> str:
         texto = f"{r['loja']}: {r['encontrados']} de {n_itens}"
         if r["nao_encontrados"]:
             texto += " (não tem " + ", ".join(f"“{n}”" for n in r["nao_encontrados"]) + ")"
+        if r.get("indisponiveis"):
+            texto += " (em falta na loja: " + ", ".join(f"“{n}”" for n in r["indisponiveis"]) + ")"
         if r["sem_preco"]:
             texto += f" ({len(r['sem_preco'])} sem preço na página: use a captura com janela)"
         partes.append(texto)

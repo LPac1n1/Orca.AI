@@ -125,7 +125,8 @@ def test_lojas_sugeridas_para_o_lote(ambiente):
     lojas = {l["id"]: l for l in _ok(api.get(f"/api/lotes/{ids['lote']}/lojas-de-busca"))["lojas"]}
     assert lojas["gimba"]["sugerida"] and lojas["atacadao"]["sugerida"]  # papelaria e alimentos
     assert not lojas["kalunga"]["sugerida"]  # não vende alimentos
-    assert lojas["carrefour_mercado"]["modo"] == "assistida" and lojas["gimba"]["faltam"] == 2
+    assert lojas["extra_mercado"]["modo"] == "assistida" and lojas["gimba"]["faltam"] == 2
+    assert "carrefour_mercado" not in lojas  # recusa até a janela (25/09/2026): só o PDF do navegador da pessoa
 
 
 def test_busca_automatica_do_lote(ambiente):

@@ -36,3 +36,16 @@ def test_preco_da_busca_que_nao_esta_na_pagina_nao_vale(fabrica, armazem, ids):
     preco, _, avisos, _ = _registrar(fabrica, armazem, ids, TEXTO.replace("48,98", "52,00"), 4898)
     assert preco is None  # princípio 5: o preço é o da prova, nunca o da busca sozinho
     assert any("preço não encontrado na página" in a for a in avisos)
+
+
+def test_produto_em_falta_na_loja(fabrica, armazem, ids):
+    """Piloto, 25/09/2026: o suco existia no Atacadão, mas em falta; o sistema mandava abrir na janela."""
+    captura = captura_falsa(url="https://www.atacadao.com.br/suco-del-valle-100--uva-62894/p",
+                            html="<html><body>sem dados</body></html>",
+                            texto="Suco Del Valle 100% Uva 1L · Produto indisponível · Avise-me quando chegar")
+    with sessao_como(fabrica, USUARIO) as s:
+        evidencia = registrar_captura(s, armazem, captura)
+        r = registrar_observacao_item(s, s.get(Item, ids["item"]), captura, evidencia, catalogo=CATALOGO)
+        assert r.observacao.disponivel is False and r.observacao.preco_centavos is None
+        assert "o produto está indisponível (em falta) nesta loja" in r.avisos
+        assert not any("informe o preço" in a for a in r.avisos)

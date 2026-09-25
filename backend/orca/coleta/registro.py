@@ -6,6 +6,7 @@ dado que não esteja na página é inventado (princípio 1): o que falta vira av
 """
 
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from typing import Protocol
@@ -34,6 +35,8 @@ from orca.dominio import normalizar_cnpj
 from orca.evidencias import ArmazemArquivos
 
 SEM_VALIDACAO = "Não foi possível validar automaticamente"
+# a página diz que o produto está em falta (sem preço): não adianta abrir na janela
+_EM_FALTA = re.compile(r"\b(indispon[ií]vel|esgotado|fora de estoque|sem estoque|avise-me quando chegar)\b", re.I)
 FORMAS = {"pix": "no Pix", "boleto": "no boleto", "pix_ou_boleto": "no Pix ou boleto", "parcelado": "parcelado"}
 CEP_REGIONAL = ("regiao_por_cep", "pede_cep")
 
@@ -173,7 +176,10 @@ def registrar_observacao_item(
                       "informe o preço no Pix ou no boleto (D-60)")
     if captura.bloqueio:
         avisos.append(f"possível bloqueio de acesso automático: {captura.bloqueio}; use a captura assistida")
-    if preco is None:
+    em_falta = preco is None and _EM_FALTA.search(captura.texto_visivel or "") is not None
+    if em_falta:
+        avisos.append("o produto está indisponível (em falta) nesta loja")
+    elif preco is None:
         avisos.append(f"{SEM_VALIDACAO}: preço não encontrado na página; informe o preço que aparece nela")
     elif not conferido:
         avisos.append(f"{SEM_VALIDACAO}: o preço {formatar(preco)} não aparece no texto visível da página")
@@ -208,7 +214,7 @@ def registrar_observacao_item(
         ean=extraido.ean if extraido else None,
         preco_centavos=preco,
         encontrado=preco is not None,
-        disponivel=extraido.disponivel if extraido else None,
+        disponivel=False if em_falta else (extraido.disponivel if extraido else None),
         coletado_em=captura.capturado_em,
         cep=captura.cep,
         metodo=captura.metodo,

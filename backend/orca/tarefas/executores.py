@@ -65,6 +65,7 @@ def registrar_item(ctx: Contexto, p: dict, captura: Captura, autor: str = "siste
                                       preco_da_busca=preco_da_busca)
         s.flush()
         observacao_id, preco, avisos = r.observacao.id, r.observacao.preco_centavos, list(r.avisos)
+        disponivel = r.observacao.disponivel
         tem_ean = r.observacao.ean is not None
         cnpj, provedores = r.observacao.cnpj_vendedor, list(regras.cnpj.provedores)
     if (aviso := consultar_cnpj_novo(ctx, cnpj, provedores)) is not None:
@@ -79,6 +80,7 @@ def registrar_item(ctx: Contexto, p: dict, captura: Captura, autor: str = "siste
             sincronizar_pares_de_ean(s, organizacao_id)  # D-64: mesmo código de barras em outra loja
     mensagem = f"preço {formatar(preco)}" if preco is not None else "preço não encontrado na página"
     return {"observacao_id": observacao_id, "preco_centavos": preco, "correspondencia": status, "avisos": avisos,
+            "disponivel": disponivel,
             "bloqueio": captura.bloqueio, "mensagem": mensagem}
 
 

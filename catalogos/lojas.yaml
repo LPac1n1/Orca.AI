@@ -46,9 +46,8 @@ lojas:
     plataforma: vtex
     coleta: C1
     modo: navegador            # API recusa acesso simples (503)
-    busca:                     # D-67: a busca recusa o navegador sem janela (403, 23/09/2026); com janela visível funciona
-      modo: assistida
-      url: https://mercado.carrefour.com.br/s?q={termo}
+    # sem "busca": o site recusa o navegador do sistema até na janela, com a pessoa navegando (piloto, 25/09/2026).
+    # Só entra com o PDF da página salvo no navegador da própria pessoa (como o comprovante da Receita, D-14).
     ean: jsonld
     cnpj_site: [45.543.915/0736-50, 45.543.915/0846-95]
     cep: pede_cep

@@ -25,7 +25,8 @@ PAPEL = Especificacao("Papel sulfite A4 75g 500 folhas", "papel", "Chamex")
 def test_lojas_com_busca_no_catalogo():
     lojas = {l.id: l for l in lojas_de_busca(ler_catalogo_dados())}
     assert lojas["atacadao"].modo == "api_vtex" and lojas["kalunga"].modo == "pagina"
-    assert lojas["carrefour_mercado"].modo == "assistida" and not lojas["carrefour_mercado"].automatica
+    assert lojas["extra_mercado"].modo == "assistida" and not lojas["extra_mercado"].automatica
+    assert "carrefour_mercado" not in lojas  # recusa até a janela: só o PDF do navegador da pessoa
     assert lojas["kalunga"].endereco("papel a4") == "https://www.kalunga.com.br/busca/1?q=papel%20a4"
     assert lojas["kalunga"].atende({"papel", "caneta"}) and not lojas["tenda_atacado"].atende({"papel"})
     assert "mercado_livre" not in lojas  # exige login: só colando o link
