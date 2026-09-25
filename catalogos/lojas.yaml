@@ -5,10 +5,12 @@
 #   C2 = descoberta por buscador | C3 = agente de IA | C4 = captura assistida
 #   proposta = cotação por e-mail com o fornecedor
 # "busca" diz como o sistema pesquisa a loja (Fase 2, etapa 10; D-68):
-#   modo api_vtex = API pública de catálogo; modo pagina = página de busca do site
-#   ("produto" = pedaço do endereço de uma página de produto); modo assistida = a
-#   janela abre na busca e a pessoa escolhe o produto (D-67). Sem "busca": colar o link.
-#   Levantamento das buscas: 24/09/2026, uma requisição por loja.
+#   modo api_vtex = API pública de catálogo; api_vtex_is = busca pública das lojas VTEX novas;
+#   api_woocommerce = API pública de produtos (WordPress); modo pagina = página de busca do site
+#   ("produto" = pedaço do endereço de uma página de produto; "seletor" = a lista de resultados);
+#   modo assistida = a janela abre na busca e a pessoa escolhe o produto (D-67) — também quando
+#   o robots.txt da loja proíbe a busca por programas. Sem "busca": colar o link.
+#   Levantamentos: 24/09/2026 e 25/09/2026 (robots.txt, busca e uma página de produto por loja; docs/07 §5).
 # "precos_na_pagina" lista os preços encontrados; "preco_a_usar" segue as
 # decisões D-60 a D-63 (docs/01): preço no Pix (sem Pix, boleto; nunca parcelado), sem clube/assinatura,
 # promoção aberta a todos vale, sempre o preço unitário.
@@ -79,10 +81,9 @@ lojas:
     plataforma: propria_nextjs
     coleta: C1
     modo: acesso_simples       # dados embutidos em __NEXT_DATA__ e microdados
-    busca:
-      modo: pagina
+    busca:                     # o robots.txt proíbe /busca?q= para programas (25/09/2026): com janela
+      modo: assistida
       url: https://www.tendaatacado.com.br/busca?q={termo}
-      produto: /produto/
     ean: nao_encontrado
     cnpj_site: [01.157.555/0011-86]
     cep: a_verificar
@@ -116,10 +117,9 @@ lojas:
     plataforma: propria
     coleta: C1
     modo: navegador            # preço normal não aparece no HTML simples
-    busca:
-      modo: pagina
+    busca:                     # o robots.txt proíbe /?txt-busca= para programas (25/09/2026): com janela
+      modo: assistida
       url: https://www.gimba.com.br/?txt-busca={termo}
-      produto: PID=
     ean: nao_exibido
     cnpj_site: [54.651.716/0011-50]
     cep: a_verificar
@@ -144,6 +144,141 @@ lojas:
     cep: a_verificar
     acesso_simples: parcial    # produtos carregam por JavaScript
     observacoes: Detalhar na Fase 2.
+
+  # --- Lojas incluídas no levantamento de 25/09/2026 (docs/07 §5): robots.txt permite a busca,
+  # --- a busca responde sem janela e a página do produto mostra preço e CNPJ.
+
+  - id: pedagogica
+    nome: Pedagógica
+    dominio: pedagogica.com.br
+    categorias: [papelaria, escritorio]
+    plataforma: woocommerce
+    coleta: C1
+    busca:
+      modo: api_woocommerce
+      url: https://pedagogica.com.br/wp-json/wc/store/v1/products
+    ean: nao_exibido
+    cnpj_site: [45.403.243/0001-09]
+    cep: a_verificar
+    acesso_simples: ok
+    observacoes: "Papelaria e material pedagógico. A página do produto não tem dados estruturados: o preço é o que aparece na página."
+
+  - id: artpel
+    nome: Art Pel
+    dominio: www.artpel.com.br
+    categorias: [papelaria, escritorio]
+    plataforma: tray
+    coleta: C1
+    busca:
+      modo: pagina
+      url: https://www.artpel.com.br/loja/busca.php?loja=1106500&palavra_busca={termo}
+      produto: artpel.com.br/
+      seletor: .list-product
+    ean: jsonld
+    cnpj_site: [46.292.993/0001-13]
+    cep: a_verificar
+    acesso_simples: ok
+    observacoes: Papelaria (material escolar e de escritório).
+
+  - id: papelmaiscia
+    nome: Papel Mais Cia
+    dominio: www.papelmaiscia.com.br
+    categorias: [papelaria, escritorio]
+    plataforma: tray
+    coleta: C1
+    busca:
+      modo: pagina
+      url: https://www.papelmaiscia.com.br/loja/busca.php?loja=785722&palavra_busca={termo}
+      produto: papelmaiscia.com.br/
+      seletor: .list-product
+    ean: a_verificar
+    cnpj_site: [10.204.655/0001-35]
+    cep: a_verificar
+    acesso_simples: ok
+    observacoes: "Papelaria de Curitiba com entrega para todo o Brasil. Produto com variações (cores) pode não trazer o preço nos dados da página."
+
+  - id: oba_hortifruti
+    nome: Oba Hortifruti
+    dominio: www.obahortifruti.com.br
+    categorias: [alimentos, bebidas, limpeza]
+    plataforma: vtex
+    coleta: C0
+    busca:
+      modo: api_vtex_is
+      url: https://www.obahortifruti.com.br/api/io/_v/api/intelligent-search/product_search/
+    ean: api
+    cnpj_site: [04.972.092/0001-22]
+    cep: a_verificar
+    acesso_simples: ok
+    observacoes: Supermercado de São Paulo.
+
+  - id: sonda
+    nome: Sonda Supermercados
+    dominio: www.sondadelivery.com.br
+    categorias: [alimentos, bebidas, limpeza, descartaveis]
+    plataforma: propria
+    coleta: C1
+    busca:
+      modo: pagina
+      url: https://www.sondadelivery.com.br/delivery/busca/{termo}
+      produto: /delivery/produto/
+      seletor: .product-list
+    ean: jsonld
+    cnpj_site: [01.937.635/0029-83]
+    cep: a_verificar
+    acesso_simples: ok
+    observacoes: Supermercado de São Paulo.
+
+  - id: medlimp
+    nome: Medlimp Distribuidora
+    dominio: www.medlimp.com.br
+    categorias: [limpeza, descartaveis, utensilios]
+    plataforma: tray
+    coleta: C1
+    busca:
+      modo: pagina
+      url: https://www.medlimp.com.br/loja/busca.php?palavra_busca={termo}
+      produto: medlimp.com.br/
+      seletor: .list-product
+    ean: jsonld
+    cnpj_site: [05.341.252/0001-06]
+    cep: a_verificar
+    acesso_simples: ok
+    observacoes: "Limpeza, descartáveis e utensílios. Atende só a capital de São Paulo e o ABCDM (aviso no site)."
+
+  - id: lojas_mel
+    nome: Lojas Mel
+    dominio: www.lojasmel.com
+    categorias: [utensilios, limpeza, descartaveis]
+    plataforma: vtex
+    coleta: C0
+    busca:
+      modo: api_vtex_is
+      url: https://www.lojasmel.com/api/io/_v/api/intelligent-search/product_search/
+    ean: api
+    cnpj_site: [12.356.100/0039-07]
+    cep: a_verificar
+    acesso_simples: parcial     # a API antiga recusa acesso simples; a busca nova responde
+    precos_na_pagina: [preco_normal, preco_pix]
+    preco_a_usar: preco_pix      # D-60
+    observacoes: Utilidades domésticas.
+
+  - id: tokstok
+    nome: Tok&Stok
+    dominio: www.tokstok.com.br
+    categorias: [utensilios]
+    plataforma: vtex
+    coleta: C0
+    busca:
+      modo: api_vtex_is
+      url: https://www.tokstok.com.br/api/io/_v/api/intelligent-search/product_search/
+    ean: nao_exibido
+    cnpj_site: [49.732.175/0001-82]
+    cep: a_verificar
+    acesso_simples: ok
+    precos_na_pagina: [parcelado, preco_pix]
+    preco_a_usar: preco_pix      # D-60
+    observacoes: "Utensílios de cozinha e casa; a maioria dos produtos é da própria marca."
 
   - id: amazon
     nome: Amazon

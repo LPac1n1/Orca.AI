@@ -173,16 +173,18 @@ def _problemas_da_busca(loja: dict) -> list[str]:
     if busca is None:
         return []
     nome = loja.get("nome") or loja.get("id") or "?"
-    if not isinstance(busca, dict) or busca.get("modo") not in ("api_vtex", "pagina", "assistida"):
-        return [f"{nome}: o modo da busca deve ser api_vtex, pagina ou assistida"]
+    modos = ("api_vtex", "api_vtex_is", "api_woocommerce", "pagina", "assistida")
+    if not isinstance(busca, dict) or busca.get("modo") not in modos:
+        return [f"{nome}: o modo da busca deve ser " + ", ".join(modos[:-1]) + " ou " + modos[-1]]
     url = str(busca.get("url") or "")
     problemas = []
     if not url.startswith("https://"):
         problemas.append(f"{nome}: o endereço da busca deve começar com https://")
-    if busca["modo"] != "api_vtex" and "{termo}" not in url:
+    if not busca["modo"].startswith("api_") and "{termo}" not in url:
         problemas.append(f"{nome}: o endereço da busca precisa ter {{termo}} no lugar do que se pesquisa")
-    if busca["modo"] == "pagina" and not str(busca.get("produto") or "").strip():
-        problemas.append(f"{nome}: diga que pedaço aparece nos endereços de produto (ex.: /produto/)")
+    if busca["modo"] == "pagina" and not str(busca.get("produto") or "").strip() and not busca.get("seletor"):
+        problemas.append(f"{nome}: diga que pedaço aparece nos endereços de produto (ex.: /produto/) "
+                         "ou onde fica a lista de resultados")
     return problemas
 
 

@@ -159,9 +159,11 @@ def _registrar_pagina(pagina: Page, url_pedida: str, status: int | None, cep: st
 
 
 # Links de produto da página de busca: endereço, título e o texto do "cartão" (onde aparece o preço).
-_JS_RESULTADOS = """(padrao) => {
+_JS_RESULTADOS = """([padrao, seletor]) => {
     const vistos = new Map();
-    for (const a of document.querySelectorAll('a[href]')) {
+    const raizes = seletor ? [...document.querySelectorAll(seletor)] : [document];
+    const links = raizes.flatMap((r) => [...r.querySelectorAll('a[href]')]);
+    for (const a of links) {
         const href = a.href;
         if (!href || !href.startsWith('http') || !href.includes(padrao) || href.includes("'+")) continue;
         const img = a.querySelector('img');
@@ -221,9 +223,10 @@ class Navegador:
         finally:
             pagina.close()
 
-    def resultados_de_busca(self, url: str, padrao_produto: str) -> tuple[int | None, list[dict]]:
+    def resultados_de_busca(self, url: str, padrao_produto: str, seletor: str | None = None) -> tuple[int | None, list[dict]]:
         """Fase 2: abre a página de busca da loja e lê os links de produto (com o texto do cartão de cada um).
 
+        `seletor` restringe a leitura à lista de resultados (sem menus nem "sugestões").
         Não gera prova: a prova é a página do produto, capturada depois.
         """
         pagina = self._contexto.new_page()
@@ -236,7 +239,7 @@ class Navegador:
             for _ in range(3):  # os resultados podem carregar ao rolar
                 pagina.evaluate("window.scrollBy(0, window.innerHeight)")
                 pagina.wait_for_timeout(400)
-            return (resposta.status if resposta else None), pagina.evaluate(_JS_RESULTADOS, padrao_produto)
+            return (resposta.status if resposta else None), pagina.evaluate(_JS_RESULTADOS, [padrao_produto, seletor])
         except ErroPlaywright as e:
             raise ErroCaptura(f"Não foi possível abrir a busca {url}: {e}") from e
         finally:

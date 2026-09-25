@@ -284,7 +284,7 @@ function OutroValor({ aoEscolher }: { aoEscolher: (centavos: number) => void }) 
 interface LojaDeBusca {
   id: string;
   nome: string;
-  modo: "api_vtex" | "pagina" | "assistida";
+  modo: "api_vtex" | "api_vtex_is" | "api_woocommerce" | "pagina" | "assistida";
   sugerida: boolean;
   faltam: number;
 }

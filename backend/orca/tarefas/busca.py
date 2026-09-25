@@ -23,10 +23,13 @@ from orca.busca import (
     bom_o_bastante,
     buscar_na_pagina,
     buscar_vtex,
+    buscar_vtex_is,
+    buscar_woocommerce,
     lojas_de_busca,
     ordem_dos_itens,
     termo_curto,
     termo_de_busca,
+    termo_minimo,
 )
 from orca.coleta import ErroCaptura, dominio_da_url, registrar_captura, registrar_nao_encontrado
 from orca.coleta.pendencias import vigentes
@@ -41,6 +44,10 @@ def _buscar(fila: Fila, cliente: httpx.Client, ritmo: Ritmo, loja: LojaDeBusca, 
     ritmo.esperar(dominio_da_url("https://" + loja.dominio))
     if loja.modo == "api_vtex":
         return buscar_vtex(cliente, loja, consulta)
+    if loja.modo == "api_vtex_is":
+        return buscar_vtex_is(cliente, loja, consulta)
+    if loja.modo == "api_woocommerce":
+        return buscar_woocommerce(cliente, loja, Consulta(consulta.texto))
     return buscar_na_pagina(fila.navegador(), loja, Consulta(consulta.texto))  # a página de busca não recebe EAN
 
 
@@ -58,7 +65,7 @@ def buscar_lote(fila: Fila, tarefa_id: str, p: dict) -> dict:
         lojas = [l for l in lojas_de_busca(lojas_da_organizacao(s, organizacao_id)) if l.id in escolhidas and l.automatica]
         if not lojas:
             raise ErroTarefa("Nenhuma das lojas escolhidas tem busca automática.")
-        lojas.sort(key=lambda l: l.modo == "api_vtex")  # por último as que buscam pelo código de barras achado nas outras
+        lojas.sort(key=lambda l: l.aceita_ean)  # por último as que buscam pelo código de barras achado nas outras
         vocabulario = vocabulario_da_organizacao(s, organizacao_id)
         catalogo = catalogo_da_organizacao(s, organizacao_id)
         itens = [i for i in lote.itens if i.excluido_em is None]
@@ -125,13 +132,16 @@ def buscar_lote(fila: Fila, tarefa_id: str, p: dict) -> dict:
 def _candidatos(fila, cliente, ritmo, loja, item_id, termo, especificacao, vocabulario, eans, recusadas):
     """Pelo código de barras (se a loja aceita), pelo termo e, se não bastar, por um termo mais curto."""
     candidatos = _buscar(fila, cliente, ritmo, loja, Consulta(termo, eans.get(item_id)))
-    if not candidatos and eans.get(item_id) and loja.modo == "api_vtex":
+    if not candidatos and eans.get(item_id) and loja.aceita_ean:
         candidatos = _buscar(fila, cliente, ritmo, loja, Consulta(termo))  # sem resultado pelo código: texto
     candidatos = [c for c in candidatos if (item_id, c.url) not in recusadas]
-    curto = termo_curto(especificacao)
-    if curto and curto != termo and not bom_o_bastante(avaliar_candidatos(especificacao, candidatos, vocabulario)):
+    tentados = {termo}
+    for outro in (termo_curto(especificacao), termo_minimo(especificacao)):  # buscas mais abertas, se preciso
+        if not outro or outro in tentados or bom_o_bastante(avaliar_candidatos(especificacao, candidatos, vocabulario)):
+            continue
+        tentados.add(outro)
         vistos = {c.url for c in candidatos}
-        candidatos += [c for c in _buscar(fila, cliente, ritmo, loja, Consulta(curto))
+        candidatos += [c for c in _buscar(fila, cliente, ritmo, loja, Consulta(outro))
                        if c.url not in vistos and (item_id, c.url) not in recusadas]
     return candidatos
 

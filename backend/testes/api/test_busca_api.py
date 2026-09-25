@@ -32,16 +32,16 @@ def _pagina(url: str, ean: str, cnpj: str) -> Captura:
 
 
 class NavegadorDeBusca:
-    """Kalunga tem os dois itens; Gimba só o papel; o Atacadão responde pela API (não usa o navegador)."""
+    """Kalunga tem os dois itens; Lepok só o papel; o Atacadão responde pela API (não usa o navegador)."""
 
     def __init__(self):
         self.buscas: list[str] = []
         self.capturas: list[str] = []
 
-    def resultados_de_busca(self, url: str, padrao: str):
+    def resultados_de_busca(self, url: str, padrao: str, seletor: str | None = None):
         self.buscas.append(unquote(url))
         dominio = url.split("/")[2].removeprefix("www.")
-        eans = [PAPEL, PAPEL.replace("0", "9", 1)] if dominio == "gimba.com.br" else [PAPEL, LEITE]
+        eans = [PAPEL, PAPEL.replace("0", "9", 1)] if dominio == "lepok.com.br" else [PAPEL, LEITE]
         termo = unquote(url).lower()
         cartoes = []
         for ean in eans:
@@ -132,19 +132,20 @@ def test_busca_automatica_do_lote(ambiente):
     api, app, navegador, pedidos = ambiente
     ids = _lote(api)
     tarefas = _ok(api.post(f"/api/lotes/{ids['lote']}/busca",
-                           json={"lojas": ["kalunga", "atacadao", "gimba", "carrefour_mercado"]}), 202)["tarefas"]
+                           json={"lojas": ["kalunga", "atacadao", "lepok", "gimba"]}), 202)["tarefas"]
+    # a Gimba proíbe a busca por programas no robots.txt: uma janela por item (25/09/2026)
     assert [t["tipo"] for t in tarefas] == ["buscar_lote", "captura_assistida", "captura_assistida"]
-    assert all(t["parametros"]["url"].startswith("https://mercado.carrefour.com.br/s?q=") for t in tarefas[1:])
+    assert all(t["parametros"]["url"].startswith("https://www.gimba.com.br/?txt-busca=") for t in tarefas[1:])
     app.state.servico.fila.processar_proxima("principal")
     feita = _ok(api.get(f"/api/tarefas/{tarefas[0]['id']}"))
     assert feita["estado"] == "concluida", feita
     resumo = {r["loja"]: r for r in feita["resultado"]["resumo"]}
     assert resumo["Kalunga"]["encontrados"] == 2 and resumo["Atacadão"]["encontrados"] == 2
-    assert resumo["Gimba (Supricorp Suprimentos)"]["nao_encontrado"] == "Leite condensado 395g"
+    assert resumo["Lepok"]["nao_encontrado"] == "Leite condensado 395g"
 
     # o papel não tinha código de barras: achado na Kalunga, o Atacadão foi pesquisado por ele
     assert {"fq": f"alternateIds_Ean:{PAPEL}"} in pedidos and not any("ft" in p for p in pedidos)
-    # o item mais difícil (sem código de barras) primeiro; na Gimba, sem o leite, a busca parou
+    # o item mais difícil (sem código de barras) primeiro; na Lepok, sem o leite, a busca parou
     assert navegador.buscas[0].startswith("https://www.kalunga.com.br/busca/1?q=Papel sulfite")
 
     papel = {o["loja"]: o for o in _ok(api.get(f"/api/itens/{ids['papel']}/observacoes"))}
@@ -153,7 +154,7 @@ def test_busca_automatica_do_lote(ambiente):
     assert any("achado pela busca automática na Kalunga" in a for a in papel["Kalunga"]["avisos"])
     leite = _ok(api.get(f"/api/itens/{ids['leite']}/observacoes"))
     nao_achado = next(o for o in leite if not o["encontrado"])
-    assert "gimba" in nao_achado["url"] and nao_achado["evidencia_id"]
+    assert "lepok" in nao_achado["url"] and nao_achado["evidencia_id"]
     assert any("não encontrado na busca" in a for a in nao_achado["avisos"])
 
     # buscar de novo não repete o que já foi achado

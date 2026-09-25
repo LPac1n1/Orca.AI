@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from orca.correspondencia import Anuncio, Especificacao, Vocabulario, comparar, normalizar
+from orca.correspondencia.texto import PALAVRAS_VAZIAS, palavras_da_marca, raiz
 
 _ORDEM = {"verde": 0, "amarelo": 1}
 _ABREVIACOES = {"fl": "folhas", "fls": "folhas", "folha": "folhas", "un": "unidades", "und": "unidades",
@@ -37,7 +38,7 @@ class CandidatoAvaliado:
 
 
 def _palavras(texto: str) -> set[str]:
-    palavras = normalizar(texto).replace(",", " ").split()
+    palavras = [p.strip(".;:|()[]") for p in normalizar(texto).replace(",", " ").split()]  # "500 fl." = 500 folhas
     return {_ABREVIACOES.get(p, p) for p in palavras if len(p) > 1 or p.isdigit()}
 
 
@@ -59,9 +60,43 @@ def titulo_do_endereco(url: str) -> str:
     return re.sub(r"[-_]+", " ", max(partes, key=len)) if partes else ""
 
 
+PARECENCA_MINIMA = 0.3  # sem a palavra do tipo do produto no título, pelo menos isto de palavras em comum
+PARECENCA_COM_TIPO = 0.15  # com a palavra do tipo, ainda um mínimo (evita "Louro em folhas" para "Folha sulfite")
+
+
+def palavra_do_tipo(especificacao: Especificacao) -> str | None:
+    """A primeira palavra da descrição que diz o que o produto é ("Perfurador 4 furos" → perfurador)."""
+    for palavra in normalizar(especificacao.descricao).replace(",", " ").split():
+        if len(palavra) > 2 and palavra.isalpha() and palavra not in PALAVRAS_VAZIAS:
+            return raiz(palavra)
+    return None
+
+
+def _primeira_palavra(titulo: str, marca: str | None) -> str | None:
+    """A palavra que abre o título, sem contar a marca ("Bic Caneta Cristal" → caneta)."""
+    da_marca = palavras_da_marca(marca)
+    for palavra in (p.strip(".;:|()[]") for p in normalizar(titulo).replace(",", " ").split()):
+        if len(palavra) > 2 and palavra.isalpha() and palavra not in PALAVRAS_VAZIAS and raiz(palavra) not in da_marca:
+            return raiz(_ABREVIACOES.get(palavra, palavra))
+    return None
+
+
+def mesmo_tipo(especificacao: Especificacao, titulo: str, parecido: float, marca: str | None = None) -> bool:
+    """O título fala do mesmo tipo de produto (evita "Louro em folhas" para "Perfurador ... 10 folhas").
+
+    Busca de loja às vezes devolve sugestões sem relação quando não acha o produto (visto no piloto,
+    24/09/2026): elas não viram candidatos. O título precisa começar pelo tipo do item ("Grampos para
+    grampeador" não é um grampeador) ou ter muitas palavras em comum com ele.
+    """
+    tipo = palavra_do_tipo(especificacao)
+    if tipo and tipo == _primeira_palavra(titulo, marca or especificacao.marca):
+        return parecido >= PARECENCA_COM_TIPO
+    return parecido >= PARECENCA_MINIMA
+
+
 def avaliar_candidatos(especificacao: Especificacao, candidatos: list[Candidato], vocabulario: Vocabulario,
                        limite: int = 40) -> list[CandidatoAvaliado]:
-    """Os candidatos que podem ser o item, do melhor para o pior (🔴 ficam de fora)."""
+    """Os candidatos que podem ser o item, do melhor para o pior (🔴 e produtos de outro tipo ficam de fora)."""
     avaliados = []
     vistos = set()
     for c in candidatos[:limite]:
@@ -71,9 +106,10 @@ def avaliar_candidatos(especificacao: Especificacao, candidatos: list[Candidato]
         titulo = c.titulo or titulo_do_endereco(c.url)
         resultado = comparar(especificacao, Anuncio(titulo, c.marca, c.ean), vocabulario)
         status = resultado.status.value
-        if status not in _ORDEM:
+        parecido = parecenca(especificacao, titulo)
+        if status not in _ORDEM or not mesmo_tipo(especificacao, titulo, parecido, c.marca):
             continue
-        avaliados.append(CandidatoAvaliado(c, status, parecenca(especificacao, titulo), tuple(resultado.motivos)))
+        avaliados.append(CandidatoAvaliado(c, status, parecido, tuple(resultado.motivos)))
     return sorted(avaliados, key=lambda a: (_ORDEM[a.status], -a.parecenca))
 
 
@@ -106,6 +142,13 @@ def termo_curto(especificacao: Especificacao) -> str:
             continue
         resultado.append(palavra)
     return " ".join(resultado)
+
+
+def termo_minimo(especificacao: Especificacao) -> str:
+    """Última tentativa, para buscas que exigem todas as palavras: o tipo do produto e a marca ("Caneta Bic")."""
+    tipo = next((p for p in especificacao.descricao.split()
+                 if len(p) > 2 and normalizar(p).isalpha() and normalizar(p) not in PALAVRAS_VAZIAS), "")
+    return " ".join(p for p in (tipo, especificacao.marca) if p)
 
 
 def bom_o_bastante(avaliados: list[CandidatoAvaliado]) -> bool:

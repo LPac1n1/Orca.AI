@@ -55,7 +55,41 @@ Uma busca de teste por loja ("papel sulfite chamex a4"), sem login e sem aceitar
 |---|---|---|
 | Atacadão | API pública VTEX (`/io/api/catalog_system/pub/products/search`; o endereço antigo `/api/...` redireciona) | Traz nome, marca e código de barras; sem CEP o preço vem 0 e a página do produto não mostra preço: o produto é achado, mas o preço pede a captura com janela |
 | Kalunga | Página de busca (`/busca/1?q=`), links `/prod/` | Buscas longas trazem poucos produtos e podem esconder o produto comum; a segunda busca, sem as medidas, o encontra |
-| Gimba | Página de busca (`/?txt-busca=`), links com `PID=` | O preço principal da página de produto é o preço no Pix |
+| Gimba | **Janela** desde 25/09/2026: o robots.txt proíbe `/?txt-busca=` para programas | O preço principal da página de produto é o preço no Pix |
 | Lepok | Página de busca (`/busca/1?q=`), links `/produto/` | Devolve milhares de produtos; o sistema ordena pela semelhança |
-| Tenda | Página de busca (`/busca?q=`), links `/produto/` | Mostra "Sugestões" quando acha pouco |
+| Tenda | **Janela** desde 25/09/2026: o robots.txt proíbe `/busca?q=` para programas | Mostra "Sugestões" de outros produtos quando acha pouco (no piloto: louro, acelga e ventilador no lugar de material de escritório) |
 | Carrefour, Extra | Janela (a busca recusa o navegador sem janela, D-67) | `mercado.carrefour.com.br/s?q=` e `extramercado.com.br/busca?terms=` |
+
+## 6. Lojas novas (25/09/2026)
+
+Pedido do usuário: pelo menos 3 lojas que o sistema pesquise sozinho em cada grupo (escritório e pedagógico; alimentação; limpeza e utensílios). Para cada candidata, com poucos pedidos e o sistema identificado como Orça.AI: robots.txt, busca (API ou página, sem janela) e uma página de produto aberta pelo navegador do sistema, conferindo preço e CNPJ.
+
+**Incluídas (busca automática):**
+
+| Loja | Grupo | Como o sistema pesquisa | Página do produto |
+|---|---|---|---|
+| Pedagógica (pedagogica.com.br) | escritório e pedagógico | API pública do WooCommerce (`/wp-json/wc/store/v1/products`) | CNPJ 45.403.243/0001-09 no rodapé; sem dados estruturados (o preço é o que aparece na página) |
+| Art Pel | escritório e pedagógico | página de busca da Tray (`/loja/busca.php`), só a lista `.list-product` | JSON-LD com preço, marca e código de barras; CNPJ 46.292.993/0001-13 |
+| Papel Mais Cia | escritório e pedagógico | página de busca da Tray, lista `.list-product` | CNPJ 10.204.655/0001-35; produto com variações (cores) pode vir sem preço nos dados |
+| Oba Hortifruti | alimentação (e limpeza) | busca pública da VTEX nova (`/api/io/_v/api/intelligent-search/product_search/`) | JSON-LD com preço e código de barras; CNPJ 04.972.092/0001-22 |
+| Sonda Supermercados | alimentação (e limpeza) | página de busca (`/delivery/busca/<termo>`), lista `.product-list`, links `/delivery/produto/` | JSON-LD com preço e código de barras; CNPJ 01.937.635/0029-83 |
+| Medlimp Distribuidora | limpeza e utensílios | página de busca da Tray, lista `.list-product` | JSON-LD com preço e código de barras; CNPJ 05.341.252/0001-06. Atende só a capital de SP e o ABCDM |
+| Lojas Mel | utensílios e limpeza | busca pública da VTEX nova | JSON-LD; preço no Pix; CNPJ 12.356.100/0039-07 |
+| Tok&Stok | utensílios | busca pública da VTEX nova | JSON-LD; preço no Pix; CNPJ 49.732.175/0001-82; quase tudo da própria marca |
+
+Com as antigas, os grupos ficam: escritório e pedagógico — Kalunga, Lepok, Pedagógica, Art Pel, Papel Mais Cia; alimentação — Atacadão, Oba, Sonda; limpeza e utensílios — Medlimp, Lojas Mel, Tok&Stok (e as de alimentação e a Kalunga, que também vendem limpeza).
+
+O Atacadão também responde na busca nova da VTEX; com a região do CEP (`/api/checkout/pub/regions`) a prévia traz o preço (sem ela, 0). A página do produto já mostrou o preço sem CEP neste levantamento.
+
+**Não incluídas:**
+
+| Loja | Motivo |
+|---|---|
+| Tilibra Express, Martins, TK Shopping, Livrarias Curitiba, Savegnago, Pão de Açúcar, St Marche, e.dona, Supriflex, Havan, MadeiraMadeira | o robots.txt proíbe a busca para programas |
+| Atacado Papelândia, Camicado, Leroy Merlin | recusam o acesso (403) |
+| Sam's Club, Mambo | a busca responde, mas a página do produto não abre no navegador sem janela (podem entrar com janela) |
+| Super Muffato | não atende o CEP da cidade de São Paulo |
+| Giassi, Zaffari | só atendem o Sul (e o Zaffari proíbe a API no robots.txt) |
+| Casa & Vídeo | marketplace (vendedores parceiros) e o robots.txt proíbe `/api/` |
+| Lojas Becker, Dia, Nagumo | a busca não pôde ser lida sem janela |
+

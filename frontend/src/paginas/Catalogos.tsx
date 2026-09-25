@@ -287,13 +287,17 @@ const COLETAS: Record<string, string> = {
 
 type Grupo = "lojas" | "fornecedores_servico";
 
-type Busca = { modo: "api_vtex" | "pagina" | "assistida"; url: string; produto?: string };
+type Busca = {
+  modo: "api_vtex" | "api_vtex_is" | "api_woocommerce" | "pagina" | "assistida"; url: string; produto?: string; seletor?: string;
+};
 
 const MODOS_DE_BUSCA: Record<string, string> = {
   "": "sem busca: só colando o link",
   pagina: "o sistema pesquisa na página de busca do site",
-  assistida: "com janela: você escolhe o produto (lojas que recusam programas)",
-  api_vtex: "API pública de catálogo (VTEX)",
+  assistida: "com janela: você escolhe o produto (lojas que recusam programas ou que proíbem no robots.txt)",
+  api_vtex: "API pública de catálogo (VTEX, antiga)",
+  api_vtex_is: "busca pública das lojas VTEX novas",
+  api_woocommerce: "API pública de produtos (WooCommerce / WordPress)",
 };
 
 function FormularioDeLoja({ inicial, grupo, aoSalvar, aoFechar }: {
@@ -340,9 +344,15 @@ function FormularioDeLoja({ inicial, grupo, aoSalvar, aoFechar }: {
                   <input value={busca.url} onChange={(e) => mudarBusca({ url: e.target.value })} placeholder="https://www.loja.com.br/busca?q={termo}" />
                 </Campo>
                 {busca.modo === "pagina" && (
-                  <Campo rotulo="Endereço de produto contém" ajuda="Um pedaço que só aparece nos links de produto, ex.: /produto/">
-                    <input value={busca.produto ?? ""} onChange={(e) => mudarBusca({ produto: e.target.value })} />
-                  </Campo>
+                  <>
+                    <Campo rotulo="Endereço de produto contém" ajuda="Um pedaço que só aparece nos links de produto, ex.: /produto/">
+                      <input value={busca.produto ?? ""} onChange={(e) => mudarBusca({ produto: e.target.value })} />
+                    </Campo>
+                    <Campo rotulo="Lista de resultados (opcional)"
+                      ajuda="Seletor CSS da lista de produtos na página de busca (ex.: .list-product). Menus e “sugestões” fora dela não são lidos.">
+                      <input value={busca.seletor ?? ""} onChange={(e) => mudarBusca({ seletor: e.target.value || undefined })} />
+                    </Campo>
+                  </>
                 )}
               </div>
             )}
