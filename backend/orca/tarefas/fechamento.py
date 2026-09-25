@@ -14,6 +14,7 @@ import httpx
 from orca.banco import Lote, especificacao_do_item, sessao_como
 from orca.busca import ErroBusca, Ritmo, lojas_de_busca, termo_de_busca
 from orca.busca.alternativas import especificacao_sem_marca, produtos_nas_lojas
+from orca.busca.serpapi import buscar_na_web
 from orca.coleta import ErroCaptura, dominio_da_url
 from orca.fluxo.catalogos import lojas_da_organizacao, vocabulario_da_organizacao
 from orca.fluxo.estado import estado_do_projeto
@@ -55,6 +56,16 @@ def fechar_lote(fila: Fila, tarefa_id: str, p: dict) -> dict:
         especificacoes = {i.id: especificacao_do_item(i) for i in estado_lote.itens}
         nomes = {i.id: i.descricao for i in estado_lote.itens}
         vocabulario = vocabulario_da_organizacao(s, organizacao_id)
+        # código de barras de cada item: o do item ou o do produto de referência (D-71)
+        codigos = {i.id: i.ean or (estado_lote.referencias[i.id].ean if i.id in estado_lote.referencias else None)
+                   for i in estado_lote.itens}
+        # lojas que já têm o item: página dele que não foi recusada (🔴 é outro produto)
+        dominios_com_item = {i.id: {dominio_da_url(o.url) for (loja_id, item_id), o in estado_lote.observacoes.items()
+                                    if item_id == i.id and getattr(estado_lote.correspondencias.get((i.id, o.id)),
+                                                                   "status", None) != "vermelho"}
+                             for i in estado_lote.itens}
+        lojas_do_catalogo = {e_["dominio"].removeprefix("www."): e_["nome"]
+                             for e_ in lojas_da_organizacao(s, organizacao_id).get("lojas") or []}
 
     alternativas: dict[str, list[dict]] = {}
     avisos = []
@@ -78,6 +89,9 @@ def fechar_lote(fila: Fila, tarefa_id: str, p: dict) -> dict:
         finally:
             cliente.close()
 
+    pelo_codigo = _pelo_codigo_no_google(fila, tarefa_id, [i for i in f.faltando if codigos.get(i)][:ITENS_PARA_TROCAR],
+                                         codigos, dominios_com_item, lojas_do_catalogo, avisos)
+
     resultado_lojas = [{"loja_id": l.id, "loja": l.nome, "tem": len(l.tem),
                         "faltam": [nomes[i] for i in l.faltam]} for l in f.lojas]
     com_opcao = sum(1 for opcoes in alternativas.values() if opcoes)
@@ -89,7 +103,47 @@ def fechar_lote(fila: Fila, tarefa_id: str, p: dict) -> dict:
         partes.append(f"{len(f.a_confirmar)} item(ns) para você confirmar o produto")
     return {"resumo": resumo, "lojas": resultado_lojas, "melhores": [l.id for l in f.melhores],
             "faltando": {i: list(lojas) for i, lojas in f.faltando.items()}, "alternativas": alternativas,
+            "pelo_codigo": pelo_codigo,
             "a_confirmar": list(f.a_confirmar), "avisos": avisos, "mensagem": " — ".join(partes)}
+
+
+LINKS_PELO_CODIGO = 5
+
+
+def _pelo_codigo_no_google(fila, tarefa_id, itens, codigos, dominios_com_item, lojas_do_catalogo,
+                           avisos) -> dict[str, list[dict]]:
+    """C2 (D-67, D-70): outras lojas com o mesmo código de barras, pela busca do Google (SerpApi, opcional).
+
+    Só aponta páginas: a pessoa escolhe quais o sistema lê (e, lida a página, o mesmo código de barras da
+    referência vira 🟢 sozinho, D-71). Uma busca do plano grátis por item.
+    """
+    ctx = fila.contexto
+    chave = ctx.cofre.ler("serpapi") if ctx.cofre and itens else None
+    if not chave:
+        return {}
+    resultado: dict[str, list[dict]] = {}
+    cliente = ctx.cliente_http() if ctx.cliente_http else httpx.Client()
+    try:
+        for item_id in itens:
+            fila.progresso(tarefa_id, 99, f"Google: código de barras {codigos[item_id]}")
+            try:
+                achados = buscar_na_web(cliente, chave, codigos[item_id])
+            except ErroBusca as erro:
+                avisos.append(str(erro))
+                break
+            links = []
+            for c in achados:
+                dominio = dominio_da_url(c.url)
+                if dominio in dominios_com_item.get(item_id, set()) or any(d["dominio"] == dominio for d in links):
+                    continue  # a loja já tem página do item; uma página por loja
+                links.append({"url": c.url, "titulo": c.titulo, "dominio": dominio, "loja": lojas_do_catalogo.get(dominio),
+                              "preco_centavos": c.preco_centavos})
+                if len(links) == LINKS_PELO_CODIGO:
+                    break
+            resultado[item_id] = links
+    finally:
+        cliente.close()
+    return resultado
 
 
 def _outras_marcas(fila, cliente, ritmo, melhores, busca_da_loja, item_id, especificacao, vocabulario,

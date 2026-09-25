@@ -102,6 +102,7 @@ lojas:
       modo: pagina
       url: https://www.kalunga.com.br/busca/1?q={termo}
       produto: /prod/
+      ean: true                # a busca acha o produto pelo código de barras (conferido em 25/09/2026)
     ean: nao_exibido           # só código interno
     cnpj_site: [43.283.811/0001-50]
     cep: a_verificar

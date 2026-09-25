@@ -785,6 +785,7 @@ interface SituacaoDoFechamento {
   ultima: null | {
     tarefa_id: string; estado: Tarefa["estado"]; mensagem: string | null; progresso: number;
     alternativas: Record<string, OpcaoDoFechamento[]>; avisos: string[];
+    pelo_codigo?: Record<string, { url: string; titulo: string; dominio: string; loja: string | null; preco_centavos: number | null }[]>;
   };
 }
 
@@ -829,6 +830,7 @@ function FechamentoDoLote({ lote, versao, atualizar, aoFechar }: {
   const { dados } = useDados<SituacaoDoFechamento>(`/api/lotes/${lote.id}/fechamento`, versao);
   const [confirmar, setConfirmar] = useState(false);
   const [troca, setTroca] = useState<{ item: ItemRevisao; indice: number; opcao: OpcaoDoFechamento } | null>(null);
+  const [lidas, setLidas] = useState<Set<string>>(new Set());  // páginas pedidas pelo código de barras
   if (!dados || dados.lojas.length === 0) return null;
   const ultima = dados.ultima;
   const rodando = ultima !== null && (ultima.estado === "pendente" || ultima.estado === "rodando");
@@ -874,6 +876,24 @@ function FechamentoDoLote({ lote, versao, atualizar, aoFechar }: {
                         )}
                       </div>
                     ))}
+                    {(ultima?.pelo_codigo?.[f.item_id] ?? []).length > 0 && (
+                      <div className="pequeno">
+                        Outras lojas com o <strong>mesmo código de barras</strong> (busca do Google):
+                        {ultima!.pelo_codigo![f.item_id].map((l) => (
+                          <div key={l.url} className="opcao-troca">
+                            <a href={l.url} target="_blank" rel="noreferrer noopener">{l.loja ?? l.dominio}</a>
+                            <span className="discreto">{l.titulo}{l.preco_centavos ? ` · prévia ${reais(l.preco_centavos)}` : ""}</span>
+                            {lidas.has(l.url)
+                              ? <span>pedido: veja o quadro Tarefas</span>
+                              : <BotaoAcao classe="secundario pequeno" aoClicar={async () => {
+                                  await api.criar(`/api/itens/${f.item_id}/coletas`, { url: l.url });
+                                  setLidas(new Set([...lidas, l.url]));
+                                  atualizar();
+                                }}>Ler a página</BotaoAcao>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {opcoes.length === 0 && (
                       <div className="discreto pequeno">
                         {ultima?.estado === "concluida"
@@ -889,6 +909,12 @@ function FechamentoDoLote({ lote, versao, atualizar, aoFechar }: {
         )}
       </ol>
       {ultima && ultima.avisos.length > 0 && <ul className="pequeno">{ultima.avisos.map((a) => <li key={a}>{a}</li>)}</ul>}
+      {dados.faltando.length > 0 && ultima && !ultima.pelo_codigo && (
+        <p className="discreto pequeno">
+          Com a chave grátis da SerpApi (em Opcionais), o “Fechar o lote” também procura no Google outras lojas com o mesmo
+          código de barras dos itens que faltam.
+        </p>
+      )}
       {confirmar && <ConfirmarProdutos lote={lote} aoFechar={() => setConfirmar(false)} atualizar={atualizar} />}
       {troca && ultima && (
         <TrocaDoFechamento item={troca.item} tarefaId={ultima.tarefa_id} indice={troca.indice} opcao={troca.opcao}

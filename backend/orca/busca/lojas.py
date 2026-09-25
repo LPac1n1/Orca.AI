@@ -47,6 +47,7 @@ class LojaDeBusca:
     produto: str | None
     categorias: tuple[str, ...]
     seletor: str | None = None  # a lista de resultados na página de busca (modo pagina)
+    busca_ean: bool = False  # a página de busca acha o produto pelo código de barras (ex.: Kalunga)
 
     @property
     def automatica(self) -> bool:
@@ -54,7 +55,7 @@ class LojaDeBusca:
 
     @property
     def aceita_ean(self) -> bool:
-        return self.modo in MODOS_COM_EAN
+        return self.modo in MODOS_COM_EAN or (self.modo == "pagina" and self.busca_ean)
 
     def endereco(self, termo: str) -> str:
         """Endereço da busca (para a página e para a janela da captura assistida).
@@ -82,6 +83,6 @@ def lojas_de_busca(catalogo: dict) -> list[LojaDeBusca]:
         lojas.append(LojaDeBusca(
             id=entrada["id"], nome=entrada["nome"], dominio=entrada["dominio"], modo=busca["modo"], url=busca["url"],
             produto=busca.get("produto"), categorias=tuple(entrada.get("categorias") or ()),
-            seletor=busca.get("seletor") or None,
+            seletor=busca.get("seletor") or None, busca_ean=bool(busca.get("ean")),
         ))
     return lojas

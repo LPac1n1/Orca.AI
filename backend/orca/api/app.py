@@ -743,6 +743,8 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
                            "progresso": ultima.progresso,
                            "alternativas": {i: o for i, o in ((ultima.resultado or {}).get("alternativas") or {}).items()
                                             if i in nomes},
+                           "pelo_codigo": {i: o for i, o in ((ultima.resultado or {}).get("pelo_codigo") or {}).items()
+                                           if i in nomes},
                            "avisos": (ultima.resultado or {}).get("avisos", [])} if ultima else None,
             }
 

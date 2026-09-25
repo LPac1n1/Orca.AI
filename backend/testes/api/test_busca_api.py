@@ -146,7 +146,10 @@ def test_busca_automatica_do_lote(ambiente):
     # o papel não tinha código de barras: achado na Kalunga, o Atacadão foi pesquisado por ele
     assert {"fq": f"alternateIds_Ean:{PAPEL}"} in pedidos and not any("ft" in p for p in pedidos)
     # o item mais difícil (sem código de barras) primeiro; na Lepok, sem o leite, a busca seguiu (D-68 revista)
-    assert navegador.buscas[0].startswith("https://www.kalunga.com.br/busca/1?q=Papel sulfite")
+    assert navegador.buscas[0].startswith("https://www.lepok.com.br/busca/papel-sulfite")
+    # a Kalunga acha pelo código de barras: é pesquisada depois, já com o código (e, sem resultado, pelo texto)
+    kalunga = [b for b in navegador.buscas if "kalunga" in b]
+    assert f"q={LEITE}" in " ".join(kalunga) and any("q=Leite" in b for b in kalunga)
 
     papel = {o["loja"]: o for o in _ok(api.get(f"/api/itens/{ids['papel']}/observacoes"))}
     assert papel["Atacadão"]["url"] == f"https://www.atacadao.com.br/p/{PAPEL}/p"

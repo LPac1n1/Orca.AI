@@ -161,3 +161,45 @@ def test_sugestoes_mesmo_com_a_loja_mais_completa_so_na_janela(ambiente):
     assert "Spiral" in opcao["titulo"] and len(opcao["lojas"]) == 3
     assert any("sem busca automática" in a for a in r["avisos"])
 
+
+
+def test_outras_lojas_pelo_codigo_de_barras_no_google(tmp_path):
+    """C2 (D-67, D-70): o código de barras do item que falta é procurado no Google; a pessoa escolhe o que ler."""
+    import httpx
+
+    from orca.cofre import CofreEmMemoria
+
+    pedidos = []
+
+    def responder(pedido: httpx.Request) -> httpx.Response:
+        if pedido.url.host == "serpapi.com":
+            pedidos.append(pedido.url.params["q"])
+            return httpx.Response(200, json={"organic_results": [
+                {"title": "Grampeador Goller GE-309 - Lepok", "link": "https://www.lepok.com.br/p/goller"},  # já tem
+                {"title": "Grampeador de Mesa Goller 26/6 GE-309", "link": "https://www.papelariax.com.br/goller-ge309",
+                 "snippet": "R$ 19,90 à vista"},
+                {"title": "Grampeador Goller 26/6", "link": "https://www.papelariax.com.br/outra-pagina"},  # mesma loja
+                {"title": "Grampeador Goller GE-309 | Kalunga", "link": "https://www.kalunga.com.br/prod/goller"},
+            ]})
+        return cliente_cnpj()._transport.handle_request(pedido)
+
+    config = Configuracao(str(tmp_path / "dados"), "Leonardo")
+    contexto = contexto_padrao(config, abrir_navegador=abrir_navegador_falso(Lojas()),
+                               cliente_http=lambda: httpx.Client(transport=httpx.MockTransport(responder)),
+                               cofre=CofreEmMemoria(serpapi="serp-123"), hoje=lambda: date(2026, 9, 25), intervalo_busca_s=0)
+    app = criar_app(config, contexto, iniciar_trabalhador=False)
+    with TestClient(app, base_url="http://localhost:8765", headers={"X-Orca": "1"}) as api:
+        ids = _lote(api)
+        novo = _ok(api.post(f"/api/itens/{ids['grampeador']}/trocar-produto", json={
+            "ean": GOLLER[3], "justificativa": "código de barras do Goller GE-309"}), 201)  # ainda não pesquisado
+        [tarefa] = _ok(api.post(f"/api/lotes/{ids['lote']}/fechar",
+                                json={"lojas": ["kalunga", "lepok", "artpel"]}), 202)["tarefas"]
+        app.state.servico.fila.processar_proxima("principal")
+        r = _ok(api.get(f"/api/tarefas/{tarefa['id']}"))["resultado"]
+        links = r["pelo_codigo"][novo["id"]]
+        assert pedidos == [GOLLER[3]]  # uma busca por item que falta
+        assert [l["dominio"] for l in links] == ["papelariax.com.br", "kalunga.com.br"]  # a Lepok já tem; uma por loja
+        assert links[0]["preco_centavos"] == 1990 and links[1]["loja"] == "Kalunga"
+        assert "serp-123" not in json.dumps(r)
+        situacao = _ok(api.get(f"/api/lotes/{ids['lote']}/fechamento"))
+        assert situacao["ultima"]["pelo_codigo"][novo["id"]][0]["url"] == "https://www.papelariax.com.br/goller-ge309"

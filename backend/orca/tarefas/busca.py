@@ -50,7 +50,9 @@ def _buscar(fila: Fila, cliente: httpx.Client, ritmo: Ritmo, loja: LojaDeBusca, 
         return buscar_vtex_is(cliente, loja, consulta)
     if loja.modo == "api_woocommerce":
         return buscar_woocommerce(cliente, loja, Consulta(consulta.texto))
-    return buscar_na_pagina(fila.navegador(), loja, Consulta(consulta.texto))  # a página de busca não recebe EAN
+    if loja.busca_ean and consulta.ean:  # a página de busca da loja acha o produto pelo código de barras
+        return buscar_na_pagina(fila.navegador(), loja, Consulta(consulta.ean))
+    return buscar_na_pagina(fila.navegador(), loja, Consulta(consulta.texto))
 
 
 @tarefa("buscar_lote")

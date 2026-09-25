@@ -54,7 +54,7 @@ Uma busca de teste por loja ("papel sulfite chamex a4"), sem login e sem aceitar
 | Loja | Como o sistema pesquisa | Observações |
 |---|---|---|
 | Atacadão | API pública VTEX (`/io/api/catalog_system/pub/products/search`; o endereço antigo `/api/...` redireciona) | Traz nome, marca e código de barras; sem CEP o preço vem 0 e a página do produto não mostra preço: o produto é achado, mas o preço pede a captura com janela |
-| Kalunga | Página de busca (`/busca/1?q=`), links `/prod/` | Buscas longas trazem poucos produtos e podem esconder o produto comum; a segunda busca, sem as medidas, o encontra |
+| Kalunga | Página de busca (`/busca/1?q=`), links `/prod/`; **acha pelo código de barras** (conferido em 25/09/2026) | Buscas longas trazem poucos produtos e podem esconder o produto comum; a segunda busca, sem as medidas, o encontra |
 | Gimba | **Janela** desde 25/09/2026: o robots.txt proíbe `/?txt-busca=` para programas | O preço principal da página de produto é o preço no Pix |
 | Lepok | Página de busca `/busca/<termo-com-hifens>` desde 25/09/2026 (o endereço antigo `/busca/1?q=` passou a mostrar os mais vendidos), só a lista `.box-product-div-busca`, links `/produto/` | Sem resultado, mostra os mais vendidos na mesma lista: o filtro de "mesmo tipo" os descarta |
 | Tenda | **Janela** desde 25/09/2026: o robots.txt proíbe `/busca?q=` para programas | Mostra "Sugestões" de outros produtos quando acha pouco (no piloto: louro, acelga e ventilador no lugar de material de escritório) |
