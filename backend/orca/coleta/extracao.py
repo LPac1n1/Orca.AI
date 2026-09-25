@@ -191,6 +191,38 @@ def extrair_produto(html: str) -> ProdutoExtraido | None:
     return None
 
 
+_OG_IMAGE = re.compile(
+    r"<meta[^>]+(?:property|name)=[\"']og:image[\"'][^>]*content=[\"']([^\"']+)[\"']"
+    r"|<meta[^>]+content=[\"']([^\"']+)[\"'][^>]*(?:property|name)=[\"']og:image[\"']", re.I)
+
+
+def _primeira_imagem(valor: Any) -> str | None:
+    if isinstance(valor, str):
+        return valor
+    if isinstance(valor, list):
+        return next((i for i in (_primeira_imagem(v) for v in valor) if i), None)
+    if isinstance(valor, dict):
+        return _primeira_imagem(valor.get("url") or valor.get("contentUrl"))
+    return None
+
+
+def imagem_da_pagina(html: str, url_base: str) -> str | None:
+    """A foto do produto, para mostrar ao lado das outras lojas (D-73): dos dados do produto ou do og:image.
+
+    Só ajuda a pessoa a decidir; nunca decide sozinha (a mesma foto serve para 395 g e 1 kg).
+    """
+    from urllib.parse import urljoin
+
+    candidatas = [_primeira_imagem(o.get("image")) for o in objetos_jsonld(html) if _tipo(o, "Product")]
+    candidatas += [a or b for a, b in _OG_IMAGE.findall(html[:300_000])]
+    for imagem in candidatas:
+        if imagem:
+            endereco = urljoin(url_base, html_lib.unescape(imagem.strip()))
+            if endereco.startswith(("https://", "http://")):
+                return endereco
+    return None
+
+
 def extrair_vaga(html: str) -> VagaExtraida | None:
     vagas = [o for o in objetos_jsonld(html) if _tipo(o, "JobPosting")]
     if not vagas:

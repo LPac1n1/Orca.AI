@@ -12,6 +12,7 @@ from orca.correspondencia.comparar import (
     ResultadoCorrespondencia,
     Situacao,
     comparar,
+    comparar_com_referencia,
 )
 from orca.correspondencia.medidas import LEITORES, Quantidade
 from orca.correspondencia.sugestoes import Sugestao, sugerir
@@ -33,6 +34,7 @@ __all__ = [
     "Vocabulario",
     "avaliar",
     "comparar",
+    "comparar_com_referencia",
     "normalizar",
     "pares_do_sistema",
     "sugerir",

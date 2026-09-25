@@ -4,13 +4,22 @@
 - Uma pessoa pode confirmar (promover 🟡 para 🟢, sempre manual — princípio 4) ou
   recusar; a decisão é um registro novo com origem `humano`, e o anterior fica no histórico.
 - A decisão que vale é a mais recente.
+- Produto de referência (D-71): a página que uma pessoa confirmou como o item; as outras são
+  comparadas também com ela (mesmo código de barras, mesmos atributos).
 """
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from orca.banco.tabelas import Correspondencia, Item, Observacao
-from orca.correspondencia import Anuncio, Especificacao, ResultadoCorrespondencia, Vocabulario, comparar
+from orca.banco.tabelas import Correspondencia, Decisao, Item, Observacao
+from orca.correspondencia import (
+    Anuncio,
+    Especificacao,
+    ResultadoCorrespondencia,
+    Vocabulario,
+    comparar,
+    comparar_com_referencia,
+)
 from orca.dominio import Autor, OrigemCorrespondencia, StatusCorrespondencia
 from orca.regras import PerfilRegras as Regras
 
@@ -53,12 +62,59 @@ def registrar_correspondencia(
     return correspondencia
 
 
+def comparar_observacao(sessao: Session, item: Item, observacao: Observacao,
+                        vocabulario: Vocabulario) -> ResultadoCorrespondencia:
+    """A cascata, com o produto de referência do item quando há um (D-71). Não grava."""
+    referencia = referencia_do_item(sessao, item)
+    especificacao, anuncio = especificacao_do_item(item), anuncio_da_observacao(observacao)
+    if referencia is not None and referencia.id != observacao.id:
+        return comparar_com_referencia(especificacao, anuncio_da_observacao(referencia), anuncio, vocabulario)
+    return comparar(especificacao, anuncio, vocabulario)
+
+
 def corresponder(sessao: Session, item: Item, observacao: Observacao, vocabulario: Vocabulario) -> Correspondencia:
     """Compara o item com a observação (sem IA) e grava o resultado."""
     if observacao.alvo_tipo != "item" or observacao.item is not item:
         raise ErroCorrespondencia("A observação não é deste item.")
-    resultado = comparar(especificacao_do_item(item), anuncio_da_observacao(observacao), vocabulario)
-    return registrar_correspondencia(sessao, item, observacao, resultado)
+    return registrar_correspondencia(sessao, item, observacao, comparar_observacao(sessao, item, observacao, vocabulario))
+
+
+# --- Produto de referência (D-71) ---------------------------------------------------------------
+
+TIPO_REFERENCIA = "produto_referencia"
+
+
+def referencia_do_item(sessao: Session, item: Item) -> Observacao | None:
+    """A página escolhida como referência, enquanto a decisão vigente dela for 🟢 de uma pessoa."""
+    decisao = sessao.scalars(
+        select(Decisao)
+        .where(Decisao.tipo == TIPO_REFERENCIA, Decisao.alvo_tipo == "item", Decisao.alvo_id == item.id)
+        .order_by(Decisao.criado_em.desc(), Decisao.id.desc())
+    ).first()
+    if decisao is None or not (decisao.valor or {}).get("observacao"):
+        return None
+    observacao = sessao.get(Observacao, decisao.valor["observacao"])
+    if observacao is None or observacao.item_id != item.id:
+        return None
+    vigente = correspondencia_vigente(sessao, item.id, observacao.id)
+    if vigente is None or vigente.status != StatusCorrespondencia.VERDE.value \
+            or vigente.origem != OrigemCorrespondencia.HUMANO.value:
+        return None
+    return observacao
+
+
+def definir_referencia(sessao: Session, item: Item, observacao: Observacao, justificativa: str) -> Decisao:
+    """Escolha de uma pessoa: esta página é o produto de referência do item (D-71)."""
+    if Autor(sessao.info["autor"]).tipo != "usuario":
+        raise ErroCorrespondencia("Só uma pessoa escolhe o produto de referência.")
+    if observacao.item_id != item.id:
+        raise ErroCorrespondencia("A observação não é deste item.")
+    if not justificativa or not justificativa.strip():
+        raise ErroCorrespondencia("Informe a justificativa da decisão.")
+    decisao = Decisao(tipo=TIPO_REFERENCIA, alvo_tipo="item", alvo_id=item.id, valor={"observacao": observacao.id},
+                      justificativa=justificativa.strip(), autor=sessao.info["autor"])
+    sessao.add(decisao)
+    return decisao
 
 
 def decidir_correspondencia(

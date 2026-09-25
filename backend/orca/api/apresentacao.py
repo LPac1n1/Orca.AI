@@ -95,7 +95,12 @@ def observacao_json(o: Observacao, correspondencia: dict | None = None) -> dict:
         "autor": o.autor, "correspondencia": correspondencia,
         "precos_da_pagina": precos_da_pagina(o) if o.alvo_tipo == "item" else [],
         "forma_de_pagamento": (brutos.get("escolha_d60") or {}).get("forma"),
+        "imagem": brutos.get("imagem"),  # D-73
     }
+
+
+def _imagem(o: Observacao | None) -> str | None:
+    return json.loads(o.dados_brutos or "{}").get("imagem") if o is not None else None
 
 
 def _lojas_do_lote(estado: EstadoLote) -> list[dict]:
@@ -137,10 +142,14 @@ def _itens_do_lote(estado: EstadoLote, regras, status: dict) -> list[dict]:
                 "utilizavel": oferta.utilizavel, "evidencia_valida": oferta.evidencia_valida,
                 "evidencia_id": obs.evidencia_id if obs else None, "url": obs.url if obs else None,
                 "titulo": obs.titulo if obs else None, "correspondencia": correspondencia_json(corr, regras),
+                "imagem": _imagem(obs), "ean": obs.ean if obs else None,
             }
         linha = linhas.get(item.id)
         situacao = status.get(item.id)
+        ref = estado.referencias.get(item.id)
         resultado.append(item_json(item) | {
+            "referencia": {"observacao_id": ref.id, "titulo": ref.titulo, "loja": ref.fonte.nome, "url": ref.url,
+                           "imagem": _imagem(ref), "ean": ref.ean} if ref else None,  # D-71
             "meses": item.mes_fim - item.mes_inicio + 1,
             "status": situacao.status if situacao else None,
             "motivos": list(situacao.motivos) if situacao else [],

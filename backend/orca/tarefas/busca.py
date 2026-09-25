@@ -2,10 +2,10 @@
 
 Para cada loja escolhida, os itens são pesquisados do mais difícil ao mais fácil. O melhor
 candidato de cada busca tem a página capturada e registrada como se a pessoa tivesse colado
-o link (prova, preço, CNPJ, correspondência). Se um item não existe na loja, a loja não
-completa o lote: fica registrado "não encontrado" (com a página da busca como prova) e as
-outras buscas nela são poupadas. Achado o código de barras, as lojas seguintes são
-pesquisadas por ele quando a busca da loja aceita.
+o link (prova, preço, CNPJ, correspondência). Se um item não existe na loja, fica registrado
+"não encontrado" (com a página da busca como prova) e a busca continua nos outros itens (D-68,
+revista em 25/09/2026: com todos os preços na tela, o item que falta pode ser trocado, D-72).
+Achado o código de barras, as lojas seguintes são pesquisadas por ele quando a busca da loja aceita.
 """
 
 from collections import Counter
@@ -53,15 +53,22 @@ def _buscar(fila: Fila, cliente: httpx.Client, ritmo: Ritmo, loja: LojaDeBusca, 
 
 @tarefa("buscar_lote")
 def buscar_lote(fila: Fila, tarefa_id: str, p: dict) -> dict:
+    resumo, n_itens = pesquisar_lote(fila, tarefa_id, p["lote_id"], p["lojas"])
+    return {"resumo": resumo, "mensagem": _mensagem(resumo, n_itens)}
+
+
+def pesquisar_lote(fila: Fila, tarefa_id: str, lote_id: str, lojas_escolhidas: list[str],
+                   progresso: tuple[int, int] = (0, 99)) -> tuple[list[dict], int]:
+    """Pesquisa todos os itens do lote nas lojas escolhidas; devolve o resumo por loja e o número de itens."""
     ctx = fila.contexto
     ritmo = Ritmo(ctx.intervalo_busca_s)
     cancelamento = fila.cancelamento(tarefa_id)
     with sessao_como(ctx.fabrica, "sistema:busca") as s:
-        lote = s.get(Lote, p["lote_id"])
+        lote = s.get(Lote, lote_id)
         if lote is None or lote.excluido_em is not None:
             raise ErroTarefa("O lote não existe mais.")
         organizacao_id = lote.orcamento.projeto.organizacao_id
-        escolhidas = set(p["lojas"])
+        escolhidas = set(lojas_escolhidas)
         lojas = [l for l in lojas_de_busca(lojas_da_organizacao(s, organizacao_id)) if l.id in escolhidas and l.automatica]
         if not lojas:
             raise ErroTarefa("Nenhuma das lojas escolhidas tem busca automática.")
@@ -91,13 +98,16 @@ def buscar_lote(fila: Fila, tarefa_id: str, p: dict) -> dict:
     try:
         for loja in lojas:
             dominio = dominio_da_url("https://" + loja.dominio)
-            r = {"loja": loja.nome, "encontrados": 0, "sem_preco": [], "nao_encontrado": None, "erro": None}
+            r = {"loja": loja.nome, "loja_id": loja.id, "encontrados": 0, "sem_preco": [], "nao_encontrados": [],
+                 "erro": None}
             resumo.append(r)
             for item_id in ordem:
                 passo += 1
                 if cancelamento.is_set():
                     raise TarefaCancelada()
-                fila.progresso(tarefa_id, min(99, int(100 * passo / total)), f"{loja.nome}: {nomes[item_id]}")
+                inicio, fim = progresso
+                fila.progresso(tarefa_id, min(fim, inicio + int((fim - inicio) * passo / total)),
+                               f"{loja.nome}: {nomes[item_id]}")
                 if (item_id, dominio) in ja_pesquisados:
                     r["encontrados"] += 1
                     continue
@@ -122,11 +132,10 @@ def buscar_lote(fila: Fila, tarefa_id: str, p: dict) -> dict:
                     r["sem_preco"].append(nomes[item_id])
                 else:
                     _registrar_nao_encontrado(fila, ritmo, dominio, loja, item_id, termo, candidatos, catalogo)
-                    r["nao_encontrado"] = nomes[item_id]
-                    break  # D-68: sem esse item a loja não completa o lote; as outras buscas nela são poupadas
+                    r["nao_encontrados"].append(nomes[item_id])  # D-68 (revista): a busca segue nos outros itens
     finally:
         cliente.close()
-    return {"resumo": resumo, "mensagem": _mensagem(resumo, len(ordem))}
+    return resumo, len(ordem)
 
 
 def _candidatos(fila, cliente, ritmo, loja, item_id, termo, especificacao, vocabulario, eans, recusadas):
@@ -189,11 +198,11 @@ def _mensagem(resumo: list[dict], n_itens: int) -> str:
     for r in resumo:
         if r["erro"]:
             partes.append(f"{r['loja']}: {r['erro']}")
-        elif r["nao_encontrado"]:
-            partes.append(f"{r['loja']}: não tem “{r['nao_encontrado']}”")
-        else:
-            texto = f"{r['loja']}: {r['encontrados']} de {n_itens}"
-            if r["sem_preco"]:
-                texto += f" ({len(r['sem_preco'])} sem preço na página: use a captura com janela)"
-            partes.append(texto)
+            continue
+        texto = f"{r['loja']}: {r['encontrados']} de {n_itens}"
+        if r["nao_encontrados"]:
+            texto += " (não tem " + ", ".join(f"“{n}”" for n in r["nao_encontrados"]) + ")"
+        if r["sem_preco"]:
+            texto += f" ({len(r['sem_preco'])} sem preço na página: use a captura com janela)"
+        partes.append(texto)
     return "; ".join(partes)

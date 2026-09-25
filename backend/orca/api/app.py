@@ -47,9 +47,11 @@ from orca.banco import (
     corresponder,
     decidir_correspondencia,
     definir_camadas_do_projeto,
+    definir_referencia,
     especificacao_do_item,
     perfil_do_orcamento,
     perfil_do_projeto,
+    referencia_do_item,
     sessao_como,
 )
 from orca.coleta import (
@@ -91,9 +93,11 @@ from orca.fluxo import (
     simular_troca_de_loja,
     substituir_item,
     versao_do_sistema,
+    recomparar_item,
 )
 from orca.fluxo import catalogos as cat
 from orca.fluxo import regras as rg
+from orca.fluxo.fechamento import fechamento
 from orca.fluxo.validade import como_refazer, pesquisas_a_refazer
 from orca.selecao import ParametrosSelecao
 from orca.tarefas import Contexto, ErroTarefa, Fila
@@ -562,6 +566,13 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
             obs = s.scalars(select(Observacao).where(Observacao.cargo_id == cargo.id).order_by(Observacao.coletado_em.desc(), Observacao.criado_em.desc()))
             return [ap.observacao_json(o) for o in obs]
 
+    def _recomparar(item_id: str) -> int:
+        """A referência do item mudou: as páginas que uma pessoa não decidiu são comparadas de novo (D-71)."""
+        with sessao_como(sv.contexto.fabrica, "sistema:referencia") as s:
+            item = s.get(Item, item_id)
+            vocabulario = cat.vocabulario_da_organizacao(s, item.lote.orcamento.projeto.organizacao_id)
+            return len(recomparar_item(s, item, vocabulario))
+
     @app.post("/api/correspondencias", status_code=201)
     def decidir(dados: e.DecisaoDeCorrespondencia):
         with sv.sessao() as s:
@@ -569,11 +580,36 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
             obs = s.get(Observacao, dados.observacao_id)
             if obs is None or obs.item_id != item.id:
                 raise HTTPException(404, "Observação não encontrada para este item")
+            antes = referencia_do_item(s, item)
             c = decidir_correspondencia(s, item, obs, dados.status, dados.justificativa)
             s.flush()
             cat.par_da_decisao(s, c)  # D-64: a decisão ensina o teste de correspondência
+            if c.status == "verde" and antes is None:  # D-71: a primeira página confirmada vira a referência
+                definir_referencia(s, item, obs, "primeira página confirmada como o mesmo produto (D-71)")
+                s.flush()
+            depois = referencia_do_item(s, item)
+            mudou = (antes.id if antes else None) != (depois.id if depois else None)
             regras = perfil_do_projeto(s, item.lote.orcamento.projeto).regras
-            return ap.correspondencia_json(c, regras)
+            resposta = ap.correspondencia_json(c, regras)
+            item_id = item.id
+        return resposta | {"referencia_mudou": mudou, "recomparadas": _recomparar(item_id) if mudou else 0}
+
+    @app.post("/api/itens/{item_id}/referencia", status_code=201)
+    def escolher_referencia(item_id: str, dados: e.EscolhaDeReferencia):
+        """Esta página é o produto do item (D-71): confirma, se preciso, e compara as outras lojas com ela."""
+        with sv.sessao() as s:
+            item = _obter(s, Item, item_id, "Item")
+            obs = s.get(Observacao, dados.observacao_id)
+            if obs is None or obs.item_id != item.id or not obs.encontrado:
+                raise HTTPException(404, "Observação não encontrada para este item")
+            vigente = correspondencia_vigente(s, item.id, obs.id)
+            if vigente is None or (vigente.status, vigente.origem) != ("verde", "humano"):
+                c = decidir_correspondencia(s, item, obs, "verde", dados.justificativa)
+                s.flush()
+                cat.par_da_decisao(s, c)
+            definir_referencia(s, item, obs, dados.justificativa)
+            s.flush()
+        return {"referencia": dados.observacao_id, "recomparadas": _recomparar(item_id)}
 
     @app.post("/api/observacoes/{observacao_id}/corrigir-preco", status_code=201)
     def corrigir(observacao_id: str, dados: e.CorrecaoDePreco):
@@ -614,20 +650,19 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
                     "lojas": [{"id": l.id, "nome": l.nome, "modo": l.modo, "sugerida": l.atende(categorias),
                                "faltam": len(faltando[l.id])} for l in lojas]}
 
-    @app.post("/api/lotes/{lote_id}/busca", status_code=202)
-    def buscar(lote_id: str, dados: e.PedidoDeBusca):
+    def _enfileirar_busca(lote_id: str, escolhidas: list[str], tipo: str) -> dict:
         """Busca automática nas lojas escolhidas; nas que recusam programas, uma captura com janela por item."""
         with sv.sessao() as s:
             lote = _obter(s, Lote, lote_id, "Lote")
             projeto_id = lote.orcamento.projeto_id
             lojas = [l for l in lojas_de_busca(cat.lojas_da_organizacao(s, lote.orcamento.projeto.organizacao_id))
-                     if l.id in set(dados.lojas)]
+                     if l.id in set(escolhidas)]
             if not lojas:
                 raise HTTPException(400, "Nenhuma das lojas escolhidas tem busca configurada.")
             tarefas = []
             automaticas = [l.id for l in lojas if l.automatica]
             if automaticas:
-                tarefas.append(sv.fila.enfileirar(s, "buscar_lote", {"lote_id": lote.id, "lojas": automaticas}, projeto_id))
+                tarefas.append(sv.fila.enfileirar(s, tipo, {"lote_id": lote.id, "lojas": automaticas}, projeto_id))
             faltando = _faltando_por_loja(s, lote, lojas)
             for loja in (l for l in lojas if not l.automatica):
                 for item in faltando[loja.id]:
@@ -635,6 +670,41 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
                     tarefas.append(sv.fila.enfileirar(s, "captura_assistida", {"item_id": item.id, "url": url}, projeto_id))
             s.flush()
             return {"tarefas": [ap.tarefa_json(t) for t in tarefas]}
+
+    @app.post("/api/lotes/{lote_id}/busca", status_code=202)
+    def buscar(lote_id: str, dados: e.PedidoDeBusca):
+        return _enfileirar_busca(lote_id, dados.lojas, "buscar_lote")
+
+    @app.post("/api/lotes/{lote_id}/fechar", status_code=202)
+    def fechar_lote(lote_id: str, dados: e.PedidoDeBusca):
+        """D-72: pesquisa todos os itens e sugere a troca dos que faltam nas 3 lojas mais completas."""
+        return _enfileirar_busca(lote_id, dados.lojas, "fechar_lote")
+
+    @app.get("/api/lotes/{lote_id}/fechamento")
+    def situacao_do_fechamento(lote_id: str):
+        """O que falta para fechar o lote (ao vivo) e as sugestões da última vez que ele foi fechado (D-72)."""
+        with sv.sessao() as s:
+            lote = _obter(s, Lote, lote_id, "Lote")
+            estado = sv.estado(s, lote.orcamento.projeto)
+            orcamento, estado_lote = next((o, l) for o, l in estado.lotes() if l.lote.id == lote.id)
+            f = fechamento(estado_lote, orcamento.perfil.regras)
+            nomes = {i.id: i.descricao for i in estado_lote.itens}
+            ultima = next((t for t in s.scalars(select(Tarefa).where(Tarefa.tipo == "fechar_lote")
+                                                  .order_by(Tarefa.criado_em.desc()).limit(50))
+                           if t.parametros.get("lote_id") == lote.id), None)
+            return {
+                "itens": len(nomes),
+                "lojas": [{"id": l.id, "nome": l.nome, "tem": len(l.tem), "faltam": [nomes[i] for i in l.faltam]}
+                          for l in f.lojas],
+                "melhores": [l.id for l in f.melhores],
+                "faltando": [{"item_id": i, "item": nomes[i], "lojas": list(lojas)} for i, lojas in f.faltando.items()],
+                "a_confirmar": [{"item_id": i, "item": nomes[i]} for i in f.a_confirmar],
+                "ultima": {"tarefa_id": ultima.id, "estado": ultima.estado, "mensagem": ultima.mensagem,
+                           "progresso": ultima.progresso,
+                           "alternativas": {i: o for i, o in ((ultima.resultado or {}).get("alternativas") or {}).items()
+                                            if i in nomes},
+                           "avisos": (ultima.resultado or {}).get("avisos", [])} if ultima else None,
+            }
 
     @app.post("/api/itens/{item_id}/alternativas", status_code=202)
     def buscar_alternativas(item_id: str):
@@ -651,10 +721,13 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
         with sv.sessao() as s:
             item = _obter(s, Item, item_id, "Item")
             t = s.get(Tarefa, dados.tarefa_id)
-            if (t is None or t.tipo != "buscar_alternativas" or t.parametros.get("item_id") != item.id
-                    or t.estado != "concluida" or not t.resultado):
+            deste_item = t is not None and (
+                (t.tipo == "buscar_alternativas" and t.parametros.get("item_id") == item.id)
+                or (t.tipo == "fechar_lote" and t.parametros.get("lote_id") == item.lote_id))  # D-72
+            if not deste_item or t.estado != "concluida" or not t.resultado:
                 raise HTTPException(409, "Essa busca de alternativas não é deste item ou não terminou.")
-            opcoes = t.resultado.get("opcoes", [])
+            opcoes = (t.resultado.get("opcoes", []) if t.tipo == "buscar_alternativas"
+                      else (t.resultado.get("alternativas") or {}).get(item.id, []))
             if dados.indice >= len(opcoes):
                 raise HTTPException(404, "Alternativa não encontrada")
             opcao = opcoes[dados.indice]

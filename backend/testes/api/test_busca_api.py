@@ -141,11 +141,11 @@ def test_busca_automatica_do_lote(ambiente):
     assert feita["estado"] == "concluida", feita
     resumo = {r["loja"]: r for r in feita["resultado"]["resumo"]}
     assert resumo["Kalunga"]["encontrados"] == 2 and resumo["Atacadão"]["encontrados"] == 2
-    assert resumo["Lepok"]["nao_encontrado"] == "Leite condensado 395g"
+    assert resumo["Lepok"]["nao_encontrados"] == ["Leite condensado 395g"] and resumo["Lepok"]["encontrados"] == 1
 
     # o papel não tinha código de barras: achado na Kalunga, o Atacadão foi pesquisado por ele
     assert {"fq": f"alternateIds_Ean:{PAPEL}"} in pedidos and not any("ft" in p for p in pedidos)
-    # o item mais difícil (sem código de barras) primeiro; na Lepok, sem o leite, a busca parou
+    # o item mais difícil (sem código de barras) primeiro; na Lepok, sem o leite, a busca seguiu (D-68 revista)
     assert navegador.buscas[0].startswith("https://www.kalunga.com.br/busca/1?q=Papel sulfite")
 
     papel = {o["loja"]: o for o in _ok(api.get(f"/api/itens/{ids['papel']}/observacoes"))}
@@ -176,5 +176,5 @@ def test_pagina_recusada_nao_volta_na_busca_seguinte(ambiente):
     tarefa = _ok(api.post(f"/api/lotes/{ids['lote']}/busca", json={"lojas": ["kalunga"]}), 202)["tarefas"][0]
     app.state.servico.fila.processar_proxima("principal")
     resumo = _ok(api.get(f"/api/tarefas/{tarefa['id']}"))["resultado"]["resumo"][0]
-    assert resumo["nao_encontrado"] == "Papel sulfite A4 75g 500 folhas"  # a loja só tinha a página recusada
+    assert resumo["nao_encontrados"] == ["Papel sulfite A4 75g 500 folhas"]  # a loja só tinha a página recusada
     assert papel["url"] not in navegador.capturas[capturas:]

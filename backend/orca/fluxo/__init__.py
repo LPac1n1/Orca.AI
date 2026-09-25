@@ -11,6 +11,7 @@ from orca.fluxo.acoes import (
     marcar_mesma_vaga,
     retirar_loja,
     simular_troca_de_loja,
+    recomparar_item,
     substituir_item,
 )
 from orca.fluxo.dossie import ErroDossie, dossie_do_projeto, evidencia_doc, versao_do_sistema
@@ -55,6 +56,7 @@ __all__ = [
     "painel",
     "retirar_loja",
     "simular_troca_de_loja",
+    "recomparar_item",
     "substituir_item",
     "versao_do_sistema",
 ]

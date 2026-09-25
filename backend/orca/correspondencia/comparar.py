@@ -16,7 +16,7 @@ uma conferência humana.
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 from orca.correspondencia.medidas import LEITORES, Achado, Quantidade, preparar
@@ -275,3 +275,37 @@ def comparar(especificacao: Especificacao, anuncio: Anuncio, vocabulario: Vocabu
     return ResultadoCorrespondencia(
         VERDE, OrigemCorrespondencia.ATRIBUTOS, ("marca e atributos críticos iguais",), tuple(comparacoes)
     )
+
+
+# --- Produto de referência (D-71) -------------------------------------------------------------
+
+
+def comparar_com_referencia(
+    especificacao: Especificacao, referencia: Anuncio, anuncio: Anuncio, vocabulario: Vocabulario
+) -> ResultadoCorrespondencia:
+    """Compara com o item e com a página que uma pessoa confirmou como o item (D-71).
+
+    O item costuma dizer pouco ("Papel sulfite 500 folhas, Chamex"); a referência diz o resto
+    (75 g, branco, o código de barras). Mesmo código de barras da referência → 🟢; atributo
+    diferente do da referência → 🔴; marca e atributos iguais aos da referência → 🟢 por
+    atributos. No resto, vale a comparação com o item (na dúvida, 🟡).
+    """
+    item = replace(especificacao, ean=especificacao.ean or referencia.ean)
+    pelo_item = comparar(item, anuncio, vocabulario)
+    if pelo_item.status is VERDE and pelo_item.origem is OrigemCorrespondencia.EAN and not especificacao.ean:
+        return replace(pelo_item, motivos=("mesmo código de barras do produto de referência",))
+    if pelo_item.status is not AMARELO:
+        return pelo_item
+    produto = Especificacao(
+        " ".join(p for p in (referencia.titulo, referencia.complemento) if p), especificacao.categoria,
+        especificacao.marca or referencia.marca, atributos=especificacao.atributos,
+    )
+    pela_referencia = comparar(produto, anuncio, vocabulario)
+    if pela_referencia.status is VERMELHO:
+        motivos = tuple(f"diferente do produto de referência: {m}" for m in pela_referencia.motivos)
+        return ResultadoCorrespondencia(VERMELHO, OrigemCorrespondencia.ATRIBUTOS, motivos, pela_referencia.atributos)
+    if pela_referencia.status is VERDE:
+        return ResultadoCorrespondencia(VERDE, OrigemCorrespondencia.ATRIBUTOS,
+                                        ("marca e atributos iguais aos do produto de referência",),
+                                        pela_referencia.atributos)
+    return pelo_item

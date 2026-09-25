@@ -7,7 +7,19 @@ trocar um produto cria um item novo que substitui o anterior (o antigo fica no h
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from orca.banco import Cargo, Correspondencia, Decisao, Item, Lote, Observacao, agora, corresponder
+from orca.banco import (
+    Cargo,
+    Correspondencia,
+    Decisao,
+    Item,
+    Lote,
+    Observacao,
+    agora,
+    comparar_observacao,
+    correspondencia_vigente,
+    corresponder,
+    registrar_correspondencia,
+)
 from orca.correspondencia import Vocabulario
 from orca.dominio import Autor
 from orca.fluxo.estado import EstadoLote
@@ -93,3 +105,24 @@ def corresponder_pendentes(sessao: Session, lotes: list[Lote], vocabulario: Voca
         if obs.id not in ja_decididas:
             novas.append(corresponder(sessao, por_id[obs.item_id], obs, vocabulario))
     return novas
+
+
+def recomparar_item(sessao: Session, item: Item, vocabulario: Vocabulario) -> list[Correspondencia]:
+    """Compara de novo as páginas do item que uma pessoa não decidiu (a referência mudou, D-71).
+
+    Só grava quando o resultado muda; a comparação anterior fica no histórico.
+    """
+    from orca.coleta.pendencias import vigentes
+
+    novas = []
+    for obs in vigentes(sessao.scalars(select(Observacao).where(Observacao.item_id == item.id))):
+        if not obs.encontrado:
+            continue
+        atual = correspondencia_vigente(sessao, item.id, obs.id)
+        if atual is not None and atual.origem == "humano":
+            continue
+        resultado = comparar_observacao(sessao, item, obs, vocabulario)
+        if atual is None or (atual.status, list(atual.motivos)) != (resultado.status.value, list(resultado.motivos)):
+            novas.append(registrar_correspondencia(sessao, item, obs, resultado))
+    return novas
+

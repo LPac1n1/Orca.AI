@@ -174,6 +174,13 @@ class PedidoDeDescoberta(_Entrada):
     itens: list[str] | None = None  # sem itens: todos os do lote (uma busca da SerpApi por item)
 
 
+class EscolhaDeReferencia(_Entrada):
+    """D-71: esta página é o produto do item; as outras lojas passam a ser comparadas com ela."""
+
+    observacao_id: str
+    justificativa: str = Field(min_length=1)
+
+
 class UsoDeAlternativa(_Entrada):
     """Saída 1 com busca (D-23): a alternativa escolhida no resultado da tarefa `buscar_alternativas`."""
 

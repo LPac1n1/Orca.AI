@@ -39,11 +39,15 @@ from orca.banco.conexao import (  # noqa: E402 — depois das tabelas (a auditor
 )
 from orca.banco.correspondencias import (
     ErroCorrespondencia,
+    TIPO_REFERENCIA,
     anuncio_da_observacao,
+    comparar_observacao,
     correspondencia_vigente,
     corresponder,
     decidir_correspondencia,
+    definir_referencia,
     especificacao_do_item,
+    referencia_do_item,
     registrar_correspondencia,
     vale_como_verde,
 )
@@ -58,6 +62,10 @@ from orca.banco.perfis import (
 )
 
 __all__ = [
+    "referencia_do_item",
+    "definir_referencia",
+    "comparar_observacao",
+    "TIPO_REFERENCIA",
     "TABELAS_IMUTAVEIS",
     "Alerta",
     "Arquivo",

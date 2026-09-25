@@ -23,6 +23,7 @@ from orca.coleta.extracao import (
     cnpjs_no_texto,
     extrair_produto,
     extrair_vaga,
+    imagem_da_pagina,
     preco_a_vista,
     preco_aparece,
     precos_perto,
@@ -212,6 +213,7 @@ def registrar_observacao_item(
             "precos_visiveis": distintos[:60],
             "precos_perto": vizinhos,
             "cnpjs_na_pagina": cnpjs_pagina,
+            "imagem": imagem_da_pagina("\n".join([captura.html, *captura.html_quadros]), captura.url_final),  # D-73
             "avisos": avisos,
         }),
         autor=sessao.info["autor"],
