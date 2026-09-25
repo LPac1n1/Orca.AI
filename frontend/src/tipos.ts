@@ -119,6 +119,18 @@ export interface Oferta {
   url: string | null;
   titulo: string | null;
   correspondencia: Correspondencia | null;
+  imagem: string | null;  // D-73
+  ean: string | null;
+}
+
+/** Produto de referência do item (D-71): a página que uma pessoa confirmou. */
+export interface Referencia {
+  observacao_id: string;
+  titulo: string | null;
+  loja: string;
+  url: string;
+  imagem: string | null;
+  ean: string | null;
 }
 
 export interface LojaDoLote {
@@ -142,6 +154,7 @@ export interface ItemRevisao extends Item {
   media_exata: string | null;
   preco_final_centavos: number | null;
   dentro_da_media: boolean | null;
+  referencia: Referencia | null;
 }
 
 export interface LoteRevisao {
@@ -234,7 +247,7 @@ export interface Tarefa {
   id: string;
   projeto_id: string | null;
   tipo: "coletar_item" | "coletar_cargo" | "captura_assistida" | "comprovante" | "consultar_cnpj" | "fechar_teto" | "exportar" | "buscar_lote" | "buscar_alternativas"
-    | "descobrir_na_web" | "julgar_amarelos";
+    | "descobrir_na_web" | "julgar_amarelos" | "fechar_lote" | "descobrir_vagas";
   estado: "pendente" | "rodando" | "esperando_usuario" | "concluida" | "falhou" | "cancelada";
   progresso: number;
   mensagem: string | null;
@@ -308,6 +321,7 @@ export interface Observacao {
   correspondencia: Correspondencia | null;
   precos_da_pagina: { centavos: number; forma: FormaDePagamento | null }[];
   forma_de_pagamento: FormaDePagamento | null;
+  imagem: string | null;
 }
 
 export type FormaDePagamento = "pix" | "boleto" | "pix_ou_boleto" | "parcelado";

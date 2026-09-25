@@ -170,6 +170,11 @@ class Opcionais(_Entrada):
     chave_gemini: str | None = Field(default=None, max_length=200, pattern=r"^\S*$")
 
 
+class BuscaNoGoogleVagas(_Entrada):
+    cidade: str | None = Field(default=None, max_length=80)
+    uf: str | None = Field(default=None, max_length=2)
+
+
 class PedidoDeDescoberta(_Entrada):
     itens: list[str] | None = None  # sem itens: todos os do lote (uma busca da SerpApi por item)
 

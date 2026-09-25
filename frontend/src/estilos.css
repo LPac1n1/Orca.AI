@@ -208,3 +208,15 @@ details.grupo-vocabulario[open] > summary { margin-bottom: 0.4rem; }
 .lista-lojas { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.3rem 0 0.6rem; }
 .cabecalho-secao h3 button { margin-left: 0.5rem; vertical-align: middle; }
 .marcador.quebra { white-space: normal; flex-wrap: wrap; }
+/* Fotos lado a lado (D-73) e fechamento do lote (D-72) */
+.foto { width: 140px; height: 140px; object-fit: contain; background: #fff; border: 1px solid var(--borda); border-radius: 8px; }
+.foto.vazia { display: flex; align-items: center; justify-content: center; color: var(--discreto); font-size: 0.8rem; }
+.cartoes-produto { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.cartao-produto { width: 190px; border: 1px solid var(--borda); border-radius: 10px; padding: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.cartao-produto.referencia { border: 2px solid var(--primaria); }
+.fotos-lado-a-lado { display: flex; gap: 1rem; flex-wrap: wrap; margin: 0.5rem 0; }
+.fotos-lado-a-lado figure { margin: 0; display: flex; flex-direction: column; gap: 0.25rem; max-width: 160px; }
+.fechamento ol { margin: 0.3rem 0 0 1.2rem; }
+.fechamento li { margin: 0.35rem 0; }
+.opcao-troca { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 0.25rem 0; }
+

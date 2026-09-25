@@ -71,6 +71,8 @@ export const TIPOS_DE_TAREFA = {
   buscar_alternativas: "Procurar outra marca",
   descobrir_na_web: "Procurar pela internet",
   julgar_amarelos: "IA confere os 🟡",
+  fechar_lote: "Fechar o lote",
+  descobrir_vagas: "Google Vagas",
   comprovante: "Comprovante da Receita",
   consultar_cnpj: "Consultar CNPJs",
   fechar_teto: "Fechar o teto",

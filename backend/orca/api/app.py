@@ -295,6 +295,18 @@ def _rotas_de_opcionais(app: FastAPI, sv: Servico) -> None:
             s.flush()
             return ap.tarefa_json(t)
 
+    @app.post("/api/cargos/{cargo_id}/vagas-google", status_code=202)
+    def vagas_google(cargo_id: str, dados: e.BuscaNoGoogleVagas):
+        """D-69 revista: procura o cargo no Google Vagas (SerpApi) e captura as vagas que podem ser abertas."""
+        with sv.sessao() as s:
+            cargo = _obter(s, Cargo, cargo_id, "Cargo")
+            if not _estado_dos_opcionais(sv)["serpapi"]["chave"]:
+                raise HTTPException(409, "Falta a chave da SerpApi (em Opcionais).")
+            t = sv.fila.enfileirar(s, "descobrir_vagas", {"cargo_id": cargo.id, "cidade": dados.cidade, "uf": dados.uf},
+                                   cargo.orcamento.projeto_id)
+            s.flush()
+            return ap.tarefa_json(t)
+
     @app.post("/api/projetos/{projeto_id}/julgar-amarelos", status_code=202)
     def julgar_amarelos(projeto_id: str):
         """A IA confere os 🟡 do projeto: mantém ou rebaixa para 🔴, nunca aprova (D-52)."""

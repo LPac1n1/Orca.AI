@@ -1,4 +1,4 @@
-"""Tarefas dos opcionais (Fase 2, etapa 15): descoberta pela SerpApi (C2) e IA conferindo os 🟡.
+"""Tarefas dos opcionais (Fase 2, etapa 15): descoberta pela SerpApi (C2), Google Vagas e IA conferindo os 🟡.
 
 O sistema funciona sem os dois (D-50). A descoberta só aponta links: nada é capturado
 sem a pessoa escolher. A IA só mantém o 🟡 ou rebaixa para 🔴, com motivo (D-52); cada
@@ -9,6 +9,7 @@ import httpx
 from sqlalchemy import select
 
 from orca.banco import (
+    Cargo,
     Item,
     Lote,
     Observacao,
@@ -19,14 +20,22 @@ from orca.banco import (
     registrar_correspondencia,
     sessao_como,
 )
-from orca.busca import ErroBusca, Ritmo, avaliar_candidatos, termo_de_busca
-from orca.busca.serpapi import buscar_na_web
+from orca.busca import (
+    ErroBusca,
+    Ritmo,
+    avaliar_candidatos,
+    ler_plataformas,
+    plataforma_do_endereco,
+    termo_de_busca,
+)
+from orca.busca.serpapi import buscar_na_web, buscar_vagas_google
 from orca.coleta import dominio_da_url
 from orca.coleta.pendencias import vigentes
 from orca.correspondencia import ResultadoCorrespondencia
 from orca.dominio import OrigemCorrespondencia, StatusCorrespondencia
 from orca.fluxo.catalogos import catalogo_da_organizacao, vocabulario_da_organizacao
 from orca.ia import ErroFormatoIA, ErroIA, julgar_correspondencia, provedor_configurado
+from orca.tarefas.executores import registrar_cargo
 from orca.tarefas.fila import ErroTarefa, Fila, TarefaCancelada, tarefa
 
 LINKS_POR_ITEM = 8
@@ -180,3 +189,87 @@ def julgar_amarelos(fila: Fila, tarefa_id: str, p: dict) -> dict:
     return {"provedor": provedor.nome, "modelo": provedor.modelo, "rebaixadas": contagem["nao"],
             "mantidas": julgadas - contagem["nao"], "falhas": contagem["falha"], "restantes": restantes,
             "parada": parada, "chamadas": chamadas, "mensagem": mensagem}
+
+
+# --- Google Vagas (D-69 revista em 25/09/2026) -------------------------------------------------------
+
+VAGAS_AUTOMATICAS = 6  # capturadas sozinhas, no máximo, por busca
+
+
+def _onde_abrir(vaga, plataformas) -> tuple[str, str | None, str | None]:
+    """(como, endereço, plataforma): "sistema" se a plataforma permite programas, "janela" se não, "outro_site"."""
+    janela = outro = None
+    for _, url in vaga.links:
+        plataforma = plataforma_do_endereco(url, plataformas)
+        if plataforma is not None and plataforma.abrir_vaga == "sistema":
+            return "sistema", url, plataforma.nome
+        if plataforma is not None and janela is None:
+            janela = (url, plataforma.nome)
+        elif plataforma is None and outro is None:
+            outro = url
+    if janela:
+        return "janela", janela[0], janela[1]
+    return ("outro_site", outro, None) if outro else ("sem_link", None, None)
+
+
+@tarefa("descobrir_vagas")
+def descobrir_vagas(fila: Fila, tarefa_id: str, p: dict) -> dict:
+    """Procura o cargo no Google Vagas; captura as vagas das plataformas que permitem programas.
+
+    Até 6, preferindo as que mostram salário (critério objetivo, princípio 7); as do Indeed, do
+    LinkedIn e de outros sites ficam listadas para a pessoa abrir.
+    """
+    ctx = fila.contexto
+    chave = ctx.cofre.ler("serpapi") if ctx.cofre else None
+    if not chave:
+        raise ErroTarefa("Falta a chave da SerpApi (em Opcionais).")
+    cancelamento = fila.cancelamento(tarefa_id)
+    with sessao_como(ctx.fabrica, "sistema:vagas") as s:
+        cargo = s.get(Cargo, p["cargo_id"])
+        if cargo is None or cargo.excluido_em is not None:
+            raise ErroTarefa("O cargo não existe mais.")
+        nome = cargo.nome
+        ja_vistas = set(s.scalars(select(Observacao.url).where(Observacao.cargo_id == cargo.id)))
+    fila.progresso(tarefa_id, 5, f"Google Vagas: {nome}")
+    cliente = _cliente(ctx)
+    try:
+        vagas = buscar_vagas_google(cliente, chave, nome, p.get("cidade"), p.get("uf"))
+    except ErroBusca as erro:
+        raise ErroTarefa(str(erro)) from erro
+    finally:
+        cliente.close()
+
+    plataformas = ler_plataformas()
+    linhas = []
+    for v in vagas:
+        como, url, plataforma = _onde_abrir(v, plataformas)
+        linhas.append({"titulo": v.titulo, "empresa": v.empresa, "local": v.local, "salario": v.salario,
+                       "publicada": v.publicada, "plataforma": plataforma, "url": url, "como": como,
+                       "situacao": "ja_tinha" if url in ja_vistas else como, "mensagem": None})
+    automaticas = [l for l in linhas if l["situacao"] == "sistema"]
+    automaticas.sort(key=lambda l: l["salario"] is None)  # as que mostram salário primeiro
+    ritmo = Ritmo(ctx.intervalo_busca_s)
+    capturadas = 0
+    for n, linha in enumerate(automaticas[:VAGAS_AUTOMATICAS]):
+        if cancelamento.is_set():
+            raise TarefaCancelada()
+        fila.progresso(tarefa_id, 10 + int(85 * n / max(1, min(len(automaticas), VAGAS_AUTOMATICAS))),
+                       f"{linha['plataforma']}: {linha['empresa'] or linha['titulo']}")
+        ritmo.esperar(dominio_da_url(linha["url"]))
+        try:
+            captura = fila.navegador().capturar(linha["url"])
+            r = registrar_cargo(ctx, {"cargo_id": p["cargo_id"]}, captura, autor="sistema:vagas",
+                                avisos_extras=("achada no Google Vagas",))
+        except TarefaCancelada:
+            raise
+        except Exception as erro:  # noqa: BLE001 — uma vaga com problema não para as outras
+            linha["situacao"], linha["mensagem"] = "erro", str(erro)[:200]
+            continue
+        linha["situacao"], linha["mensagem"] = "capturada", r["mensagem"]
+        capturadas += 1
+    na_janela = sum(1 for l in linhas if l["situacao"] in ("janela", "outro_site"))
+    mensagem = (f"{len(linhas)} vaga(s) no Google Vagas; {capturadas} capturada(s) sozinha(s); "
+                f"{na_janela} para você abrir (Indeed, LinkedIn ou outros sites)")
+    return {"termo": " ".join(x for x in (nome, p.get("cidade"), p.get("uf")) if x), "vagas": linhas,
+            "capturadas": capturadas, "mensagem": mensagem}
+

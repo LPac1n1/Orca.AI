@@ -93,6 +93,8 @@ Etapas:
 
 Diferenças só de texto ("Chamex Papel Sulfite A4 75g – 500 fls" × "Papel Sulfite A4 75g Chamex 500 folhas") não impedem 🟢.
 
+**Produto de referência (D-71):** o item costuma dizer pouco ("Papel sulfite 500 folhas, Chamex"), e duas lojas podem trazer produtos diferentes que "servem" (75 g numa, 90 g na outra). A primeira página que o usuário confirma vira a referência do item, e as outras lojas passam a ser comparadas também com ela: mesmo código de barras da referência → 🟢 automático; atributo diferente do da referência → 🔴 ("diferente do produto de referência: 75 g × 90 g"); marca e atributos iguais aos da referência → 🟢 por atributos. A referência pode ser trocada (com justificativa), e as páginas que o usuário não decidiu são comparadas de novo. Na tela de conferência, as fotos das lojas e a da referência aparecem lado a lado (D-73); a foto só ajuda a decidir.
+
 Cada resultado é gravado (tabela `correspondencia`, imutável) com o status, a origem e os motivos. Uma decisão do usuário (confirmar ou recusar, com justificativa) é um registro novo; vale o mais recente. O perfil de regras diz se o 🟢 do programa já vale sozinho ou espera confirmação: padrão, **EAN automático** e **atributos com aprovação** (§4 de [05](05-regras-padrao.md)).
 
 **Aprendizado (D-64 a D-66):** cada decisão do usuário vira um par rotulado; pares com o mesmo código de barras em lojas diferentes entram sozinhos. A partir deles, o sistema sugere inclusões no vocabulário e no catálogo de atributos (aba "Sugestões" em Catálogos, Fase 2, etapa 13: valor novo, sinônimo, grupo novo ou atributo que a categoria passa a conferir); o usuário aprova depois de ver o efeito no teste de correspondência, e nenhuma mudança que crie um 🟢 errado é aceita. Pares, catálogo de lojas, atributos e vocabulário também podem ser editados diretamente na interface, com a mesma conferência.
@@ -104,6 +106,8 @@ Cada resultado é gravado (tabela `correspondencia`, imutável) com o status, a 
 3. **Classificação:** lojas elegíveis ordenadas pelo total do lote (com as quantidades planejadas, P-05). Desempate: qualidade da evidência, depois ordem alfabética (determinístico).
 4. **Trio:** as 3 primeiras da classificação. Orçamento 1 = menor total; 2 e 3 em seguida.
 5. **Justificativa gerada**, ex.: *"Loja X escolhida: possui os 17 itens e teve o menor total entre as 6 lojas completas."* Todas as lojas pesquisadas e os motivos de descarte vão para o relatório.
+
+**Fechar o lote (D-72):** o botão "Fechar o lote" pesquisa todos os itens nas lojas escolhidas (sem parar quando falta um, D-68) e mostra o que falta: (1) os produtos a confirmar, um por item, com as fotos lado a lado ("É este" / "Não é"); (2) os itens que faltam nas 3 lojas mais completas, com produtos de outra marca que existem nas 3 (do menor preço somado para o maior) e o botão "Trocar por este" — a troca é a Saída 1 de sempre, e as páginas das 3 lojas entram na fila como prova. Nada é trocado sem o usuário.
 
 **Item bloqueador** (existe em menos de 3 lojas elegíveis): o sistema informa qual item impede o trio, em quantas lojas ele existe e sugere:
 - trocar o produto por um alternativo (com as características que o tornam equivalente), com aprovação;
@@ -158,6 +162,7 @@ O enquadramento é feito pela tabela de jornadas (mantida e revisada por humano,
 ### 10.2 Pesquisa de vagas
 - Plataformas, na ordem: Catho (mostra faixas salariais), Indeed, InfoJobs, Vagas.com e outras do catálogo; Google Jobs (plano grátis da SerpApi, opcional); LinkedIn só por captura assistida.
 - **A busca de vagas é feita pela pessoa, na janela (D-69):** as plataformas proíbem programas nas buscas. O botão "Pesquisar vagas" de cada cargo abre uma janela por plataforma, na busca já preenchida com o cargo e a cidade; a pessoa escolhe a vaga e clica em "Capturar agora". Link de vaga do Indeed ou do LinkedIn colado também abre na janela.
+- **Google Vagas (D-69 revista, opcional):** com a chave grátis da SerpApi, "Procurar no Google Vagas" busca o cargo na cidade; o sistema captura sozinho as vagas da Catho, da InfoJobs e da Vagas.com (até 6, primeiro as que mostram salário) e lista as do Indeed, do LinkedIn e de outros sites para a pessoa abrir. O salário mostrado pelo Google não é prova: vale o da página da vaga.
 - Dados de cada vaga: cargo, empresa, CNPJ (quando encontrado), salário ou faixa, localização, descrição, URL, data de publicação, plataforma, identificador, data e hora da coleta, evidência.
 
 ### 10.3 Validação e escolha
