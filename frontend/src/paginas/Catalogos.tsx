@@ -300,8 +300,8 @@ const MODOS_DE_BUSCA: Record<string, string> = {
   api_woocommerce: "API pública de produtos (WooCommerce / WordPress)",
 };
 
-function FormularioDeLoja({ inicial, grupo, aoSalvar, aoFechar }: {
-  inicial: LojaDados | null; grupo: Grupo; aoSalvar: (l: LojaDados) => Promise<void>; aoFechar: () => void;
+function FormularioDeLoja({ inicial, grupo, tipos, aoSalvar, aoFechar }: {
+  inicial: LojaDados | null; grupo: Grupo; tipos: Record<string, string>; aoSalvar: (l: LojaDados) => Promise<void>; aoFechar: () => void;
 }) {
   const [l, setL] = useState<LojaDados>(inicial ?? { id: "", nome: "", dominio: "", coleta: "C1" });
   const campo = (chave: keyof LojaDados) => (e: { target: { value: string } }) => setL({ ...l, [chave]: e.target.value });
@@ -328,6 +328,25 @@ function FormularioDeLoja({ inicial, grupo, aoSalvar, aoFechar }: {
           <input type="checkbox" checked={Boolean(l.marketplace)} onChange={(e) => setL({ ...l, marketplace: e.target.checked })} />
           É marketplace (vários vendedores: vale o CNPJ do vendedor, D-16)
         </label>
+        {grupo === "lojas" && (
+          <Campo rotulo="O que a loja vende" ajuda="Em branco: o sistema descobre sozinho pela busca da loja (D-74).">
+            <div className="lista-lojas">
+              {Object.entries(tipos).map(([id, nome]) => {
+                const marcados = new Set((l.categorias as string[] | undefined) ?? []);
+                return (
+                  <label key={id} className="marcador">
+                    <input type="checkbox" checked={marcados.has(id)} onChange={() => {
+                      if (marcados.has(id)) marcados.delete(id);
+                      else marcados.add(id);
+                      setL({ ...l, categorias: [...marcados], categorias_origem: "manual" });
+                    }} />
+                    {nome}
+                  </label>
+                );
+              })}
+            </div>
+          </Campo>
+        )}
         <Campo rotulo="Preço a usar" ajuda="Se a página mostra mais de um preço (ex.: preco_por, preco_normal). D-60 a D-63.">
           <input value={String(l.preco_a_usar ?? "")} onChange={campo("preco_a_usar")} />
         </Campo>
@@ -368,12 +387,40 @@ function Lojas({ organizacaoId }: { organizacaoId: string }) {
   const rota = `/api/organizacoes/${organizacaoId}/catalogos/lojas`;
   const { dados, erro, recarregar } = useDados<CatalogoDeLojas>(rota);
   const [edicao, setEdicao] = useState<{ grupo: Grupo; loja: LojaDados | null } | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (!dados) return <Carregando />;
+  const vende = (l: LojaDados) => {
+    const proprios = ((l.categorias as string[] | undefined) ?? []).map((c) => dados.tipos[c] ?? (c === "escritorio" ? null : c)).filter(Boolean);
+    const aprendidos = (dados.aprendidas[l.dominio.replace(/^www\./, "")] ?? [])
+      .map((c) => dados.tipos[c] ?? c).filter((c) => !proprios.includes(c));
+    const origem = l.categorias_origem === "automatica" ? `descoberto pelo sistema${l.categorias_em ? ` em ${String(l.categorias_em).split("-").reverse().join("/")}` : ""}`
+      : l.categorias_origem === "manual" ? "escolhido por você" : proprios.length ? "catálogo do sistema" : "";
+    const automatica = Boolean(l.busca && typeof l.busca === "object" && (l.busca as Busca).modo !== "assistida");
+    return (
+      <>
+        {[...new Set(proprios)].join(", ") || <span className="discreto">ainda sem tipo</span>}
+        {aprendidos.length > 0 && <div className="discreto pequeno">aprendido nas pesquisas: {[...new Set(aprendidos)].join(", ")}</div>}
+        {origem && <div className="discreto pequeno">{origem}</div>}
+        {dados.classificando.includes(l.id)
+          ? <div className="pequeno">descobrindo… (quadro Tarefas)</div>
+          : automatica && (
+            <BotaoAcao classe="link pequeno" aoClicar={async () => {
+              await api.criar(`/api/organizacoes/${organizacaoId}/lojas/${l.id}/classificar`);
+              setAviso(`O sistema está testando a busca da ${l.nome} com produtos típicos de cada tipo. Leva cerca de 1 minuto.`);
+              recarregar();
+            }}>{proprios.length ? "descobrir de novo" : "descobrir o que vende"}</BotaoAcao>
+          )}
+      </>
+    );
+  };
   const salvar = (grupo: Grupo, antiga: LojaDados | null) => async (nova: LojaDados) => {
     const conteudo = structuredClone(dados.vigente);
     conteudo[grupo] = antiga ? conteudo[grupo].map((x) => (x.id === antiga.id ? { ...x, ...nova } : x)) : [...conteudo[grupo], nova];
-    await api.trocar(rota, { conteudo, resumo: `${antiga ? "editou" : "acrescentou"} ${nova.nome}` });
+    const r = await api.trocar<{ classificando: string[] }>(rota, { conteudo, resumo: `${antiga ? "editou" : "acrescentou"} ${nova.nome}` });
+    if (r.classificando.length) {
+      setAviso(`O sistema vai descobrir sozinho o que ${r.classificando.join(", ")} vende (quadro Tarefas, cerca de 1 minuto).`);
+    }
     recarregar();
   };
   const tabela = (grupo: Grupo, titulo: string) => (
@@ -383,13 +430,14 @@ function Lojas({ organizacaoId }: { organizacaoId: string }) {
         <button className="secundario pequeno" onClick={() => setEdicao({ grupo, loja: null })}>+ {grupo === "lojas" ? "loja" : "fornecedor"}</button>
       </div>
       <table className="tabela">
-        <thead><tr><th>Nome</th><th>Site</th><th>Como coletar</th><th>Preço a usar</th><th /></tr></thead>
+        <thead><tr><th>Nome</th><th>Site</th>{grupo === "lojas" && <th>Vende</th>}<th>Como coletar</th><th>Preço a usar</th><th /></tr></thead>
         <tbody>
           {dados.vigente[grupo].map((l) => (
             <tr key={l.id}>
               <td>{l.nome}{l.marketplace ? <span className="discreto pequeno"> · marketplace</span> : null}
                 {l.observacoes ? <div className="discreto pequeno">{String(l.observacoes)}</div> : null}</td>
               <td className="url">{l.dominio}</td>
+              {grupo === "lojas" && <td>{vende(l)}</td>}
               <td>{COLETAS[l.coleta] ?? l.coleta}{l.busca && typeof l.busca === "object" ? <div className="discreto pequeno">busca: {MODOS_DE_BUSCA[(l.busca as Busca).modo] ?? (l.busca as Busca).modo}</div> : null}</td>
               <td>{String(l.preco_a_usar ?? "—")}</td>
               <td><button className="link pequeno" onClick={() => setEdicao({ grupo, loja: l })}>editar</button></td>
@@ -405,10 +453,16 @@ function Lojas({ organizacaoId }: { organizacaoId: string }) {
         As lojas e fornecedores que o sistema conhece: o nome que aparece nos documentos, como a página é lida e qual preço
         vale quando a página mostra mais de um. Lojas novas também entram sozinhas quando você cola um link; aqui você ajusta.
       </p>
+      <p className="discreto pequeno">
+        O sistema separa as lojas pelo que vendem (D-74) para indicar as certas em cada lote. Loja nova com busca automática:
+        ele descobre sozinho, testando a busca com produtos típicos (caneta, arroz, detergente…). Todas as lojas também aprendem
+        com as páginas que você confirma nas pesquisas. Você pode corrigir em “editar”.
+      </p>
+      {aviso && <Aviso tipo="info">{aviso}</Aviso>}
       <Historico versoes={dados.historico} />
       {tabela("lojas", "Lojas")}
       {tabela("fornecedores_servico", "Fornecedores de serviço")}
-      {edicao && <FormularioDeLoja inicial={edicao.loja} grupo={edicao.grupo} aoFechar={() => setEdicao(null)}
+      {edicao && <FormularioDeLoja inicial={edicao.loja} grupo={edicao.grupo} tipos={dados.tipos} aoFechar={() => setEdicao(null)}
         aoSalvar={salvar(edicao.grupo, edicao.loja)} />}
     </div>
   );

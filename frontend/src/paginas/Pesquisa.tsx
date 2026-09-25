@@ -331,15 +331,29 @@ interface LojaDeBusca {
   modo: "api_vtex" | "api_vtex_is" | "api_woocommerce" | "pagina" | "assistida";
   sugerida: boolean;
   faltam: number;
+  // D-74: o que a loja vende em relação a este lote
+  situacao: "todas" | "parte" | "nenhuma" | "desconhecida" | "itens_sem_categoria";
+  tipos: string[];
+  do_lote: string[];
+  aprendido: string[];
+  classificando: boolean;
+}
+
+interface LojasDoLote {
+  itens: number;
+  itens_sem_categoria: number;
+  tipos_do_lote: string[];
+  lojas: LojaDeBusca[];
 }
 
 function BuscarNasLojas({ lote, aoFechar, aoIniciar, aoDescobrir, fechar = false }: {
   lote: LoteRevisao; aoFechar: () => void; aoIniciar: () => void; aoDescobrir: (tarefaId: string) => void; fechar?: boolean;
 }) {
-  const { dados, erro } = useDados<{ itens: number; lojas: LojaDeBusca[] }>(`/api/lotes/${lote.id}/lojas-de-busca`);
+  const { dados, erro } = useDados<LojasDoLote>(`/api/lotes/${lote.id}/lojas-de-busca`);
   const { dados: opcionais } = useDados<EstadoOpcionais>("/api/opcionais");
   const [marcadas, setMarcadas] = useState<Set<string> | null>(null);
-  const escolhidas = marcadas ?? new Set((dados?.lojas ?? []).filter((l) => l.modo !== "assistida" && l.sugerida && l.faltam > 0).map((l) => l.id));
+  // D-74: já vêm marcadas as lojas que o sistema pesquisa sozinho e que vendem tudo o que o lote tem
+  const escolhidas = marcadas ?? new Set((dados?.lojas ?? []).filter((l) => l.modo !== "assistida" && l.situacao === "todas" && l.faltam > 0).map((l) => l.id));
   const alternar = (id: string) => {
     const nova = new Set(escolhidas);
     if (nova.has(id)) nova.delete(id);
@@ -352,14 +366,21 @@ function BuscarNasLojas({ lote, aoFechar, aoIniciar, aoDescobrir, fechar = false
   const buscas = automaticas.filter((l) => escolhidas.has(l.id)).reduce((n, l) => n + l.faltam, 0);
   const janelas = assistidas.filter((l) => escolhidas.has(l.id)).reduce((n, l) => n + l.faltam, 0);
   const linha = (l: LojaDeBusca) => (
-    <label key={l.id} className="marcador">
+    <label key={l.id} className="marcador quebra">
       <input type="checkbox" checked={escolhidas.has(l.id)} onChange={() => alternar(l.id)} disabled={l.faltam === 0} />
-      {l.nome}
+      <strong>{l.nome}</strong>
       <span className="discreto pequeno">
-        {l.faltam === 0 ? " · todos os itens já têm página" : ` · ${l.faltam} item(ns) a pesquisar`}{l.sugerida ? "" : " · não vende todas as categorias do lote"}
+        {l.tipos.length > 0 ? ` · ${l.tipos.join(", ")}` : ""}
+        {l.situacao === "parte" ? ` · deste lote, só: ${l.do_lote.join(", ")}` : ""}
+        {l.aprendido.length > 0 ? " · aprendido nas suas pesquisas" : ""}
+        {l.modo === "assistida" ? " · com janela: você escolhe o produto" : ""}
+        {l.faltam === 0 ? " · todos os itens já têm página" : ` · ${l.faltam} item(ns) a pesquisar`}
       </span>
     </label>
   );
+  const grupo = (situacao: LojaDeBusca["situacao"]) => lojas.filter((l) => l.situacao === situacao);
+  const [indicadas, parte, desconhecidas, outras, semCategoria] =
+    [grupo("todas"), grupo("parte"), grupo("desconhecida"), grupo("nenhuma"), grupo("itens_sem_categoria")];
   return (
     <Modal titulo={`${fechar ? "Fechar o lote" : "Pesquisar nas lojas"} — ${lote.nome}`} aoFechar={aoFechar}>
       {fechar ? (
@@ -383,17 +404,49 @@ function BuscarNasLojas({ lote, aoFechar, aoIniciar, aoDescobrir, fechar = false
           await api.criar(`/api/lotes/${lote.id}/${fechar ? "fechar" : "busca"}`, { lojas: [...escolhidas] });
           aoIniciar();
         }}>
-          <h3>O sistema pesquisa sozinho</h3>
-          <div className="lista-lojas">{automaticas.map(linha)}</div>
-          {assistidas.length > 0 && (
+          {dados.tipos_do_lote.length > 0 && <p>Este lote tem: <strong>{dados.tipos_do_lote.join(", ")}</strong>.</p>}
+          {dados.itens_sem_categoria > 0 && (
+            <Aviso tipo="atencao">
+              {dados.itens_sem_categoria} item(ns) sem categoria: informe a categoria em “Itens e cargos” para o sistema indicar
+              as lojas certas.
+            </Aviso>
+          )}
+          {indicadas.length > 0 && (
             <>
-              <h3>Com janela: você escolhe o produto</h3>
-              <p className="discreto pequeno">
-                Estas lojas recusam programas (D-67). Para cada item, abre uma janela na busca da loja; você clica no
-                produto certo e depois em “Capturar agora”, no quadro Tarefas.
-              </p>
-              <div className="lista-lojas">{assistidas.map(linha)}</div>
+              <h3>Indicadas para este lote</h3>
+              <p className="discreto pequeno">Vendem tudo o que o lote tem. Já vêm marcadas as que o sistema pesquisa sozinho.</p>
+              <div className="lista-lojas">{indicadas.map(linha)}</div>
             </>
+          )}
+          {semCategoria.length > 0 && <div className="lista-lojas">{semCategoria.map(linha)}</div>}
+          {parte.length > 0 && (
+            <>
+              <h3>Vendem só parte dos itens</h3>
+              <div className="lista-lojas">{parte.map(linha)}</div>
+            </>
+          )}
+          {desconhecidas.length > 0 && (
+            <>
+              <h3>Ainda sem tipo</h3>
+              <p className="discreto pequeno">
+                {desconhecidas.some((l) => l.classificando)
+                  ? "O sistema está descobrindo o que estas lojas vendem (veja o quadro Tarefas)."
+                  : "O sistema ainda não sabe o que estas lojas vendem: aprende com as páginas que você confirmar."}
+              </p>
+              <div className="lista-lojas">{desconhecidas.map(linha)}</div>
+            </>
+          )}
+          {outras.length > 0 && (
+            <details>
+              <summary>Outras lojas ({outras.length}): não vendem o que este lote tem</summary>
+              <div className="lista-lojas">{outras.map(linha)}</div>
+            </details>
+          )}
+          {assistidas.some((l) => escolhidas.has(l.id)) && (
+            <p className="discreto pequeno">
+              Lojas com janela recusam programas (D-67): para cada item, abre uma janela na busca da loja; você clica no
+              produto certo e depois em “Capturar agora”, no quadro Tarefas.
+            </p>
           )}
           <Aviso tipo="info">
             Até <strong>{buscas}</strong> busca(s) automática(s)

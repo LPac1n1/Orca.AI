@@ -39,7 +39,7 @@ from orca.tarefas.executores import registrar_item
 from orca.tarefas.fila import ErroTarefa, Fila, TarefaCancelada, tarefa
 
 TENTATIVAS_POR_ITEM = 2  # páginas de produto capturadas, no máximo, para cada item em cada loja
-SEM_CANDIDATOS_SEGUIDOS = 3  # buscas seguidas sem nenhum produto do tipo: a loja não vende o lote (ou a busca mudou)
+SEM_RELACAO_SEGUIDAS = 3  # buscas seguidas que só trazem produtos sem relação: a busca da loja mudou (ex.: Lepok)
 
 
 def _buscar(fila: Fila, cliente: httpx.Client, ritmo: Ritmo, loja: LojaDeBusca, consulta: Consulta):
@@ -102,7 +102,7 @@ def pesquisar_lote(fila: Fila, tarefa_id: str, lote_id: str, lojas_escolhidas: l
             dominio = dominio_da_url("https://" + loja.dominio)
             r = {"loja": loja.nome, "loja_id": loja.id, "encontrados": 0, "sem_preco": [], "nao_encontrados": [],
                  "erro": None}
-            vazias = 0  # buscas seguidas sem nenhum candidato do tipo do item
+            sem_relacao = 0  # buscas seguidas que trouxeram produtos, mas nenhum do tipo do item
             resumo.append(r)
             for item_id in ordem:
                 passo += 1
@@ -121,10 +121,13 @@ def pesquisar_lote(fila: Fila, tarefa_id: str, lote_id: str, lojas_escolhidas: l
                 except (ErroBusca, ErroCaptura) as erro:
                     r["erro"] = _curto(str(erro))
                     break
-                vazias = 0 if algum_do_mesmo_tipo(especificacoes[item_id], candidatos) else vazias + 1
-                if vazias >= SEM_CANDIDATOS_SEGUIDOS:
-                    r["erro"] = (f"a busca não trouxe nenhum produto parecido em {vazias} itens seguidos: "
-                                 "a loja não parece vender este tipo de produto; os outros itens nela foram poupados")
+                # Nenhum resultado = a loja não tem o item (segue). Só produtos sem relação, item após item = a busca
+                # da loja não está funcionando (piloto, 25/09/2026: a Lepok mostrava os mais vendidos para tudo).
+                sem_relacao = (sem_relacao + 1 if candidatos and not algum_do_mesmo_tipo(especificacoes[item_id], candidatos)
+                               else 0)
+                if sem_relacao >= SEM_RELACAO_SEGUIDAS:
+                    r["erro"] = (f"a busca devolveu só produtos sem relação em {sem_relacao} itens seguidos (ela pode ter "
+                                 "mudado): os outros itens nesta loja foram poupados")
                     break
                 try:
                     situacao = _capturar_melhor(fila, ritmo, dominio, loja, item_id, termo, candidatos,

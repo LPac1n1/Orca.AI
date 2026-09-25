@@ -61,7 +61,7 @@ Cada item tem:
 
 O sistema mantém um **catálogo de lojas** por categoria (papelaria, supermercado, limpeza…), com o método de coleta de cada uma. O catálogo é compartilhável entre OSCs.
 
-Na Fase 2 (etapa 10, D-68), cada lote tem **"Pesquisar nas lojas"**: a opção A, com as lojas que vendem todas as categorias do lote já marcadas (opção C). Antes de começar, a tela mostra quantas buscas automáticas e quantas capturas com janela serão feitas. A busca de cada loja (página do site, API pública ou janela) fica no catálogo de lojas e pode ser configurada pela OSC.
+Na Fase 2 (etapa 10, D-68), cada lote tem **"Pesquisar nas lojas"**: a opção A, com as lojas que vendem todas as categorias do lote já marcadas (opção C). **Separação das lojas (D-74):** a tela diz o que o lote tem ("Este lote tem: Papelaria e escritório") e mostra as lojas em grupos — indicadas para o lote, que vendem só parte, ainda sem tipo e (escondidas) as outras —, cada uma com o que vende. O tipo de cada loja vem do catálogo, da escolha da OSC, da descoberta automática (a busca da loja testada com produtos típicos, quando uma loja nova é cadastrada) e do que as pesquisas confirmam. Antes de começar, a tela mostra quantas buscas automáticas e quantas capturas com janela serão feitas. A busca de cada loja (página do site, API pública ou janela) fica no catálogo de lojas e pode ser configurada pela OSC.
 
 ### 6.2 Estratégia
 - **O item mais difícil primeiro:** o item encontrado em menos lojas é pesquisado antes. Uma loja que não o tem é descartada sem gastar as outras buscas.

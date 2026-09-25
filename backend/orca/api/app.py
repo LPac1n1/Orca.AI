@@ -71,7 +71,10 @@ from orca.coleta import (
     registrar_comprovante_enviado,
     url_do_comprovante,
 )
-from orca.busca import ler_plataformas, lojas_de_busca, plataforma_do_endereco, termo_de_busca
+from orca.busca import CATEGORIA_DA_LOJA, ler_plataformas, lojas_de_busca, plataforma_do_endereco, termo_de_busca
+from orca.busca.classificacao import NOMES as NOMES_DOS_TIPOS
+from orca.busca.classificacao import nomes as nomes_dos_tipos
+from orca.busca.lojas import MODOS_AUTOMATICOS
 from orca.coleta.pendencias import vigentes
 from orca.correspondencia import LEITORES, avaliar, pares_do_sistema
 from orca.documentos import Renderizador, conferir
@@ -143,6 +146,12 @@ def contexto_padrao(config: Configuracao, **trocas) -> Contexto:
         ia=config.ia,
         **trocas,
     )
+
+
+def _classificando(s: Session) -> set[str]:
+    """Lojas cujo tipo o sistema ainda está descobrindo (D-74)."""
+    return {t.parametros.get("loja_id") for t in s.scalars(select(Tarefa).where(
+        Tarefa.tipo == "classificar_loja", Tarefa.estado.in_(("pendente", "rodando"))))}
 
 
 def _obter(s: Session, classe, id_: str, nome: str):
@@ -652,15 +661,34 @@ def _rotas_de_pesquisa(app: FastAPI, sv: Servico) -> None:
 
     @app.get("/api/lotes/{lote_id}/lojas-de-busca")
     def lojas_para_buscar(lote_id: str):
-        """As lojas que o sistema sabe pesquisar, com as sugeridas para as categorias do lote (D-68)."""
+        """As lojas que o sistema sabe pesquisar, separadas pelo que vendem em relação ao lote (D-68, D-74)."""
         with sv.sessao() as s:
             lote = _obter(s, Lote, lote_id, "Lote")
-            lojas = lojas_de_busca(cat.lojas_da_organizacao(s, lote.orcamento.projeto.organizacao_id))
-            categorias = {i.categoria for i in lote.itens if i.excluido_em is None}
+            organizacao_id = lote.orcamento.projeto.organizacao_id
+            lojas = lojas_de_busca(cat.lojas_da_organizacao(s, organizacao_id))
+            aprendidas = cat.categorias_aprendidas(s, organizacao_id)
+            itens = [i for i in lote.itens if i.excluido_em is None]
+            do_lote = {CATEGORIA_DA_LOJA.get(i.categoria, i.categoria) for i in itens if i.categoria}
             faltando = _faltando_por_loja(s, lote, lojas)
-            return {"itens": sum(1 for i in lote.itens if i.excluido_em is None),
-                    "lojas": [{"id": l.id, "nome": l.nome, "modo": l.modo, "sugerida": l.atende(categorias),
-                               "faltam": len(faltando[l.id])} for l in lojas]}
+            classificando = _classificando(s)
+            resposta = []
+            for l in lojas:
+                aprendido = aprendidas.get(dominio_da_url("https://" + l.dominio), set()) - set(l.categorias)
+                vende = set(l.categorias) | aprendido
+                if not do_lote:
+                    situacao = "itens_sem_categoria"
+                elif not vende:
+                    situacao = "desconhecida"
+                elif do_lote <= vende:
+                    situacao = "todas"
+                else:
+                    situacao = "parte" if do_lote & vende else "nenhuma"
+                resposta.append({"id": l.id, "nome": l.nome, "modo": l.modo, "faltam": len(faltando[l.id]),
+                                 "situacao": situacao, "sugerida": situacao == "todas",
+                                 "tipos": nomes_dos_tipos(sorted(vende)), "do_lote": nomes_dos_tipos(sorted(do_lote & vende)),
+                                 "aprendido": nomes_dos_tipos(sorted(aprendido)), "classificando": l.id in classificando})
+            return {"itens": len(itens), "itens_sem_categoria": sum(1 for i in itens if not i.categoria),
+                    "tipos_do_lote": nomes_dos_tipos(sorted(do_lote)), "lojas": resposta}
 
     def _enfileirar_busca(lote_id: str, escolhidas: list[str], tipo: str) -> dict:
         """Busca automática nas lojas escolhidas; nas que recusam programas, uma captura com janela por item."""
@@ -1172,7 +1200,11 @@ def _rotas_de_catalogos(app: FastAPI, sv: Servico) -> None:
             camada = cat.camada_vigente(s, organizacao_id, "lojas")
             return {"versao": camada.versao if camada else 0, "mudancas": camada.conteudo if camada else {},
                     "vigente": cat.lojas_da_organizacao(s, organizacao_id), "coletas": list(cat.COLETAS),
-                    "historico": _historico_do_catalogo(s, organizacao_id, "lojas")}
+                    "historico": _historico_do_catalogo(s, organizacao_id, "lojas"),
+                    # D-74: o que cada loja vende
+                    "tipos": {k: v for k, v in NOMES_DOS_TIPOS.items() if k != "escritorio"},
+                    "aprendidas": {d: sorted(c) for d, c in cat.categorias_aprendidas(s, organizacao_id).items()},
+                    "classificando": sorted(_classificando(s))}
 
     @app.put("/api/organizacoes/{organizacao_id}/catalogos/lojas")
     def salvar_lojas(organizacao_id: str, dados: e.CatalogoEditado):
@@ -1181,7 +1213,28 @@ def _rotas_de_catalogos(app: FastAPI, sv: Servico) -> None:
             mudancas = cat.diferenca_de_lojas(ler_catalogo_dados(), dados.conteudo)
             camada = cat.salvar_lojas(s, organizacao_id, mudancas, dados.resumo)
             s.flush()
-            return {"versao": camada.versao, "mudancas": camada.conteudo}
+            # D-74: loja com busca automática e sem tipo → o sistema descobre sozinho o que ela vende
+            classificando = _classificando(s)
+            novas = [e_ for e_ in cat.lojas_da_organizacao(s, organizacao_id).get("lojas") or []
+                     if isinstance(e_.get("busca"), dict) and e_["busca"].get("modo") in MODOS_AUTOMATICOS
+                     and not e_.get("categorias") and not e_.get("categorias_em") and e_["id"] not in classificando]
+            for entrada in novas:
+                sv.fila.enfileirar(s, "classificar_loja", {"organizacao_id": organizacao_id, "loja_id": entrada["id"]})
+            s.flush()
+            return {"versao": camada.versao, "mudancas": camada.conteudo, "classificando": [e_["nome"] for e_ in novas]}
+
+    @app.post("/api/organizacoes/{organizacao_id}/lojas/{loja_id}/classificar", status_code=202)
+    def classificar_loja(organizacao_id: str, loja_id: str):
+        """D-74: testa a busca da loja com produtos típicos de cada tipo e anota o que ela vende."""
+        with sv.sessao() as s:
+            _org(s, organizacao_id)
+            loja = next((l for l in lojas_de_busca(cat.lojas_da_organizacao(s, organizacao_id)) if l.id == loja_id), None)
+            if loja is None or not loja.automatica:
+                raise HTTPException(400, "Só dá para descobrir sozinho nas lojas com busca automática; nas outras, o "
+                                         "sistema aprende com as páginas que você confirma.")
+            t = sv.fila.enfileirar(s, "classificar_loja", {"organizacao_id": organizacao_id, "loja_id": loja_id})
+            s.flush()
+            return ap.tarefa_json(t)
 
     @app.get("/api/organizacoes/{organizacao_id}/pares")
     def pares(organizacao_id: str):

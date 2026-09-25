@@ -73,6 +73,7 @@ export const TIPOS_DE_TAREFA = {
   julgar_amarelos: "IA confere os 🟡",
   fechar_lote: "Fechar o lote",
   descobrir_vagas: "Google Vagas",
+  classificar_loja: "Descobrir o que a loja vende",
   comprovante: "Comprovante da Receita",
   consultar_cnpj: "Consultar CNPJs",
   fechar_teto: "Fechar o teto",

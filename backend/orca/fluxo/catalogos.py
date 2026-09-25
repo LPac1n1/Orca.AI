@@ -397,3 +397,32 @@ def retirar_par(sessao: Session, par: ParReferencia) -> None:
     """Retira o par do teste (continua no banco). Pares automáticos retirados não voltam (a chave fica)."""
     if par.excluido_em is None:
         par.excluido_em = agora()
+
+
+# --- O que cada loja vende (D-74) ----------------------------------------------------------------------
+
+
+def categorias_aprendidas(sessao: Session, organizacao_id: str) -> dict[str, set[str]]:
+    """Domínio → tipos de loja dos itens com página confirmada (🟢) nela, nas pesquisas da OSC.
+
+    Vale também para as lojas só com janela, que o sistema não pesquisa sozinho.
+    """
+    from collections import defaultdict
+
+    from orca.banco import Lote, Observacao, Orcamento, Projeto, correspondencia_vigente
+    from orca.busca.lojas import CATEGORIA_DA_LOJA
+    from orca.coleta.catalogo import dominio_da_url
+
+    linhas = sessao.execute(
+        select(Observacao.id, Observacao.item_id, Observacao.url, Item.categoria)
+        .join(Item, Observacao.item_id == Item.id).join(Lote, Item.lote_id == Lote.id)
+        .join(Orcamento, Lote.orcamento_id == Orcamento.id).join(Projeto, Orcamento.projeto_id == Projeto.id)
+        .where(Projeto.organizacao_id == organizacao_id, Observacao.encontrado.is_(True), Item.categoria.is_not(None))
+    )
+    resultado: dict[str, set[str]] = defaultdict(set)
+    for obs_id, item_id, url, categoria in linhas:
+        vigente = correspondencia_vigente(sessao, item_id, obs_id)
+        if vigente is not None and vigente.status == "verde":
+            resultado[dominio_da_url(url)].add(CATEGORIA_DA_LOJA.get(categoria, categoria))
+    return dict(resultado)
+
