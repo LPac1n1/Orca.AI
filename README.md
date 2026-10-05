@@ -1,10 +1,12 @@
 # Orça.AI
 
-**Orçamentos de projetos sociais prontos para a Secretaria: pesquisa de vagas e de preços, comprovantes em PDF e planilhas — no seu computador, sem custo e com tudo conferível.**
+**Orçamentos de projetos sociais prontos para o órgão que vai analisar: pesquisa de vagas e de preços, comprovantes em PDF e planilhas — no seu computador, sem custo e com tudo conferível.**
 
-O Orça.AI é um sistema local (abre no navegador, em `http://127.0.0.1:8000`) para organizações da sociedade civil (OSCs) montarem o **Plano de Aplicação** e o **Comparativo de Preço** de projetos analisados pela Secretaria da Justiça e Cidadania do Estado de São Paulo (SEJC). Ele procura sozinho as 3 pesquisas de cada item, guarda o comprovante de cada uma, confere as regras estabelecidas pela Secretaria e entrega um pacote pronto para enviar.
+O Orça.AI é um sistema local (abre no navegador, em `http://127.0.0.1:8000`) para organizações da sociedade civil (OSCs) montarem o **Plano de Aplicação** e o **Comparativo de Preço** de projetos financiados por secretarias, fundos e emendas. Ele procura sozinho as 3 pesquisas de cada item, guarda o comprovante de cada uma, confere as regras do órgão e entrega um pacote pronto para enviar.
 
-> Versão 0.5 · em uso e em evolução · feito e testado no Windows 11 com Python 3.12
+Já vem com as regras da Secretaria da Justiça e Cidadania do Estado de São Paulo (SEJC). As de qualquer outro órgão são cadastradas pela tela, sem programar.
+
+> Versão 0.6 · em uso e em evolução · feito e testado no Windows 11 com Python 3.12
 
 ---
 
@@ -17,25 +19,26 @@ O Orça.AI é um sistema local (abre no navegador, em `http://127.0.0.1:8000`) p
 | **Sistemas e serviços** | Sistemas: compara 3 fornecedores pelas ferramentas de referência (não pelo nome nem pelo menor preço). Serviços: recebe as 3 propostas em PDF e confere valor e CNPJ. |
 | **CNPJ** | Confere a situação de cada empresa na base pública da Receita Federal e importa o Comprovante de Inscrição e de Situação Cadastral que você emite. |
 | **Verificação** | Aponta, item por item, o que bloqueia o envio e o que merece revisão, com o código da regra. |
+| **Órgãos e regras** | Cada órgão (secretaria, ministério, fundo, emenda) é um cadastro: quais regras valem e com que peso, as regras próprias dele ("só empresas do estado", "material permanente não pode", "mão de obra até 60% do total"), como o valor do plano é escolhido e quais planilhas vão no pacote. O projeto segue as regras do órgão dele. |
 | **Fechar no teto** | Encontra a combinação de horas e valores que fecha o plano exatamente no teto do projeto, sem sair das regras. |
 | **Histórico** | Cada alteração vira uma versão nova; nada é apagado e qualquer versão pode ser restaurada. |
-| **Pacote para a Secretaria** | Um `.zip` com o Plano de Aplicação e o Comparativo de Preço (planilha formatada, com fórmulas) e o PDF de cada pesquisa, separado por rubrica e item, na ordem do plano, cada um já com o comprovante de CNPJ da empresa. |
+| **Pacote para envio** | Um `.zip` com a planilha formatada e com fórmulas (Plano de Aplicação, Cronograma físico-financeiro, Etapas e Fases, Cronograma de desembolso e Comparativo de Preço) e o PDF de cada pesquisa, separado por rubrica e item, na ordem do plano, cada um já com o comprovante de CNPJ da empresa. |
 
 ## Como é o uso
 
-1. **Crie o projeto**: nome, teto (o valor que o orçamento precisa fechar) e CEP de entrega.
+1. **Crie o projeto**: nome, teto (o valor que o orçamento precisa fechar), CEP de entrega e o órgão que vai analisar. Órgão novo? Cadastre em **Órgãos** e ajuste as regras dele.
 2. **Cadastre o plano**: os cargos (com horas ou faixa salarial pretendida) e as rubricas de materiais, sistemas e serviços, com os itens de cada uma. Dá para colar uma lista inteira do Excel.
 3. **Clique em "Pesquisar tudo automaticamente"**: o sistema busca vagas e preços, confere os CNPJs e guarda os comprovantes. Uma barra mostra o andamento; o que já está pesquisado não é refeito.
 4. **Confira**: cada item é uma linha com os 3 preços, a média, o valor no plano e a situação. Dá para refazer uma pesquisa só, trocar de loja ou de vaga e marcar pontos como revisados.
 5. **Emita os comprovantes de CNPJ** na Receita (o site pede uma verificação humana) e salve na pasta `Orça.AI`, em Documentos: o sistema mostra o que já foi baixado e importa.
-6. **Feche no teto e baixe o pacote** para enviar à Secretaria.
+6. **Feche no teto e baixe o pacote** para enviar ao órgão.
 
 ## O que o sistema nunca faz
 
 - **Não inventa** preço, produto, vaga, CNPJ nem endereço: tudo o que entra no orçamento veio de uma página ou de um documento, e o PDF fica guardado com código de verificação (SHA-256).
 - **Não resolve nem contorna CAPTCHA** e não disfarça a automação. Loja que pede verificação humana sai da pesquisa.
 - **Não guarda senhas nem chaves**. O login em sites, quando necessário, é feito por você numa janela do próprio site.
-- **Não manda seus dados para fora**: projetos, vagas e comprovantes ficam só no seu computador. A única exceção é a IA gratuita, opcional, que recebe apenas dados públicos (nomes de produtos anunciados, nome de cargo).
+- **Não manda seus dados para fora**: projetos, vagas e comprovantes ficam só no seu computador. A exceção é a IA gratuita, opcional: ela recebe nomes de produtos anunciados e de cargos e, só quando você pede, os itens do plano (para conferir uma regra escrita em texto; sem o nome da organização nem o do projeto) ou o trecho do edital que você colou (para propor regras).
 - **Não custa nada**: usa só ferramentas e fontes gratuitas.
 
 O sistema monta e confere; revisar o resultado e enviar continua sendo responsabilidade da organização.
@@ -52,7 +55,7 @@ Na primeira abertura, a base pública de CNPJ da Receita é baixada em segundo p
 
 ### IA gratuita (opcional)
 
-Com uma chave gratuita do Google Gemini, o sistema usa a IA como **apoio**: para confirmar que dois anúncios são o mesmo produto, entender pedidos escritos de outro jeito ("Caixa Caneta Esferográfica Azul", "Sardinha Enlatada"), escolher o plano de um sistema pelas ferramentas e sugerir títulos de cargo com a mesma função. As regras é que decidem; a resposta da IA é sempre conferida e fica registrada. Sem a chave, tudo funciona, com mais itens deixados para a sua conferência.
+Com uma chave gratuita do Google Gemini, o sistema usa a IA como **apoio**: para confirmar que dois anúncios são o mesmo produto, entender pedidos escritos de outro jeito ("Caixa Caneta Esferográfica Azul", "Sardinha Enlatada"), escolher o plano de um sistema pelas ferramentas, sugerir títulos de cargo com a mesma função, **propor as regras de um órgão a partir do texto do edital** (nada é gravado antes de você aceitar) e conferir o plano contra uma regra escrita em texto livre (o resultado entra sempre como ponto para revisar). As regras é que decidem; a resposta da IA é sempre conferida e fica registrada. Sem a chave, tudo funciona, com mais itens deixados para a sua conferência.
 
 O passo a passo está em [GEMINI_PASSO_A_PASSO.md](GEMINI_PASSO_A_PASSO.md). A chave fica só na variável de ambiente `GEMINI_API_KEY` do seu Windows: nunca é escrita em arquivo nem mostrada na tela.
 
@@ -77,7 +80,29 @@ Lojas e sites mudam com frequência: quando uma fonte deixa de responder ou pass
 
 ## Regras conferidas
 
-São 27 regras: as estabelecidas pela SEJC (3 pesquisas por item, empresas diferentes e ativas, comprovante de cada pesquisa, valor do plano até a média, menor valor da faixa salarial, horas inteiras, entre outras) e as do próprio sistema (mesmo produto nas 3 lojas, comprovante que prova o preço registrado, dois itens que não podem ser o mesmo produto, valor no plano igual ao menor preço ou à média). A lista completa, com o código de cada uma, aparece na tela **Ajuda** e em [`sistema/orcamento/regras.py`](sistema/orcamento/regras.py).
+O sistema traz um catálogo de 27 regras: as estabelecidas pela SEJC (3 pesquisas por item, empresas diferentes e ativas, comprovante de cada pesquisa, valor do plano até a média, menor valor da faixa salarial, horas inteiras, entre outras) e as do próprio sistema (mesmo produto nas 3 lojas, comprovante que prova o preço registrado, dois itens que não podem ser o mesmo produto, valor no plano igual ao menor preço ou à média). A lista completa, com o código de cada uma, aparece na tela **Ajuda** e em [`sistema/orcamento/regras.py`](sistema/orcamento/regras.py).
+
+### Regras de cada órgão
+
+Na tela **Órgãos**, cada órgão diz o que vale para ele — tudo pela tela, e a verificação dos projetos muda na hora:
+
+- **Regras do catálogo**: ligada ou desligada, e o peso (pendência que bloqueia o envio, ponto para revisar ou só informação). Cinco não podem ser desligadas, porque garantem que o orçamento está inteiro e é verdadeiro.
+- **Regras próprias** (códigos P01, P02…), criadas a partir de tipos que o sistema sabe conferir sozinho:
+
+| Tipo | Exemplo |
+|---|---|
+| Empresas só de determinados estados | "As cotações devem ser de fornecedores de SP" (o estado vem do cadastro oficial do CNPJ) |
+| Itens que não podem constar | "Material permanente não pode" (lista de palavras; plural e acento não fazem diferença) |
+| Um grupo até uma parte do total | "Mão de obra até 60% do total" |
+| Valor máximo | "Cada item até R$ 2.000,00" · "Cada cargo até R$ 5.000,00 por mês" |
+| Duração máxima | "Nenhuma despesa por mais de 12 meses" |
+| Texto conferido por uma pessoa | Um lembrete que aparece em todo projeto do órgão até alguém marcar como revisado |
+| Texto conferido pela IA | A IA lê a regra e os itens do plano e aponta o que parece descumprir (sempre como ponto para revisar) |
+
+- **Como o orçamento é feito**: validade das pesquisas, como o valor do plano é escolhido, como a hora de trabalho é calculada, quais planilhas vão no pacote, como é o repasse e o nome que aparece na coluna "Concedente".
+- **IA propõe as regras**: cole o trecho do edital ou do manual do órgão e a IA sugere as regras próprias e o que desligar, mostrando de que frase tirou cada uma. Você escolhe o que aceitar.
+
+Remover um órgão só o tira da lista: os projetos ligados a ele continuam com as mesmas regras, e dá para restaurar.
 
 ## Estrutura do repositório
 
@@ -88,6 +113,7 @@ São 27 regras: as estabelecidas pela SEJC (3 pesquisas por item, empresas difer
 │   ├── orcamento/               o motor
 │   │   ├── modelo.py, db.py     dados do projeto e versões (SQLite, só acrescenta)
 │   │   ├── regras.py, calculo.py  regras, médias, verificação
+│   │   ├── orgaos.py, regras_dinamicas.py  cadastro de órgãos e as regras próprias de cada um
 │   │   ├── otimizador.py        "Fechar no teto" (OR-Tools)
 │   │   ├── vagas.py             busca e leitura de vagas, títulos, banco de vagas
 │   │   ├── produtos/            lojas, identidade de produto, cesta, comprovantes, texto dos itens
@@ -124,7 +150,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 218 ao todo. Num clone limpo, 216 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 226 ao todo. Num clone limpo, 224 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -146,6 +172,9 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 - Sistemas vendidos só sob consulta precisam da proposta do fornecedor, anexada em PDF.
 - Na Catho, a página só mostra as informações da empresa com login; o sistema abre a janela e você entra com a sua conta.
 - As pesquisas levam minutos (o sistema espera entre os acessos para não sobrecarregar os sites).
+- Regras de órgão: o sistema confere sozinho os tipos listados acima; o que não cabe neles entra como texto, conferido por uma pessoa ou, como apoio, pela IA.
+- As planilhas seguem um modelo só (o de pré-cálculos); ainda não dá para enviar o modelo de planilha de outro órgão.
+- No cronograma de desembolso, o repasse é em parcela única no 1º mês ou mês a mês; outras divisões são ajustadas na planilha.
 - Só foi testado no Windows.
 
 ## Documentação
@@ -161,6 +190,11 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 
 O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.md](sistema/LEIAME.md).
 
+- **05/10/2026 — versão 0.6**
+  - **Órgãos com regras próprias**: o sistema deixa de ser só da SEJC. Cada órgão é um cadastro com as regras que valem, as regras próprias (7 tipos), a forma de fazer o orçamento e as planilhas do pacote; a IA propõe as regras a partir do edital.
+  - **Planilha completa**: além do Plano de Aplicação e do Comparativo de Preço, saem o Cronograma físico-financeiro, as Etapas e Fases e o Cronograma de desembolso, puxando os valores do Plano por fórmula. Cada cargo e rubrica pode dizer em que mês começa.
+  - Linhas da planilha com a altura certa para o texto (nomes compridos de empresa não saem mais cortados na impressão).
+  - "Evolution" é uma linha da Bic, não uma marca: a marca do item passa a ser a do fabricante.
 - **05/10/2026**
   - Faixa salarial pretendida por cargo: vagas de menor salário que alcançam a faixa e horas ajustadas a ela; o "Fechar no teto" reparte a diferença por igual entre os cargos.
   - Pacote para a Secretaria (`.zip`) com as planilhas e os PDFs por rubrica, cada um com o comprovante de CNPJ; as planilhas já saem com os valores calculados.

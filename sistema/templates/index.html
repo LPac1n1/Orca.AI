@@ -58,6 +58,13 @@
     <form method="post" action="/projetos" class="formulario formulario--projeto" style="margin-top: var(--esp-3)">
       {{ campo('nome', 'Nome do projeto', obrigatorio=true, exemplo='Projeto de Cidadania 2027', extra='maxlength="120"') }}
       {{ campo('teto', 'Teto do projeto', mascara='moeda', obrigatorio=true, exemplo='150.000,00', dica='Valor total que o orçamento precisa fechar. Use vírgula para os centavos.', extra='data-positivo') }}
+        <div class="campo">
+          <label class="campo__rotulo" for="c-orgao">Órgão que analisa o projeto</label>
+          <select class="campo__controle" id="c-orgao" name="orgao_id" aria-describedby="c-orgao-dica">
+            {% for x in orgaos_lista %}<option value="{{ x.id }}" {% if x.id == orgao_padrao %}selected{% endif %}>{{ x.orgao.nome }}{% if x.orgao.sigla %} ({{ x.orgao.sigla }}){% endif %}</option>{% endfor %}
+          </select>
+          <p class="campo__dica" id="c-orgao-dica">As regras do orçamento vêm do órgão. Para cadastrar outro, use o menu <a href="/orgaos">Órgãos</a>.</p>
+        </div>
         {{ campo('processo', 'Número do processo', opcional=true, exemplo='SJC-PRC-2026/00123') }}
         {{ campo('cep', 'CEP de entrega', mascara='cep', obrigatorio=true, exemplo='01001-000', dica='CEP da sede da OSC: as lojas mostram estoque e preço conforme a região.') }}
       {{ campo('proponente', 'Proponente (nome da OSC)', opcional=true, exemplo='Associação Comunitária Exemplo') }}

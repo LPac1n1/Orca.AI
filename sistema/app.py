@@ -9,15 +9,15 @@ import tempfile
 from typing import List
 from urllib.parse import quote
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from orcamento import db, tarefas, servico
+from orcamento import db, tarefas, servico, orgaos
 from orcamento import sistemas as sistemas_mod
 from orcamento import sessao_catho
 from orcamento import cnpj as cnpjmod
-from orcamento.calculo import (verificar, resumo, media_rh, mensal_maximo_rh, media_subitem, total_rubrica, nivelar_pela_faixa, horas_pela_faixa,
+from orcamento.calculo import (verificar, resumo, periodo_texto, media_rh, mensal_maximo_rh, media_subitem, total_rubrica, nivelar_pela_faixa, horas_pela_faixa,
                                unitario_rubrica, totais_fontes, valores_pesquisa, chave_alerta, chave_titulo)
 from orcamento.exportar import exportar
 from orcamento.leitor_pdf import ler as ler_pdf, palavras_padrao
@@ -115,7 +115,7 @@ ICONES = {   # desenhos de traço, 24×24, sem arquivos externos (o sistema func
     'vassoura': '<path d="M14 4l6 6"/><path d="M17 7 9 15"/><path d="M9 15c-3 0-5 2-6 5h8c2-1 3-3 2-5z"/>',
 }
 tpl.env.filters.update(moeda=moeda, data_br=data_br, duracao=duracao)
-tpl.env.globals.update(ICONES=ICONES, tarefas_ativas=tarefas_ativas)
+tpl.env.globals.update(ICONES=ICONES, tarefas_ativas=tarefas_ativas, periodo_texto=periodo_texto)
 
 
 def cent(s):
@@ -207,9 +207,13 @@ def abrir(pid):
         return p, v
     n = servico.acertar_trocados(p)
     m, chaves = servico.arrumar_descricoes(p)
-    if (n or m) and not db.removido_em(pid):
-        v = db.salvar(pid, p, autor='sistema', motivo=f'{max(n, m)} item(ns): descrição simples (sem marca), marca e especificação nos campos certos e '
-                                                      'unidades de medida com as letras certas')
+    sem_orgao = p.orgao_id is None   # projeto anterior ao cadastro de órgãos: passa a pertencer ao órgão padrão (as regras são as mesmas)
+    if (n or m or sem_orgao) and not db.removido_em(pid):
+        motivos = ([f'{max(n, m)} item(ns): descrição simples (sem marca), marca e especificação nos campos certos e unidades de medida com as letras certas'] if (n or m) else [])
+        if sem_orgao:
+            p.orgao_id = orgaos.padrao()
+            motivos.append('projeto ligado ao órgão padrão do cadastro (as regras continuam as mesmas)')
+        v = db.salvar(pid, p, autor='sistema', motivo='; '.join(motivos))
         servico.migrar_banco(pid, chaves)
     return p, v
 
@@ -250,7 +254,10 @@ def contexto(p, pid, versao):
             k = re.match(r'pesquisa (\d)', a.mensagem or '')
             url += f'#pesquisa{int(k.group(1)) - 1}' if k else ''
         return url
+    orgao = orgaos.do_projeto(p)
     return dict(p=p, pid=pid, versao=versao, alertas=alertas, res=resumo(p, alertas), cache=cache, st=st, link_alerta=link_alerta, pontos=pontos,
+                orgao=orgao, orgao_id=p.orgao_id, orgaos_lista=orgaos.listar(), regra_texto=lambda cod: orgaos.texto_da_regra(cod, orgao),
+                regras_ia=[r for r in orgao.proprias if r.tipo == 'ia' and r.ativa],
                 produtos_diferentes=servico.produtos_diferentes,
                 RubricaRH=RubricaRH, media_rh=media_rh, mensal_maximo_rh=mensal_maximo_rh, media_subitem=media_subitem,
                 total_rubrica=total_rubrica, unitario_rubrica=unitario_rubrica, totais_fontes=totais_fontes, fontes_do_subitem=fontes_do_subitem,
@@ -422,13 +429,17 @@ async def projeto_removido(request: Request, call_next):
 def inicio(request: Request, msg: str = ''):
     from orcamento import cnpj_base, ia
     return tpl.TemplateResponse(request, 'index.html', dict(projetos=db.listar(), removidos=db.listar(removidos=True), msg=msg,
+                                                            orgaos_lista=orgaos.listar(), orgao_padrao=orgaos.padrao(),
                                                             base=cnpj_base.situacao(), ia_ok=ia.disponivel(),
                                                             rodando=[t for t in tarefas.listar(limite=10) if t['estado'] in ('rodando', 'na fila')]))
 
 
 @app.post('/projetos')
-def novo_projeto(nome: str = Form(...), teto: str = Form(...), processo: str = Form(''), proponente: str = Form(''), cep: str = Form('')):
-    pid = db.criar(Projeto(nome=nome, teto=cent(teto), processo=processo, proponente=proponente, cep=cep))
+def novo_projeto(nome: str = Form(...), teto: str = Form(...), processo: str = Form(''), proponente: str = Form(''), cep: str = Form(''), orgao_id: str = Form('')):
+    oid = inteiro(orgao_id, 0) or orgaos.padrao()
+    o = orgaos.ler(oid) or orgaos.padrao_embutido()
+    cfg = Config(validade_dias=o.parametros.validade_dias, divisor_horas=o.parametros.divisor_horas, valores_defensaveis=o.parametros.valor_do_plano == 'menor_ou_media')
+    pid = db.criar(Projeto(nome=nome, teto=cent(teto), processo=processo, proponente=proponente, cep=cep, orgao_id=oid, orgao=o.nome, config=cfg))
     return RedirectResponse(f'/p/{pid}', status_code=303)
 
 
@@ -495,7 +506,10 @@ async def config(request: Request, pid: int):
                       trocar_pela_categoria=bool(f.get('trocar_pela_categoria')),
                       lojas_desligadas=[k for k in LOJAS if not f.get(f'loja_{k}')])
     p.teto, p.nome, p.processo, p.proponente, p.cep = cent(f['teto']), f['nome'], f.get('processo', ''), f.get('proponente', ''), f.get('cep', '')
-    db.salvar(pid, p, motivo='configuração alterada', config=p.config.model_dump(), teto=p.teto)
+    novo_orgao = inteiro(f.get('orgao_id'), 0)
+    if novo_orgao and orgaos.ler(novo_orgao) is not None:
+        p.orgao_id, p.orgao = novo_orgao, orgaos.ler(novo_orgao).nome
+    db.salvar(pid, p, motivo='configuração alterada', config=p.config.model_dump(), teto=p.teto, orgao=p.orgao_id)
     with db.conectar() as c:
         c.execute('UPDATE projeto SET nome=? WHERE id=?', (p.nome, pid))
     return voltar_ao_projeto(pid, 'Configuração salva.', 'configuracao')
@@ -755,6 +769,8 @@ async def rh_salvar(request: Request, pid: int, item: int):
             r.titulos_similares = V.outros_titulos(r.cargo, marcados + escritos)
     antes = (r.faixa_pretendida, valores_pesquisa(r), divisor_horas(cargo_antes, p.config.divisor_horas)[0])
     r.horas_mes, r.meses = inteiro(f.get('horas_mes'), r.horas_mes), inteiro(f.get('meses'), r.meses)
+    if 'mes_inicio' in f:
+        r.mes_inicio = min(max(inteiro(f.get('mes_inicio'), 0), 0), 60) or None
     if 'faixa_pretendida' in f:
         r.faixa_pretendida = cent(f.get('faixa_pretendida')) or None
     pes = []
@@ -987,6 +1003,8 @@ async def mat_salvar(request: Request, pid: int, item: int):
     de_produtos = servico.tipo_da_rubrica(r) not in ('sistema', 'servico')
     chaves_antes = {id(x): pedido_do_subitem(x) for x in r.subitens}
     r.descricao, r.meses = (f.get('descricao') or '').strip() or r.descricao, inteiro(f.get('meses'), r.meses)
+    if 'mes_inicio' in f:
+        r.mes_inicio = min(max(inteiro(f.get('mes_inicio'), 0), 0), 60) or None
     # cada tipo de rubrica tem a sua tela: só muda o que a tela mostrou (sistema e serviço não têm teto, itens extras nem fornecedores padrão)
     if 'teto_mensal' in f:
         r.teto_mensal = cent(f.get('teto_mensal'))
@@ -1333,6 +1351,214 @@ def base_tela(request: Request):
 @app.post('/base-receita/atualizar')
 def base_atualizar(forcar: str = Form(None)):
     tid = tarefas.iniciar('base_receita', 'Base da Receita: atualizar', lambda ctx: servico.base_receita(ctx, bool(forcar)))
+    return RedirectResponse(f'/tarefa/{tid}', status_code=303)
+
+
+# ------------------------------------------------------------------ órgãos e as regras de cada um
+def _orgao_ou_404(oid):
+    o = orgaos.ler(oid)
+    if o is None:
+        raise HTTPException(404, 'Órgão não encontrado.')
+    return o
+
+
+def _tela_do_orgao(request, oid, msg='', propostas=None, texto_ia=''):
+    from orcamento import ia, regras_dinamicas as RD
+    o = _orgao_ou_404(oid)
+    with db.conectar() as c:
+        removido = bool(c.execute('SELECT removido_em FROM orgao WHERE id=?', (oid,)).fetchone()['removido_em'])
+    return tpl.TemplateResponse(request, 'orgao.html', dict(
+        o=o, oid=oid, msg=msg, regras=orgaos.catalogo(o), TIPOS=RD.TIPOS, campos=RD.campos_do_formulario, resumo=RD.resumo_da_regra, ESFERAS=orgaos.ESFERAS,
+        MODELOS=orgaos.MODELOS, DESEMBOLSOS=orgaos.DESEMBOLSOS, padrao=orgaos.padrao(), n_projetos=orgaos.projetos_do_orgao(oid), removido=removido, ia_ok=ia.disponivel(),
+        propostas=propostas, propostas_json=json.dumps(propostas, ensure_ascii=False) if propostas else '', texto_ia=texto_ia))
+
+
+@app.get('/orgaos', response_class=HTMLResponse)
+def orgaos_lista(request: Request, msg: str = ''):
+    lista = [dict(x, projetos=orgaos.projetos_do_orgao(x['id'])) for x in orgaos.listar()]
+    return tpl.TemplateResponse(request, 'orgaos.html', dict(lista=lista, removidos=orgaos.listar(removidos=True), padrao=orgaos.padrao(), ESFERAS=orgaos.ESFERAS, msg=msg))
+
+
+@app.post('/orgaos')
+async def orgao_novo(request: Request):
+    f = await request.form()
+    nome = re.sub(r'\s+', ' ', f.get('nome') or '').strip()
+    if not nome:
+        return RedirectResponse(f'/orgaos?msg={quote("Nada foi adicionado: falta o nome do órgão.")}#novo', status_code=303)
+    base = orgaos.ler(inteiro(f.get('copiar'), 0)) if f.get('copiar') else None
+    o = (base.model_copy(deep=True) if base else orgaos.Orgao(nome=nome))
+    o.nome, o.sigla, o.uf = nome, (f.get('sigla') or '').strip(), (f.get('uf') or '').strip().upper()[:2]
+    o.esfera = f.get('esfera') if f.get('esfera') in orgaos.ESFERAS else 'estadual'
+    if base:
+        o.concedente, o.observacoes = '', ''
+    oid = orgaos.criar(o)
+    return RedirectResponse(f'/orgaos/{oid}?msg={quote("Órgão adicionado. Ajuste as regras que forem diferentes.")}', status_code=303)
+
+
+@app.get('/orgaos/{oid}', response_class=HTMLResponse)
+def orgao_tela(request: Request, oid: int, msg: str = ''):
+    return _tela_do_orgao(request, oid, msg)
+
+
+@app.post('/orgaos/{oid}')
+async def orgao_salvar(request: Request, oid: int):
+    from orcamento.calculo import GRAVIDADE_PADRAO
+    f = await request.form()
+    o = _orgao_ou_404(oid)
+    o.nome = re.sub(r'\s+', ' ', f.get('nome') or '').strip() or o.nome
+    o.sigla, o.uf, o.concedente = (f.get('sigla') or '').strip(), (f.get('uf') or '').strip().upper()[:2], (f.get('concedente') or '').strip()
+    o.esfera = f.get('esfera') if f.get('esfera') in orgaos.ESFERAS else o.esfera
+    o.observacoes = (f.get('observacoes') or '').strip()
+    o.parametros.validade_dias = max(1, inteiro(f.get('validade_dias'), o.parametros.validade_dias))
+    o.parametros.valor_do_plano = f.get('valor_do_plano') if f.get('valor_do_plano') in ('menor_ou_media', 'ate_media') else o.parametros.valor_do_plano
+    o.parametros.divisor_horas = f.get('divisor_horas') if f.get('divisor_horas') in ('legal', 'praticado') else o.parametros.divisor_horas
+    o.modelo_planilha = f.get('modelo_planilha') if f.get('modelo_planilha') in orgaos.MODELOS else o.modelo_planilha
+    o.parametros.desembolso = f.get('desembolso') if f.get('desembolso') in orgaos.DESEMBOLSOS else o.parametros.desembolso
+    ajustes = {}
+    for cod in REGRAS:
+        if cod in orgaos.FIXAS:
+            continue
+        ativa = bool(f.get(f'ativa_{cod}'))
+        grav = f.get(f'grav_{cod}') if cod in GRAVIDADE_PADRAO and f.get(f'grav_{cod}') in ('erro', 'atencao', 'info') else None
+        if not ativa or grav:   # só guarda o que difere do padrão
+            ajustes[cod] = orgaos.AjusteRegra(ativa=ativa, gravidade=grav)
+    o.regras = ajustes
+    orgaos.salvar(oid, o)
+    return RedirectResponse(f'/orgaos/{oid}?msg={quote("Órgão salvo. As regras já valem para os projetos dele.")}', status_code=303)
+
+
+@app.post('/orgaos/{oid}/regra')
+async def orgao_regra(request: Request, oid: int):
+    """Cria ou altera uma regra própria do órgão: um tipo que o sistema sabe conferir + o que a pessoa preencheu."""
+    from orcamento import regras_dinamicas as RD
+    f = await request.form()
+    o = _orgao_ou_404(oid)
+    tipo, codigo = f.get('tipo'), (f.get('codigo') or '').strip()
+    if tipo not in RD.TIPOS:
+        return RedirectResponse(f'/orgaos/{oid}?msg={quote("Não gravado: tipo de regra desconhecido.")}#proprias', status_code=303)
+    titulo = re.sub(r'\s+', ' ', f.get('titulo') or '').strip()
+    try:
+        if not titulo:
+            raise ValueError('dê um nome à regra')
+        par = RD.ler_parametros(tipo, f, cent, inteiro)
+    except ValueError as e:
+        return RedirectResponse(f'/orgaos/{oid}?msg={quote("Não gravado: " + str(e) + ".")}#{("regra-" + codigo) if codigo else ("novo-" + tipo)}', status_code=303)
+    grav = f.get('gravidade') if f.get('gravidade') in ('erro', 'atencao', 'info') else 'atencao'
+    atual = next((r for r in o.proprias if r.codigo == codigo), None)
+    if atual:
+        atual.titulo, atual.gravidade, atual.parametros, atual.ativa = titulo, grav, par, bool(f.get('ativa'))
+    else:
+        codigo = o.proximo_codigo()
+        o.proprias.append(orgaos.RegraPropria(codigo=codigo, tipo=tipo, titulo=titulo, gravidade=grav, parametros=par))
+    orgaos.salvar(oid, o)
+    return RedirectResponse(f'/orgaos/{oid}?msg={quote(f"Regra {codigo} gravada: já está sendo conferida nos projetos deste órgão.")}#regra-{codigo}', status_code=303)
+
+
+@app.post('/orgaos/{oid}/regra/{codigo}/excluir')
+def orgao_regra_excluir(oid: int, codigo: str):
+    o = _orgao_ou_404(oid)
+    o.proprias = [r for r in o.proprias if r.codigo != codigo]
+    orgaos.salvar(oid, o)
+    return RedirectResponse(f'/orgaos/{oid}?msg={quote(f"Regra {codigo} excluída.")}#proprias', status_code=303)
+
+
+@app.post('/orgaos/{oid}/remover')
+def orgao_remover(oid: int):
+    if oid == orgaos.padrao():
+        return RedirectResponse(f'/orgaos/{oid}?msg={quote("Não removido: o órgão padrão do sistema não pode ser removido.")}', status_code=303)
+    _orgao_ou_404(oid)
+    orgaos.remover(oid)
+    return RedirectResponse(f'/orgaos?msg={quote("Órgão removido da lista. Os projetos dele continuam como estão; dá para restaurar abaixo.")}', status_code=303)
+
+
+@app.post('/orgaos/{oid}/restaurar')
+def orgao_restaurar(oid: int):
+    _orgao_ou_404(oid)
+    orgaos.remover(oid, False)
+    return RedirectResponse(f'/orgaos?msg={quote("Órgão restaurado.")}', status_code=303)
+
+
+def _propostas_conferidas(o, bruto):
+    """As propostas da IA que o sistema consegue usar: tipo conhecido, campos válidos, código do catálogo que existe. O resto é descartado."""
+    from orcamento import regras_dinamicas as RD
+
+    class _Form(dict):
+        def get(self, k, d=None):
+            return super().get(k, d)
+    proprias, desligar = [], []
+    for x in bruto.get('proprias', []):
+        tipo, par = x.get('tipo'), x.get('parametros') if isinstance(x.get('parametros'), dict) else {}
+        titulo = re.sub(r'\s+', ' ', str(x.get('titulo') or '')).strip()[:140]
+        if tipo not in RD.TIPOS or not titulo:
+            continue
+        como_form = _Form({f'p_{k}': (', '.join(map(str, v)) if isinstance(v, list) else str(v).replace('.', ',') if isinstance(v, float) else str(v)) for k, v in par.items()})
+        try:
+            limpo = RD.ler_parametros(tipo, como_form, cent, inteiro)
+        except (ValueError, TypeError):
+            continue
+        r = orgaos.RegraPropria(codigo='P00', tipo=tipo, titulo=titulo, gravidade=x.get('gravidade') if x.get('gravidade') in ('erro', 'atencao', 'info') else 'atencao', parametros=limpo)
+        proprias.append(dict(tipo=tipo, titulo=titulo, gravidade=r.gravidade, parametros=limpo, resumo=RD.resumo_da_regra(r), trecho=str(x.get('trecho') or '').strip()[:300]))
+    for x in bruto.get('desligar', []):
+        cod = str(x.get('codigo') or '').strip().upper()
+        if cod in REGRAS and cod not in orgaos.FIXAS and o.ajuste(cod).ativa:
+            desligar.append(dict(codigo=cod, descricao=REGRAS[cod][0], trecho=str(x.get('trecho') or '').strip()[:300]))
+    return dict(proprias=proprias, desligar=desligar)
+
+
+@app.post('/orgaos/{oid}/ia', response_class=HTMLResponse)
+def orgao_ia(request: Request, oid: int, texto: str = Form('')):
+    """A IA lê o texto do órgão e PROPÕE regras. Nada é gravado aqui: a tela mostra as propostas, com o trecho de onde saíram, para a pessoa decidir."""
+    from orcamento import ia, regras_dinamicas as RD
+    o = _orgao_ou_404(oid)
+    texto = (texto or '').strip()
+    if len(texto) < 40:
+        return _tela_do_orgao(request, oid, 'Não lido: cole um trecho maior do edital ou do manual do órgão.', texto_ia=texto)
+    tipos = {k: dict(nome=t['nome'], descricao=t['descricao'], campos={c[0]: c[1] + (' — ' + c[3] if c[3] else '') + (' — opções: ' + c[2].split(':', 1)[1] if c[2].startswith('opcao:') else '')
+                                                                        for c in t['campos']}) for k, t in RD.TIPOS.items()}
+    try:
+        bruto = ia.propor_regras(texto, tipos, {k: v[0] for k, v in REGRAS.items()})
+    except Exception:
+        bruto = None
+    if bruto is None:
+        return _tela_do_orgao(request, oid, 'Não foi possível consultar a IA agora (sem chave, sem internet ou limite gratuito atingido). Tente mais tarde ou cadastre as regras à mão.', texto_ia=texto)
+    return _tela_do_orgao(request, oid, propostas=_propostas_conferidas(o, bruto), texto_ia=texto)
+
+
+@app.post('/orgaos/{oid}/ia/aplicar')
+async def orgao_ia_aplicar(request: Request, oid: int):
+    f = await request.form()
+    o = _orgao_ou_404(oid)
+    try:
+        dados = _propostas_conferidas(o, json.loads(f.get('dados') or '{}'))   # confere de novo o que voltou da tela
+    except ValueError:
+        dados = dict(proprias=[], desligar=[])
+    marcadas = {inteiro(x, -1) for x in f.getlist('propria')}
+    n = 0
+    for i, x in enumerate(dados['proprias']):
+        if i in marcadas:
+            o.proprias.append(orgaos.RegraPropria(codigo=o.proximo_codigo(), tipo=x['tipo'], titulo=x['titulo'], gravidade=x['gravidade'], parametros=x['parametros'])); n += 1
+    desl = [x['codigo'] for x in dados['desligar'] if x['codigo'] in f.getlist('desligar')]
+    for cod in desl:
+        o.regras[cod] = orgaos.AjusteRegra(ativa=False, gravidade=o.ajuste(cod).gravidade)
+    orgaos.salvar(oid, o)
+    return RedirectResponse(f'/orgaos/{oid}?msg={quote(f"{n} regra(s) adicionada(s) e {len(desl)} regra(s) do sistema desligada(s), a partir do texto.")}#proprias', status_code=303)
+
+
+@app.post('/p/{pid}/regras-ia')
+def regras_ia_conferir(pid: int):
+    """Confere, com a IA, as regras em texto do órgão para o plano como está agora (o resultado fica guardado e vira pontos da verificação)."""
+    from orcamento import regras_dinamicas as RD
+
+    def rodar(ctx):
+        p, _ = db.carregar(pid)
+        o = orgaos.do_projeto(p)
+        ctx.progresso(10, f'Conferindo as regras em texto de {o.rotulo()} com a IA')
+        ok, falhou = RD.conferir_com_a_ia(p, o, pid)
+        if falhou:
+            ctx.aviso(f'{falhou} regra(s) ficaram sem resposta da IA (sem chave, sem internet ou limite gratuito atingido). Tente de novo mais tarde.')
+        ctx.progresso(100, 'Concluído')
+        return dict(conferidas=ok, sem_resposta=falhou, ir_para=f'/p/{pid}#verificacao')
+    tid = tarefas.iniciar('regras', 'Conferir as regras do órgão com a IA', rodar, pid)
     return RedirectResponse(f'/tarefa/{tid}', status_code=303)
 
 

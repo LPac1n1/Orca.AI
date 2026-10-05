@@ -79,7 +79,7 @@
   {%- for a in lista %}
   <li class="ponto ponto--{{ a.gravidade }}">
     {{ selo({'erro': 'erro', 'atencao': 'alerta', 'revisado': 'ok'}[a.gravidade], {'erro': 'Pendência', 'atencao': 'Revisar', 'revisado': 'Revisado'}[a.gravidade] ~ ' · ' ~ a.regra) }}
-    <span class="ponto__texto">{{ a.mensagem }} <span class="texto-apoio">({{ REGRAS[a.regra][0] }})</span></span>
+    <span class="ponto__texto">{{ a.mensagem }} <span class="texto-apoio">({{ regra_texto(a.regra)[0] }})</span></span>
     {%- if a.gravidade == 'atencao' and not removido_em %}
     <button type="button" class="btn btn--secundario" data-revisar="{{ chave_alerta(a) }}" data-acao="marcar" data-volta="{{ volta }}">{{ icone('certo') }}Marcar como revisado</button>
     {%- elif a.gravidade == 'revisado' and not removido_em %}

@@ -24,7 +24,7 @@ def sa(s):
 MARCAS = set("""ype limpol qboa candura candida veja omo tixan brilhante ariel coperalcool zulu tupi embalixo dover sanol lysoform bak brilux assim minuano
 urca sanifort lavita ninho italac piracanjuba parmalat xando pilao melitta pullman visconti wickbold panco president aviacao qualy teixeira queensberry
 hellmann's hellmanns heinz coqueiro benafrutti nestle nescafe marata chamex report magnum bic cis tilibra pilot 3m post-it maped acrilex jandaia polibras dello
-plascony spiral bacchi eagle goller compactor stabilo leo&leo leonora molin evolution yin's yins acc dac scotch-brite scotch bombril assolan cif vim sapolio uau
+plascony spiral bacchi eagle goller compactor stabilo leo&leo leonora molin yin's yins acc dac scotch-brite scotch bombril assolan cif vim sapolio uau
 comfort downy fofo personal neve kleenex snob mili santher faber-castell maguary camil nissin bauducco marilan piraque vitarella adria renata sadia perdigao seara
 itambe batavo danone vigor tirol quata yoki kitano knorr maggi fugini predilecta pomarola nescau toddy ovomaltine mabel plusvita uniao caravelas guarani soya
 limppano esfrebom bettanin novica harpic vanish azulim triex barbarex poliflor mercur pritt tenaz adelbras eurocel foroni credeal chamequinho copimax brw tris newpen

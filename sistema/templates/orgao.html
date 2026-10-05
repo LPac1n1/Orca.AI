@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, campo, migalhas %}
+{% block titulo %}{{ o.rotulo() }} — órgão{% endblock %}
+{% block migalhas %}{{ migalhas([('Órgãos', '/orgaos')], o.rotulo()) }}{% endblock %}
+{% macro formulario_da_regra(tipo, r, lista_campos, sufixo) %}
+<div class="formulario">
+  {{ campo('titulo', 'Nome da regra', id='c-tit-' ~ sufixo, valor=r.titulo if r else '', obrigatorio=true, extra='maxlength="140"', dica='Uma frase curta, como o órgão escreve. Aparece na verificação dos projetos.') }}
+  <div class="campo campo--m">
+    <label class="campo__rotulo" for="c-grav-{{ sufixo }}">Peso na verificação</label>
+    <select class="campo__controle" id="c-grav-{{ sufixo }}" name="gravidade">
+      {% for k, t in [('erro', 'Pendência (bloqueia o envio)'), ('atencao', 'Para revisar'), ('info', 'Só informação')] %}<option value="{{ k }}" {% if (r.gravidade if r else 'atencao') == k %}selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select>
+  </div>
+  {% if r %}<label class="escolha"><input type="checkbox" name="ativa" value="1" {% if r.ativa %}checked{% endif %}><span class="escolha__texto">Regra ligada</span></label>{% else %}<input type="hidden" name="ativa" value="1">{% endif %}
+</div>
+<div class="formulario">
+  {% for c in lista_campos %}
+  {% set cid = 'c-' ~ c.nome ~ '-' ~ sufixo %}
+  {% if c.forma == 'opcao' %}
+  <div class="campo"><label class="campo__rotulo" for="{{ cid }}">{{ c.rotulo }}</label>
+    <select class="campo__controle" id="{{ cid }}" name="p_{{ c.nome }}">{% for v, t in c.opcoes %}<option value="{{ v }}" {% if c.valor == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+  {% elif c.forma == 'longo' %}
+  <div class="campo campo--inteiro"><label class="campo__rotulo" for="{{ cid }}">{{ c.rotulo }}</label>
+    <textarea class="campo__controle" id="{{ cid }}" name="p_{{ c.nome }}" rows="3" aria-describedby="{{ cid }}-dica">{{ c.valor }}</textarea>
+    {% if c.ajuda %}<p class="campo__dica" id="{{ cid }}-dica">{{ c.ajuda }}</p>{% endif %}</div>
+  {% else %}
+  {{ campo('p_' ~ c.nome, c.rotulo, id=cid, valor=(c.valor|moeda if c.forma == 'moeda' else (c.valor|string|replace('.0', '') if c.forma == 'percentual' else c.valor)),
+           mascara={'moeda': 'moeda', 'inteiro': 'inteiro'}.get(c.forma, ''), sufixo={'percentual': '%', 'inteiro': ''}.get(c.forma, ''), dica=c.ajuda, tamanho='m' if c.forma in ('moeda', 'inteiro', 'percentual') else '') }}
+  {% endif %}
+  {% endfor %}
+</div>
+{% endmacro %}
+{% block corpo %}
+{% set NOME_GRAV = {'erro': 'Pendência', 'atencao': 'Para revisar', 'info': 'Informação'} %}
+{% set SELO_GRAV = {'erro': 'erro', 'atencao': 'alerta', 'info': 'info'} %}
+<header class="cabecalho">
+  <h1>{{ o.nome }}{% if o.sigla %} <span class="texto-apoio">({{ o.sigla }})</span>{% endif %}</h1>
+  <p class="cabecalho__intro">As regras deste órgão valem para todos os projetos ligados a ele ({{ n_projetos }} hoje). Mudar uma regra aqui muda a verificação desses
+    projetos na hora; nada do que já foi pesquisado é apagado.{% if removido %} <b>Este órgão foi removido da lista.</b>{% endif %}</p>
+</header>
+
+{% if msg %}<div class="aviso aviso--{{ 'alerta' if msg.startswith('Não') else 'ok' }}" role="status">{{ icone('alerta' if msg.startswith('Não') else 'certo') }}<div class="aviso__corpo">{{ msg }}</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+
+{# ------------------------------------------------------------------ propostas da IA (depois de colar o texto do edital) #}
+{% if propostas is not none %}
+<section class="cartao" aria-labelledby="t-prop" id="propostas">
+  <h2 id="t-prop" class="cartao__titulo">O que a IA propõe a partir do texto</h2>
+  {% if propostas.proprias or propostas.desligar %}
+  <p class="texto-apoio">Nada foi gravado. Confira cada proposta com o trecho do texto em que ela se baseia, desmarque o que não servir e aplique. Depois dá para editar cada regra.</p>
+  <form method="post" action="/orgaos/{{ oid }}/ia/aplicar" class="pilha">
+    <input type="hidden" name="dados" value="{{ propostas_json }}">
+    {% if propostas.proprias %}<fieldset class="sem-borda"><legend class="campo__rotulo">Regras novas</legend>
+      {% for r in propostas.proprias %}<label class="escolha"><input type="checkbox" name="propria" value="{{ loop.index0 }}" checked>
+        <span class="escolha__texto">{{ selo(SELO_GRAV[r.gravidade], NOME_GRAV[r.gravidade]) }} <b>{{ r.titulo }}</b> <span class="texto-apoio">· {{ TIPOS[r.tipo].nome }} · {{ r.resumo }}</span>
+          {% if r.trecho %}<small>Trecho: “{{ r.trecho }}”</small>{% endif %}</span></label>{% endfor %}
+    </fieldset>{% endif %}
+    {% if propostas.desligar %}<fieldset class="sem-borda"><legend class="campo__rotulo">Regras do sistema que não valem para este órgão</legend>
+      {% for r in propostas.desligar %}<label class="escolha"><input type="checkbox" name="desligar" value="{{ r.codigo }}" checked>
+        <span class="escolha__texto">Desligar <b>{{ r.codigo }}</b>: {{ r.descricao }}{% if r.trecho %}<small>Trecho: “{{ r.trecho }}”</small>{% endif %}</span></label>{% endfor %}
+    </fieldset>{% endif %}
+    <div class="linha"><button class="btn btn--primario" data-aguarde="Aplicando…">{{ icone('certo') }}Aplicar as marcadas</button>
+      <a class="btn btn--secundario" href="/orgaos/{{ oid }}">Descartar as propostas</a></div>
+  </form>
+  {% else %}<p>A IA não achou, no texto, nenhuma regra que o sistema já não tenha. Se o texto tem uma exigência específica, cadastre-a em "Regras próprias", logo abaixo.</p>
+  <a class="btn btn--secundario" href="/orgaos/{{ oid }}">Voltar</a>{% endif %}
+</section>
+{% endif %}
+
+{# ------------------------------------------------------------------ 1. dados, modelo e como o orçamento é feito + regras do sistema #}
+<form method="post" action="/orgaos/{{ oid }}" class="pilha" id="f-orgao" data-avisar-saida>
+  <section class="cartao" aria-labelledby="t-dados">
+    <h2 id="t-dados" class="cartao__titulo">1. Dados do órgão</h2>
+    <div class="formulario">
+      {{ campo('nome', 'Nome do órgão', valor=o.nome, obrigatorio=true, extra='maxlength="140"') }}
+      {{ campo('sigla', 'Sigla', valor=o.sigla, opcional=true, tamanho='m', extra='maxlength="20"') }}
+      <div class="campo campo--m">
+        <label class="campo__rotulo" for="c-esfera">Esfera</label>
+        <select class="campo__controle" id="c-esfera" name="esfera">{% for k, t in ESFERAS.items() %}<option value="{{ k }}" {% if o.esfera == k %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+      </div>
+      {{ campo('uf', 'Estado', valor=o.uf, opcional=true, tamanho='p', extra='maxlength="2" style="text-transform: uppercase"') }}
+      {{ campo('concedente', 'Como aparece no Plano de Aplicação', valor=o.concedente, opcional=true, tamanho='m', extra='maxlength="30"',
+               dica='O nome da coluna "Concedente (…)". Em branco, usa a sigla.') }}
+    </div>
+    <div class="campo" style="margin-top: var(--esp-3)">
+      <label class="campo__rotulo" for="c-obs">Observações <span class="campo__opcional">(opcional)</span></label>
+      <textarea class="campo__controle" id="c-obs" name="observacoes" rows="2">{{ o.observacoes }}</textarea>
+    </div>
+  </section>
+
+  <section class="cartao" aria-labelledby="t-como">
+    <h2 id="t-como" class="cartao__titulo">2. Como o orçamento é feito</h2>
+    <p class="texto-apoio">Valem como ponto de partida dos projetos novos deste órgão; em cada projeto dá para mudar na Configuração.</p>
+    <div class="formulario" style="margin-top: var(--esp-3)">
+      {{ campo('validade_dias', 'Validade das pesquisas', valor=o.parametros.validade_dias, mascara='inteiro', sufixo='dias', tamanho='m', extra='data-min="1" data-max="3650"') }}
+      <div class="campo">
+        <label class="campo__rotulo" for="c-vp">Valor de cada item no plano</label>
+        <select class="campo__controle" id="c-vp" name="valor_do_plano">
+          <option value="menor_ou_media" {% if o.parametros.valor_do_plano == 'menor_ou_media' %}selected{% endif %}>O menor dos 3 preços ou a média</option>
+          <option value="ate_media" {% if o.parametros.valor_do_plano == 'ate_media' %}selected{% endif %}>Qualquer valor entre o menor preço e a média</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label class="campo__rotulo" for="c-div">Valor da hora de trabalho</label>
+        <select class="campo__controle" id="c-div" name="divisor_horas">
+          <option value="legal" {% if o.parametros.divisor_horas == 'legal' %}selected{% endif %}>Média salarial ÷ jornada legal do cargo no mês</option>
+          <option value="praticado" {% if o.parametros.divisor_horas == 'praticado' %}selected{% endif %}>Média salarial ÷ 180 horas (120 para assistente social)</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label class="campo__rotulo" for="c-modelo">Planilhas do pacote</label>
+        <select class="campo__controle" id="c-modelo" name="modelo_planilha">{% for k, t in MODELOS.items() %}<option value="{{ k }}" {% if o.modelo_planilha == k %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div class="campo">
+        <label class="campo__rotulo" for="c-desembolso">Repasse do recurso (cronograma de desembolso)</label>
+        <select class="campo__controle" id="c-desembolso" name="desembolso">{% for k, t in DESEMBOLSOS.items() %}<option value="{{ k }}" {% if o.parametros.desembolso == k %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+      </div>
+    </div>
+  </section>
+
+  <section class="cartao" aria-labelledby="t-cat">
+    <div class="cartao__titulo"><h2 id="t-cat">3. Regras do sistema</h2><span class="contador">{{ regras|length }}</span>
+      {{ ajuda('Regras do sistema', 'São as conferências que o sistema já sabe fazer. Desligue as que este órgão não exige e, se quiser, mude o peso: "Pendência" bloqueia o envio; "Para revisar" pede conferência; "Informação" só avisa.') }}</div>
+    <div class="tabela-rolagem">
+      <table class="tabela tabela--cartoes tabela--densa">
+        <thead><tr><th scope="col">Vale?</th><th scope="col">Regra</th><th scope="col">Peso na verificação</th></tr></thead>
+        <tbody>
+        {% for r in regras %}
+        <tr><td data-rotulo="Vale?">{% if r.fixa %}{{ selo('ok', 'Sempre') }}{% else %}<label class="escolha" style="min-height: 0; padding: 0"><input type="checkbox" name="ativa_{{ r.codigo }}" value="1" {% if r.ativa %}checked{% endif %}>
+            <span class="so-leitor">A regra {{ r.codigo }} vale para este órgão</span></label>{% endif %}</td>
+          <th scope="row" data-rotulo="Regra"><span class="num">{{ r.codigo }}</span> · {{ r.descricao }}<div class="texto-apoio">{{ r.origem }}{% if r.fixa %} · garante que o orçamento está inteiro: vale para qualquer órgão{% endif %}</div></th>
+          <td data-rotulo="Peso na verificação">{% if r.ajustavel %}<label class="so-leitor" for="g-{{ r.codigo }}">Peso da regra {{ r.codigo }}</label>
+            <select class="campo__controle" id="g-{{ r.codigo }}" name="grav_{{ r.codigo }}">
+              <option value="">Padrão ({{ NOME_GRAV[r.padrao] }})</option>
+              {% for k, t in NOME_GRAV.items() %}<option value="{{ k }}" {% if r.gravidade == k %}selected{% endif %}>{{ t }}</option>{% endfor %}
+            </select>{% elif r.padrao %}<span class="texto-apoio">{{ NOME_GRAV[r.padrao] }}</span>{% else %}<span class="texto-apoio">Seguida na pesquisa e no cálculo</span>{% endif %}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="barra-salvar">
+    <span class="barra-salvar__estado">Salvar grava os dados, a forma de fazer o orçamento e as regras do sistema deste órgão.</span>
+    <div class="linha"><button class="btn btn--primario" data-aguarde="Salvando…">Salvar o órgão</button></div>
+  </div>
+</form>
+
+{# ------------------------------------------------------------------ 4. regras próprias #}
+<section class="secao" aria-labelledby="t-prop2" id="proprias">
+  <div class="secao__titulo"><h2 id="t-prop2">4. Regras próprias deste órgão</h2><span class="contador">{{ o.proprias|length }}</span></div>
+  <p class="secao__intro">O que este órgão exige e o sistema ainda não confere. Você escolhe o tipo de regra, preenche e o sistema passa a conferir em todos os projetos do órgão.</p>
+  {% if o.proprias %}
+  <div class="itens" style="--colunas: 1rem 3rem minmax(10rem, 1fr) 9rem 6rem;">
+    {% for r in o.proprias %}
+    <details class="item-recolhivel" id="regra-{{ r.codigo }}" data-recolhivel>
+      <summary class="item-resumo">
+        <span class="item-resumo__n num">{{ r.codigo }}</span>
+        <h3 class="item-resumo__nome">{{ r.titulo }} <small class="texto-apoio">{{ TIPOS[r.tipo].nome if r.tipo in TIPOS else r.tipo }} · {{ resumo(r) }}</small></h3>
+        <span class="item-resumo__dados"><span class="item-resumo__celula">{{ selo(SELO_GRAV[r.gravidade], NOME_GRAV[r.gravidade]) }}</span></span>
+        <span class="item-resumo__situacao">{% if r.ativa %}{{ selo('ok', 'Ligada') }}{% else %}{{ selo('neutro', 'Desligada') }}{% endif %}</span>
+      </summary>
+      <div class="item-recolhivel__corpo">
+        <form method="post" action="/orgaos/{{ oid }}/regra" class="pilha">
+          <input type="hidden" name="codigo" value="{{ r.codigo }}"><input type="hidden" name="tipo" value="{{ r.tipo }}">
+          {{ formulario_da_regra(r.tipo, r, campos(r.tipo, r.parametros), r.codigo) }}
+          <div class="linha"><button class="btn btn--secundario" data-aguarde="Salvando…">Salvar esta regra</button>
+            <button class="btn btn--perigo" form="excluir-{{ r.codigo }}">{{ icone('lixeira') }}Excluir a regra</button></div>
+        </form>
+        <form id="excluir-{{ r.codigo }}" method="post" action="/orgaos/{{ oid }}/regra/{{ r.codigo }}/excluir" data-confirmar="Excluir a regra {{ r.codigo }}?"
+              data-confirmar-texto="{{ r.titulo }} deixa de ser conferida nos projetos deste órgão. Dá para cadastrar de novo depois." data-confirmar-botao="Excluir regra" data-confirmar-perigo></form>
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+  {% else %}<div class="vazio" style="margin-bottom: var(--esp-4)">{{ icone('lista') }}<p class="vazio__titulo">Nenhuma regra própria ainda.</p>
+    <p>Adicione abaixo, escolhendo o tipo, ou cole o texto do edital no quadro da IA.</p></div>{% endif %}
+
+  <div class="cartao cartao--plano">
+    <h3 class="cartao__titulo">{{ icone('mais') }}Adicionar regra</h3>
+    <div class="grade grade--3">
+      {% for k, t in TIPOS.items() %}
+      <details class="detalhe" id="novo-{{ k }}"><summary>{{ t.nome }}</summary>
+        <form method="post" action="/orgaos/{{ oid }}/regra" class="detalhe__corpo pilha">
+          <input type="hidden" name="tipo" value="{{ k }}">
+          <p class="texto-apoio">{{ t.descricao }}</p>
+          {{ formulario_da_regra(k, none, campos(k), 'n' ~ k) }}
+          <div><button class="btn btn--secundario" data-aguarde="Adicionando…">{{ icone('mais') }}Adicionar esta regra</button></div>
+        </form></details>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------------------------ 5. IA: do texto do edital às regras #}
+<section class="cartao secao" aria-labelledby="t-ia" id="ia">
+  <div class="cartao__titulo"><h2 id="t-ia">5. Deixar a IA propor as regras</h2>{% if ia_ok %}{{ selo('ok', 'IA disponível') }}{% else %}{{ selo('alerta', 'Sem chave da IA') }}{% endif %}</div>
+  <p class="texto-apoio">Cole o trecho do edital, manual ou parecer que fala da pesquisa de preços e do plano de aplicação. A IA gratuita lê e propõe as regras; você confere,
+    com o trecho de onde cada uma saiu, e decide o que aplicar. O texto colado é enviado ao serviço de IA: não cole dados pessoais.</p>
+  <form method="post" action="/orgaos/{{ oid }}/ia" class="pilha" style="margin-top: var(--esp-3)">
+    <div class="campo">
+      <label class="campo__rotulo" for="c-texto">Texto do órgão</label>
+      <textarea class="campo__controle" id="c-texto" name="texto" rows="7" required aria-required="true" {% if not ia_ok %}disabled{% endif %}>{{ texto_ia or '' }}</textarea>
+      <p class="campo__erro" id="c-texto-erro" hidden></p>
+    </div>
+    <div><button class="btn btn--secundario" data-aguarde="A IA está lendo o texto…" {% if not ia_ok %}disabled data-desabilitado{% endif %}>{{ icone('busca') }}Ler o texto e propor regras</button>
+      {% if not ia_ok %}<span class="texto-apoio">Sem a chave gratuita da IA neste computador, cadastre as regras à mão, no quadro acima.</span>{% endif %}</div>
+  </form>
+</section>
+
+{% if oid != padrao and not removido %}
+<div class="cartao cartao--plano cartao--perigo secao">
+  <div class="cartao__titulo"><h2 style="font-size: var(--texto-lg)">Remover este órgão</h2></div>
+  <p class="texto-apoio">O órgão sai da lista e não aparece mais para projetos novos. Nada é apagado: os {{ n_projetos }} projeto(s) ligados a ele continuam com as mesmas regras,
+    e dá para restaurar na tela de órgãos.</p>
+  <form method="post" action="/orgaos/{{ oid }}/remover" data-confirmar="Remover o órgão {{ o.rotulo() }} da lista?" data-confirmar-texto="Os projetos ligados a ele continuam como estão. Dá para restaurar depois."
+        data-confirmar-botao="Remover órgão" data-confirmar-perigo><button class="btn btn--perigo">{{ icone('lixeira') }}Remover órgão</button></form>
+</div>
+{% endif %}
+{% endblock %}

@@ -46,6 +46,7 @@ class RubricaRH(BaseModel):
     # Faixa salarial pretendida (decisão da OSC, 05/10/2026): quanto se quer pagar por mês a cada profissional. As vagas são as de menor salário
     # cuja média ainda chega nela, e as HORAS do mês são ajustadas para o valor do plano ficar o mais perto possível dela.
     faixa_pretendida: Optional[int] = None
+    mes_inicio: Optional[int] = None          # em que mês do projeto o cargo começa (para os cronogramas); vazio = o sistema põe no meio do projeto
 
 
 class Subitem(BaseModel):
@@ -83,6 +84,7 @@ class RubricaMaterial(BaseModel):
     extras: List[str] = Field(default_factory=list)          # itens da rubrica que podem ser ACRESCENTADOS se sobrar muito
     regra: Optional[str] = None                              # tipo escolhido pela OSC ('mercado', 'material', 'sistema', 'servico'); vazio = automático
     referencia: Optional[str] = None                         # rubrica de sistema: ferramentas de referência (o plano de cada sistema é escolhido por elas)
+    mes_inicio: Optional[int] = None                         # em que mês do projeto a rubrica começa (para os cronogramas); vazio = no meio do projeto
 
 
 class Config(BaseModel):
@@ -137,6 +139,7 @@ class Projeto(BaseModel):
     processo: str = ''
     proponente: str = ''
     orgao: str = 'Secretaria da Justiça e Cidadania (SP)'
+    orgao_id: Optional[int] = None   # o órgão do cadastro (orgaos.py), com as regras dele; None = projeto anterior ao cadastro: padrão do sistema
     teto: int
     cep: str = ''
     config: Config = Field(default_factory=Config)

@@ -229,7 +229,8 @@ def test_sistema_sem_dados_de_uma_osc_especifica(cliente):
         html = limpo.get(url).text
         m = re.search(r'\b[Pp]arecer(es)?\b|\bPT[1-8]\b', html)
         assert not m, (url, html[max(0, m.start() - 80):m.end() + 80])
-    assert 'regra da SEJC' in limpo.get(f'/p/{novo}').text and 'regras estabelecidas pela SEJC' in limpo.get(f'/p/{novo}').text
+    pag = limpo.get(f'/p/{novo}').text                                                             # as regras vêm do órgão do projeto (o padrão é a SEJC-SP)
+    assert 'regra da SEJC' in pag and 'com as regras de <b>Secretaria da Justiça e Cidadania do Estado de São Paulo</b>' in pag
 
 
 def test_itens_e_pesquisas_em_lista_recolhida(cliente):

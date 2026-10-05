@@ -680,6 +680,7 @@ def arrumar_descricoes(p):
             trocado = bool(s.descricao_original)
             if s.especificacao:
                 s.especificacao = T.formatar_medidas(s.especificacao)
+            s.marca = T.fabricante_da_linha(s.marca, s.produtos or []) or s.marca   # "Evolution" (linha) -> "Bic" (o fabricante dos 3 anúncios)
             if T.precisa_arrumar(s.descricao, s.marca, trocado) and not (trocado and produtos_diferentes(s)):
                 titulos = [x for x in (s.produtos or []) if x]
                 do_anuncio = any(ID.sa(separar_medida(t)[0]).startswith(ID.sa(s.descricao)) or ID.sa(t).startswith(ID.sa(s.descricao)) for t in titulos)

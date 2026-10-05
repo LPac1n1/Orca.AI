@@ -13,6 +13,7 @@ from .modelo import Projeto
 PASTA_DADOS = os.environ.get('ORCAMENTO_DADOS', os.path.join(os.path.dirname(__file__), '..', 'dados'))
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS projeto (id INTEGER PRIMARY KEY, nome TEXT NOT NULL, criado_em TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS orgao (id INTEGER PRIMARY KEY, nome TEXT NOT NULL, json TEXT NOT NULL, criado_em TEXT NOT NULL, alterado_em TEXT, removido_em TEXT);
 CREATE TABLE IF NOT EXISTS versao (id INTEGER PRIMARY KEY, projeto_id INTEGER NOT NULL, numero INTEGER NOT NULL,
     criado_em TEXT NOT NULL, autor TEXT, motivo TEXT, json TEXT NOT NULL, UNIQUE(projeto_id, numero));
 CREATE TABLE IF NOT EXISTS evento (id INTEGER PRIMARY KEY, projeto_id INTEGER, quando TEXT NOT NULL, autor TEXT,

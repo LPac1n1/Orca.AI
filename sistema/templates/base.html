@@ -23,6 +23,7 @@
       <a href="/" {% if caminho == '/' or caminho.startswith('/p/') %}aria-current="page"{% endif %}>{{ icone('pasta') }}Projetos</a>
       <a href="/tarefas" {% if caminho.startswith('/tarefa') %}aria-current="page"{% endif %}>{{ icone('relogio') }}Tarefas
         {%- if n_tarefas %} <span class="contador contador--info" title="{{ n_tarefas }} em andamento">{{ n_tarefas }}<span class="so-leitor"> em andamento</span></span>{% endif %}</a>
+      <a href="/orgaos" {% if caminho.startswith('/orgaos') %}aria-current="page"{% endif %}>{{ icone('escudo') }}Órgãos</a>
       <a href="/base-receita" {% if caminho.startswith('/base-receita') %}aria-current="page"{% endif %}>{{ icone('banco') }}Base da Receita</a>
       <a href="/ajuda" {% if caminho.startswith('/ajuda') or caminho.startswith('/guia') %}aria-current="page"{% endif %}>{{ icone('ajuda') }}Ajuda</a>
       <button type="button" class="menu__tema" id="alternar-tema" aria-pressed="false" title="Muda as cores da tela. A escolha fica guardada neste computador.">

@@ -1,7 +1,9 @@
 """Pacote para a Secretaria (pedido da OSC, 05/10/2026): tudo pronto para enviar, num arquivo .zip.
 
-- "Plano de Aplicação e Comparativo de Preço.xlsx": as duas planilhas com a MESMA formatação da planilha de pré-cálculos da OSC
-  (docs-base/Pré-Calculos.xlsx): fontes, bordas, mesclagens, larguras, formato de moeda e configuração de impressão. Médias e totais são fórmulas.
+- "Plano de Aplicação e Comparativo de Preço.xlsx": as abas da planilha de pré-cálculos da OSC (docs-base/Pré-Calculos.xlsx), com a MESMA
+  formatação: Plano de Aplicação, Cronograma físico-financeiro, Etapa e Fases, Cronograma de desembolso e Comparativo de Preço — fontes, bordas,
+  mesclagens, larguras, formato de moeda e configuração de impressão. Médias e totais são fórmulas, e os cronogramas puxam os valores do Plano.
+  O órgão do projeto diz o nome da coluna "Concedente (…)", se os cronogramas entram e como é o desembolso.
 - "Orçamentos/NN. Rubrica/…": o PDF de cada pesquisa (vaga, produto, cotação, proposta), na ordem do plano; cada PDF já traz, no fim, o
   Comprovante de Inscrição e de Situação Cadastral (CNPJ ativo) da empresa daquela pesquisa.
 - "LEIA-ME.txt": o que foi incluído e o que ainda falta (pesquisa sem PDF, empresa sem comprovante de CNPJ).
@@ -12,26 +14,32 @@ import os
 import re
 import zipfile
 
+from xml.sax.saxutils import escape
+
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter as col_letra
 from openpyxl.worksheet.page import PageMargins
 
 from . import db
 from .exportar import _desc_rh, _qtd_rh, _fornecedor
+from .calculo import duracao_do_projeto, periodo, periodo_texto, unitario_rubrica
 from .modelo import Projeto, RubricaRH, fontes_do_subitem, descricao_completa
 from .regras import brl, cnpj_formatar, media
 
 MOEDA = '_-"R$ "* #,##0.00_-;"-R$ "* #,##0.00_-;_-"R$ "* \\-??_-;_-@_-'
 M, F_ = Side(style='medium'), Side(style='thin')
-PRETO, BRANCO = PatternFill('solid', fgColor='FF000000'), PatternFill('solid', fgColor='FFFFFFFF')
+PRETO, BRANCO, CINZA = PatternFill('solid', fgColor='FF000000'), PatternFill('solid', fgColor='FFFFFFFF'), PatternFill('solid', fgColor='FFE7E6E6')
+ABA_PLANO = 'Plano de Aplicação'
+MARGENS = dict(left=0.511805555555556, right=0.511805555555556, top=0.7875, bottom=0.7875)
 CENTRO = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
 
 def _c(ws, ref, valor, fonte, borda=None, fmt=None, fundo=None, alinhamento=CENTRO, calc=None):
-    """calc: o resultado da fórmula, em reais (é gravado no arquivo junto com ela — ver _gravar_valores)."""
+    """calc: o resultado da fórmula — em reais, ou o texto, quando a fórmula traz um texto (é gravado no arquivo junto com ela: ver _gravar_valores)."""
     c = ws[ref]
     if calc is not None:
-        ws.parent.__dict__.setdefault('_calculados', {}).setdefault(ws.title, {})[ref] = round(calc, 2)
+        ws.parent.__dict__.setdefault('_calculados', {}).setdefault(ws.title, {})[ref] = calc if isinstance(calc, str) else round(calc, 2)
     if type(c).__name__ == 'MergedCell':   # parte de uma célula mesclada: só a borda (o valor fica na primeira célula)
         if borda:
             c.border = borda
@@ -48,6 +56,24 @@ def _c(ws, ref, valor, fonte, borda=None, fmt=None, fundo=None, alinhamento=CENT
 
 def _linhas(texto, por_linha):
     return max(1, sum(math.ceil(len(t) / por_linha) or 1 for t in str(texto or '').split('\n')))
+
+
+def _linhas_quebradas(texto, cabe=18.4):
+    """Quantas linhas o texto ocupa numa coluna estreita do Comparativo, quebrando nas palavras como o Excel faz. Maiúsculas ocupam mais que
+    minúsculas e números (medido na impressão: cabem 15 maiúsculas ou os 18 caracteres de um CNPJ por linha)."""
+    largura = lambda t: sum(1.2 if ch.isupper() else 0.9 if ch.isalpha() else 1.0 for ch in t)
+    n = 0
+    for paragrafo in str(texto or '').splitlines() or ['']:
+        n += 1
+        linha = 0.0
+        for palavra in paragrafo.split():
+            w = largura(palavra)
+            if linha and linha + 0.6 + w > cabe:
+                n += 1; linha = 0.0
+            while w > cabe:   # palavra maior que a linha: o Excel corta no meio
+                n += 1; w -= cabe
+            linha += (0.6 if linha else 0) + w
+    return max(1, n)
 
 
 # ------------------------------------------------------------------ Comparativo de Preço
@@ -90,7 +116,7 @@ def comparativo(wb, p: Projeto):
                 _c(ws, f'{a}{lin}', precos[k] / 100, fonte, b, MOEDA, fundo)
                 _c(ws, f'{t}{lin}', f'={a}{lin}*C{lin}', fonte, b, MOEDA, fundo, calc=precos[k] * qtd / 100)
             _c(ws, f'{f}{lin}', fornecedores[k], fonte, Border(left=lado, right=lado, bottom=baixo), fundo=fundo)
-        ws.row_dimensions[lin].height = 10.5 + 8.5 * max(4, _linhas(desc, 15), *[_linhas(x, 15) for x in fornecedores])
+        ws.row_dimensions[lin].height = 8 + 10 * max(4, _linhas_quebradas(desc), *[_linhas_quebradas(x) for x in fornecedores])
 
     lin = 5
     for r in p.rubricas:
@@ -139,8 +165,9 @@ def comparativo(wb, p: Projeto):
 
 
 # ------------------------------------------------------------------ Plano de Aplicação
-def plano(wb, p: Projeto):
-    ws = wb.active; ws.title = 'Plano de Aplicação'
+def plano(wb, p: Projeto, concedente='SJC'):
+    ws = wb.active; ws.title = ABA_PLANO
+    linhas = wb.__dict__.setdefault('_linhas_plano', {})   # item -> (linha, descrição): de onde os cronogramas puxam o nome e o valor mensal
     N, B = Font(name='Aptos Narrow', size=9), Font(name='Aptos Narrow', size=9, bold=True)
     esq = Alignment(vertical='center', wrap_text=True)
     meio = Alignment(horizontal='center', vertical='center')
@@ -150,14 +177,14 @@ def plano(wb, p: Projeto):
     _c(ws, 'C1', 'PLANO DE APLICAÇÃO', Font(name='Aptos Narrow', size=9, bold=True, color='FFFFFFFF'), Border(left=F_, right=F_, top=F_), fundo=PRETO, alinhamento=meio)
     for col in 'DEFGH':
         ws[f'{col}1'].border = Border(top=F_, right=F_ if col == 'H' else None); ws[f'{col}1'].fill = PRETO
-    ws.row_dimensions[1].height, ws.row_dimensions[2].height = 12, 23
+    ws.row_dimensions[1].height, ws.row_dimensions[2].height = 12, 25
 
     def faixa(lin, valores, fontes, cima=M, baixo=F_, formatos=(None, None, MOEDA, MOEDA, MOEDA, None), calc=(None,) * 6):
         """calc: o resultado (em centavos) das células que são fórmula."""
         for i, col in enumerate('CDEFGH'):
             borda = Border(left=M if col == 'C' else F_, right=M if col == 'H' else F_, top=cima, bottom=baixo)
             _c(ws, f'{col}{lin}', valores[i], fontes[i], borda, formatos[i], calc=None if calc[i] is None else calc[i] / 100, alinhamento=esq if col == 'D' and lin > 3 else Alignment(horizontal='center', vertical='center', wrap_text=col in 'EGH' or lin == 2))
-    faixa(2, ['Item', 'Descrição', 'Valor Unitário', 'Valor Total', 'Concedente\n (SJC)', 'Proponente\n (entidade)'], [B] * 6, M, M)
+    faixa(2, ['Item', 'Descrição', 'Valor Unitário', 'Valor Total', f'Concedente\n ({concedente})', 'Proponente\n (entidade)'], [B] * 6, M, M)
     lin, totais, geral = 3, [], 0
     rh = [r for r in p.rubricas if isinstance(r, RubricaRH)]
     if rh:
@@ -175,7 +202,8 @@ def plano(wb, p: Projeto):
             desc = f'{_desc_rh(r)} ({q} profissionais x {brl(v).replace(" ", "")})' if q > 1 else _desc_rh(r)
             faixa(lin, [r.item, desc, f'={q}*{v / 100}' if q > 1 else v / 100, f'=ROUND(E{lin}*{r.meses},2)', f'=F{lin}', None], [B, N, B, N, N, N],
                   calc=(None, None, q * v if q > 1 else None, q * v * r.meses, q * v * r.meses, None))
-            ws.row_dimensions[lin].height = 12.5 + 10.5 * (_linhas(desc, 52) - 1)
+            ws.row_dimensions[lin].height = 12.5 + 12 * (_linhas(desc, 57) - 1)
+            linhas[r.item] = (lin, desc)
             totais.append(lin); geral += q * v * r.meses; lin += 1
             continue
         cab, mensal = lin, 0
@@ -185,17 +213,19 @@ def plano(wb, p: Projeto):
             mensal += s.qtd * v
             desc = f'{descricao_completa(s)} ({s.qtd} unidade{"s" if s.qtd > 1 else ""} x {brl(v).replace(" ", "")})'
             faixa(lin, [None, desc, f'={s.qtd}*{v / 100}', None, None, None], [N] * 6, F_, F_, calc=(None, None, s.qtd * v, None, None, None))
-            ws.row_dimensions[lin].height = 12.5 + 10.5 * (_linhas(desc, 52) - 1)
+            ws.row_dimensions[lin].height = 12.5 + 12 * (_linhas(desc, 57) - 1)
         ult = lin
         soma = f'=SUM(E{cab + 1}:E{ult})' if ult > cab else 0
         faixa(cab, [r.item, r.descricao, soma, f'=ROUND(E{cab}*{r.meses},2)', f'=F{cab}', None], [B] * 6, M, F_,
               calc=(None, None, mensal if ult > cab else None, mensal * r.meses, mensal * r.meses, None))
         geral += mensal * r.meses
-        ws.row_dimensions[cab].height = 12.5 + 10.5 * (_linhas(r.descricao, 48) - 1)
+        ws.row_dimensions[cab].height = 12.5 + 12 * (_linhas(r.descricao, 52) - 1)
         if ult > cab:
             for col in 'CFG':   # o número do item e os totais valem para a rubrica inteira
                 ws.merge_cells(f'{col}{cab}:{col}{ult}')
+        linhas[r.item] = (cab, r.descricao)
         totais.append(cab); lin = ult + 1
+    wb.__dict__['_linha_total'] = lin
     V = Font(name='Aptos Narrow', size=9, bold=True, color='FFFF0000')
     ws.merge_cells(f'C{lin}:E{lin}')
     faixa(lin, ['Total', None, None, '=' + ('+'.join(f'F{x}' for x in totais) or '0'), '=' + ('+'.join(f'G{x}' for x in totais) or '0'), 0], [V] * 6, M, M,
@@ -204,6 +234,156 @@ def plano(wb, p: Projeto):
     ws.print_area = f'C1:H{lin}'
     ws.page_setup.orientation, ws.page_setup.paperSize = 'portrait', 9
     ws.page_margins = PageMargins(left=0.25, right=0.25, top=0.75, bottom=0.75)
+    return ws
+
+
+# ------------------------------------------------------------------ Cronogramas e Etapas (as outras abas da planilha de pré-cálculos)
+def _ordinal(n, caixa=str.upper):
+    return caixa(f'{n}º mês')
+
+
+def cronograma_fisico(wb, p: Projeto):
+    """Uma linha por rubrica e uma coluna por mês: o valor mensal nos meses em que a rubrica acontece, o total de cada mês e o acumulado.
+    Os valores vêm do Plano por fórmula; a coluna depois da última (fora da área de impressão) confere com o teto."""
+    ws = wb.create_sheet('Cronograma fisico-financeiro')
+    linhas = wb.__dict__.get('_linhas_plano', {})
+    n = max(duracao_do_projeto(p), 1)
+    VB = Font(name='Verdana', size=5, bold=True)
+    T, TB, A_ = Font(name='Times New Roman', size=5), Font(name='Times New Roman', size=5, bold=True), Font(name='Aptos Narrow', size=5)
+    tudo = Border(left=M, right=M, top=M, bottom=M)
+    meses = [col_letra(3 + k) for k in range(n)]
+    ult_col, conf = meses[-1], col_letra(3 + n)
+    for col, w in (('A', 3.71), ('B', 12.29), (conf, 7.71)):
+        ws.column_dimensions[col].width = w
+    for col in meses:
+        ws.column_dimensions[col].width = 7.43
+    ws.merge_cells(f'A1:{ult_col}1')
+    _c(ws, 'A1', 'CRONOGRAMA FÍSICO-FINANCEIRO', Font(name='Verdana', size=5, bold=True, color='FFFFFFFF'), tudo, fundo=PRETO)
+    for col in ['B'] + meses:
+        ws[f'{col}1'].border = Border(top=M, bottom=M, right=M if col == ult_col else None)
+    cab = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    _c(ws, 'A2', 'Item', VB, tudo, fundo=CINZA, alinhamento=cab); _c(ws, 'B2', 'Descrição', VB, tudo, fundo=CINZA, alinhamento=cab)
+    for k, col in enumerate(meses):
+        _c(ws, f'{col}2', _ordinal(k + 1), VB, tudo, fundo=CINZA, alinhamento=cab)
+    ws.row_dimensions[1].height, ws.row_dimensions[2].height = 10, 12   # (no modelo, 8,25: o texto do cabeçalho saía cortado na impressão)
+    lin, por_mes = 3, [0] * n
+    for r in p.rubricas:
+        orig, desc = linhas.get(r.item, (None, r.cargo if isinstance(r, RubricaRH) else r.descricao))
+        mensal = unitario_rubrica(r)
+        a, b = periodo(p, r)
+        _c(ws, f'A{lin}', r.item, TB, tudo)
+        _c(ws, f'B{lin}', f"='{ABA_PLANO}'!D{orig}" if orig else desc, T, tudo, calc=desc if orig else None)
+        primeira = None
+        for k, col in enumerate(meses):
+            if a <= k + 1 <= b:
+                formula = (f"='{ABA_PLANO}'!E{orig}" if orig else mensal / 100) if primeira is None else f'=${primeira}${lin}'
+                _c(ws, f'{col}{lin}', formula, T, tudo, MOEDA, calc=mensal / 100)
+                primeira = primeira or col
+                por_mes[k] += mensal
+            else:
+                _c(ws, f'{col}{lin}', None, T, tudo, MOEDA)
+        _c(ws, f'{conf}{lin}', f'=SUM(C{lin}:{ult_col}{lin})', A_, fmt=MOEDA, alinhamento=Alignment(vertical='bottom'), calc=mensal * r.meses / 100)
+        ws.row_dimensions[lin].height = 7.5 + 5.5 * _linhas(desc, 30)
+        lin += 1
+    ult, tot, acum = lin - 1, lin, lin + 1
+    for x, rotulo in ((tot, 'TOTAL'), (acum, 'TOTAL AGRUPADO')):
+        ws.merge_cells(f'A{x}:B{x}')
+        _c(ws, f'A{x}', rotulo, TB, tudo); ws[f'B{x}'].border = Border(right=M, top=M, bottom=M)
+        ws.row_dimensions[x].height = 13
+    corrido = 0
+    for k, col in enumerate(meses):
+        corrido += por_mes[k]
+        _c(ws, f'{col}{tot}', f'=SUM({col}3:{col}{ult})' if ult >= 3 else 0, T, tudo, MOEDA, calc=por_mes[k] / 100 if ult >= 3 else None)
+        _c(ws, f'{col}{acum}', f'={col}{tot}' if k == 0 else f'={meses[k - 1]}{acum}+{col}{tot}', TB, tudo, MOEDA, calc=corrido / 100)
+    solto = Alignment(vertical='bottom')
+    _c(ws, f'{conf}{tot}', f'=SUM(C{tot}:{ult_col}{tot})', A_, fmt=MOEDA, alinhamento=solto, calc=corrido / 100)
+    _c(ws, f'{conf}{acum}', f'=SUM({conf}3:{conf}{ult})' if ult >= 3 else 0, A_, fmt=MOEDA, alinhamento=solto, calc=corrido / 100 if ult >= 3 else None)
+    _c(ws, f'{conf}{acum + 1}', f'={p.teto / 100}-{conf}{acum}', Font(name='Aptos Narrow', size=5, bold=True), fmt=MOEDA, alinhamento=solto, calc=(p.teto - corrido) / 100)
+    ws.print_area = f'A1:{ult_col}{acum}'
+    ws.page_setup.orientation, ws.page_setup.paperSize = 'landscape', 9
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
+    ws.page_margins = PageMargins(**MARGENS)
+    ws.sheet_view.zoomScale = 110
+    return ws
+
+
+def etapas(wb, p: Projeto):
+    """Etapas e fases: cada rubrica, o tipo de recurso e do mês tal ao mês tal."""
+    ws = wb.create_sheet('Etapa e Fases')
+    linhas = wb.__dict__.get('_linhas_plano', {})
+    VB, T = Font(name='Verdana', size=11, bold=True), Font(name='Times New Roman', size=10)
+    tudo = Border(left=M, right=M, top=M, bottom=M)
+    ws.column_dimensions['A'].width = 7.29
+    for col in 'BCD':
+        ws.column_dimensions[col].width = 24
+    ws.merge_cells('A1:D1')
+    _c(ws, 'A1', 'ETAPAS E FASES', Font(name='Verdana', size=11, bold=True, color='FFFFFFFF'), tudo, fundo=PRETO)
+    for col in 'BCD':
+        ws[f'{col}1'].border = Border(top=M, bottom=M, right=M if col == 'D' else None)
+    esq = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    for col, txt, al in (('A', 'Item', CENTRO), ('B', 'Etapa', esq), ('C', 'Atividade', CENTRO), ('D', 'Prazo', esq)):
+        _c(ws, f'{col}2', txt, VB, tudo, fundo=CINZA, alinhamento=al)
+    ws.row_dimensions[1].height = ws.row_dimensions[2].height = 15.5
+    lin = 3
+    for r in p.rubricas:
+        orig, desc = linhas.get(r.item, (None, r.cargo if isinstance(r, RubricaRH) else r.descricao))
+        _c(ws, f'A{lin}', r.item, VB, tudo)
+        _c(ws, f'B{lin}', f"='{ABA_PLANO}'!D{orig}" if orig else desc, T, tudo, alinhamento=Alignment(vertical='center', wrap_text=True), calc=desc if orig else None)
+        _c(ws, f'C{lin}', 'Recursos Humanos' if isinstance(r, RubricaRH) else 'Recursos Materiais', T, tudo)
+        _c(ws, f'D{lin}', periodo_texto(p, r), T, tudo)
+        ws.row_dimensions[lin].height = max(24, 4 + 12.75 * _linhas(desc, 27))
+        lin += 1
+    ws.print_area = f'A1:D{max(lin - 1, 2)}'
+    ws.page_setup.orientation, ws.page_setup.paperSize = 'landscape', 9
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 1
+    ws.page_margins = PageMargins(**MARGENS)
+    ws.sheet_view.zoomScale = 110
+    return ws
+
+
+def cronograma_desembolso(wb, p: Projeto, forma='unica'):
+    """Quando o órgão repassa o dinheiro. forma: 'unica' = tudo no 1º mês (como na planilha de pré-cálculos) · 'mensal' = o total de cada mês
+    do cronograma físico-financeiro."""
+    ws = wb.create_sheet('Cronograma de desembolso')
+    n = max(duracao_do_projeto(p), 1)
+    meses = [col_letra(1 + k) for k in range(n)]
+    tudo = Border(left=M, right=M, top=M, bottom=M)
+    ws.column_dimensions['A'].width = 10
+    for col in meses[1:]:
+        ws.column_dimensions[col].width = 12.86
+    if n > 1:
+        ws.merge_cells(f'A1:{meses[-1]}1')
+    _c(ws, 'A1', 'CRONOGRAMA DE DESEMBOLSO', Font(name='Verdana', size=9, bold=True, color='FFFFFFFF'), tudo, fundo=PRETO)
+    for col in meses[1:]:
+        ws[f'{col}1'].border = Border(top=M, bottom=M, right=M if col == meses[-1] else None)
+    V6, T6 = Font(name='Verdana', size=6), Font(name='Times New Roman', size=6)
+    por_mes = [0] * n
+    for r in p.rubricas:
+        a, b = periodo(p, r)
+        for k in range(a - 1, min(b, n)):
+            por_mes[k] += unitario_rubrica(r)
+    fisico, total_plano = 'Cronograma fisico-financeiro', wb.__dict__.get('_linha_total')
+    lin_total = 3 + len(p.rubricas)   # a linha "TOTAL" do cronograma físico-financeiro
+    for k, col in enumerate(meses):
+        ws.merge_cells(f'{col}2:{col}3')
+        _c(ws, f'{col}2', _ordinal(k + 1, str.lower), V6, tudo, fundo=CINZA); ws[f'{col}3'].border = tudo
+        if forma == 'mensal':
+            valor, calc = (f"='{fisico}'!{col_letra(3 + k)}{lin_total}", por_mes[k] / 100) if fisico in wb.sheetnames else (por_mes[k] / 100, None)
+        elif k == 0:
+            valor, calc = (f"='{ABA_PLANO}'!G{total_plano}", sum(por_mes) / 100) if total_plano else (sum(por_mes) / 100, None)
+        else:
+            valor, calc = None, None
+        _c(ws, f'{col}4', valor, T6, Border(left=M, right=M, bottom=M), MOEDA, calc=calc)
+    for x in range(1, 5):
+        ws.row_dimensions[x].height = 15
+    ws.print_area = f'A1:{meses[-1]}4'
+    ws.page_setup.orientation, ws.page_setup.paperSize = 'portrait', 9
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 1
+    ws.page_margins = PageMargins(**MARGENS)
+    ws.sheet_view.zoomScale = 110
     return ws
 
 
@@ -222,16 +402,26 @@ def _gravar_valores(caminho, wb):
             if vals:
                 def com_valor(m):
                     v = vals.get(m.group(2))
+                    if isinstance(v, str):   # fórmula que traz um texto (o nome da rubrica, vindo do Plano)
+                        return m.group(1).replace('>', ' t="str">', 1) + f'<v>{escape(v)}</v>'
                     return m.group(1) + (f'<v>{v:.2f}</v>' if v is not None else m.group(3))
                 dados = re.sub(r'(<c r="([A-Z]+[0-9]+)"[^>]*><f>[^<]*</f>)(<v\s*/>|<v></v>)', com_valor, dados.decode('utf-8')).encode('utf-8')
             zout.writestr(info, dados)
     os.replace(tmp, caminho)
 
 
-def planilhas(p: Projeto, caminho):
-    """Plano de Aplicação + Comparativo de Preço, na formatação da planilha de pré-cálculos. Cada fórmula leva junto o valor calculado."""
+def planilhas(p: Projeto, caminho, orgao=None):
+    """As abas da planilha de pré-cálculos, na mesma ordem e formatação: Plano de Aplicação, Cronograma físico-financeiro, Etapa e Fases,
+    Cronograma de desembolso e Comparativo de Preço. O órgão do projeto diz o nome do concedente, se os cronogramas entram (modelo 'simples':
+    só o Plano e o Comparativo) e como é o desembolso. Cada fórmula leva junto o valor calculado."""
+    if orgao is None:
+        from . import orgaos
+        orgao = orgaos.do_projeto(p)
     wb = Workbook()
-    plano(wb, p); comparativo(wb, p)
+    plano(wb, p, orgao.no_plano())
+    if orgao.modelo_planilha != 'simples':
+        cronograma_fisico(wb, p); etapas(wb, p); cronograma_desembolso(wb, p, orgao.parametros.desembolso)
+    comparativo(wb, p)
     wb.save(caminho)
     _gravar_valores(caminho, wb)
     return caminho
@@ -280,7 +470,10 @@ def montar(p: Projeto, pid, caminho_zip):
     raiz = _nome(p.nome, 80)
     sem_pdf, sem_cnpj, n, com = [], [], 0, 0
     tmp = caminho_zip + '.xlsx'
-    planilhas(p, tmp)
+    from . import orgaos
+    orgao = orgaos.do_projeto(p)
+    simples = orgao.modelo_planilha == 'simples'
+    planilhas(p, tmp, orgao)
     with zipfile.ZipFile(caminho_zip, 'w', zipfile.ZIP_DEFLATED) as z:
         z.write(tmp, f'{raiz}/Plano de Aplicação e Comparativo de Preço.xlsx')
         usados = set()
@@ -309,7 +502,9 @@ def montar(p: Projeto, pid, caminho_zip):
             n += 1; com += 1 if ab_c else 0
         leia = [f'{p.nome}', f'Pacote gerado em {dt.datetime.now().strftime("%d/%m/%Y %H:%M")}.', '',
                 'O QUE HÁ AQUI',
-                '- "Plano de Aplicação e Comparativo de Preço.xlsx": as duas planilhas (médias e totais são fórmulas).',
+                '- "Plano de Aplicação e Comparativo de Preço.xlsx": ' + ('o Plano de Aplicação e o Comparativo de Preço' if simples else
+                                                                          'o Plano de Aplicação, o Cronograma físico-financeiro, as Etapas e Fases, o Cronograma de desembolso e o Comparativo de Preço')
+                + ' (médias e totais são fórmulas).',
                 f'- Pasta "Orçamentos": {n} PDF(s), separados por rubrica e por item, na ordem do plano. Cada PDF é a página da vaga ou do produto',
                 f'  (ou a proposta) e, no fim do mesmo arquivo, o Comprovante de Inscrição e de Situação Cadastral da empresa ({com} de {n} já com o comprovante).', '']
         if sem_pdf or sem_cnpj:

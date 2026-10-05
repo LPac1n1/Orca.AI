@@ -211,8 +211,11 @@ Pode levar de 30 minutos a algumas horas. O andamento aparece na tela e você po
 <section id="verificacao" data-secao aria-labelledby="t-verif">
   <span id="alertas"></span>
   <div class="secao__titulo"><h2 id="t-verif">Verificação</h2><span class="contador">{{ alertas|length }}</span></div>
-  <p class="secao__intro">O sistema confere o orçamento com as regras estabelecidas pela SEJC. As <b>pendências</b> precisam ser
-    resolvidas antes do envio; os pontos <b>para revisar</b> pedem a sua conferência.</p>
+  <p class="secao__intro">O sistema confere o orçamento com as regras de <b>{{ orgao.nome }}</b>{% if orgao.proprias %} ({{ orgao.proprias|selectattr('ativa')|list|length }} regra(s) própria(s) do órgão){% endif %}.
+    As <b>pendências</b> precisam ser resolvidas antes do envio; os pontos <b>para revisar</b> pedem a sua conferência. <a href="/orgaos/{{ orgao_id }}">Ver ou mudar as regras do órgão</a></p>
+  {% if regras_ia and not removido_em %}<form method="post" action="/p/{{ pid }}/regras-ia" class="linha" style="margin-bottom: var(--esp-3)">
+    <button class="btn btn--secundario" data-aguarde="Iniciando…">{{ icone('busca') }}Conferir regras com a IA ({{ regras_ia|length }})</button>
+    <span class="texto-apoio">As regras em texto do órgão são conferidas pela IA para o plano como está agora; o resultado fica guardado até o plano mudar.</span></form>{% endif %}
   {% if not alertas %}
   <div class="vazio">{{ icone('escudo') }}<p class="vazio__titulo">Nada a apontar.</p><p>Quando houver itens no plano, as pendências e os pontos de atenção aparecem aqui, com um link para a tela onde se corrige.</p></div>
   {% endif %}
@@ -236,7 +239,7 @@ Pode levar de 30 minutos a algumas horas. O andamento aparece na tela e você po
         <tbody>
         {% for a in lista %}{% set url = link_alerta(a) %}
         <tr>{% if em_massa %}<td data-rotulo="Selecionar"><input type="checkbox" name="chave" value="{{ chave_alerta(a) }}" aria-label="Selecionar: {{ a.regra }}, {{ a.item }}"></td>{% endif %}
-          <td data-rotulo="Regra">{{ selo(tipo, a.regra) }}<div class="texto-apoio">{{ REGRAS[a.regra][0] }} ({{ REGRAS[a.regra][1] }})</div></td>
+          <td data-rotulo="Regra">{{ selo(tipo, a.regra) }}<div class="texto-apoio">{{ regra_texto(a.regra)[0] }} ({{ regra_texto(a.regra)[1] }})</div></td>
           <td data-rotulo="Onde">{{ a.item }}</td><td data-rotulo="O que foi encontrado">{{ a.mensagem }}</td>
           <td class="acoes"><div class="linha linha--fim">
             {% if url and g in ('erro', 'atencao') %}<a class="btn btn--secundario" href="{{ url }}">{{ 'Corrigir' if g == 'erro' else 'Conferir' }}<span class="so-leitor">: {{ a.item }}</span></a>{% endif %}
@@ -256,7 +259,7 @@ Pode levar de 30 minutos a algumas horas. O andamento aparece na tela e você po
 {# =================================================================== CONFIGURAÇÃO #}
 <section id="configuracao" data-secao aria-labelledby="t-conf">
   <div class="secao__titulo"><h2 id="t-conf">Configuração do projeto</h2></div>
-  <p class="secao__intro">Dados do projeto e regras usadas nas pesquisas e nos cálculos. Os valores já vêm como a SEJC aceitou; mude só se souber o motivo.</p>
+  <p class="secao__intro">Dados do projeto e regras usadas nas pesquisas e nos cálculos. Os valores vêm do órgão do projeto ({{ orgao.rotulo() }}); mude só se souber o motivo.</p>
   <form method="post" action="/p/{{ pid }}/config" class="pilha" data-avisar-saida>
     <fieldset class="cartao">
       <legend>Dados do projeto</legend>
@@ -268,6 +271,13 @@ Pode levar de 30 minutos a algumas horas. O andamento aparece na tela e você po
           {{ campo('cep', 'CEP de entrega', valor=p.cep, mascara='cep', obrigatorio=true, dica='Usado para conferir estoque e preço nas lojas.') }}
         </div>
         {{ campo('proponente', 'Proponente (nome da OSC)', valor=p.proponente, opcional=true) }}
+        <div class="campo">
+          <label class="campo__rotulo" for="c-orgao">Órgão que analisa o projeto {{ ajuda('Órgão', 'As regras da verificação e o modelo das planilhas vêm do órgão. Para ver ou mudar as regras de um órgão, use o menu Órgãos.') }}</label>
+          <select class="campo__controle" id="c-orgao" name="orgao_id" aria-describedby="c-orgao-dica">
+            {% for x in orgaos_lista %}<option value="{{ x.id }}" {% if x.id == orgao_id %}selected{% endif %}>{{ x.orgao.nome }}{% if x.orgao.sigla %} ({{ x.orgao.sigla }}){% endif %}</option>{% endfor %}
+          </select>
+          <p class="campo__dica" id="c-orgao-dica">Trocar o órgão muda as regras conferidas neste projeto. <a href="/orgaos/{{ orgao_id }}">Ver as regras de {{ orgao.rotulo() }}</a></p>
+        </div>
       </div>
     </fieldset>
 

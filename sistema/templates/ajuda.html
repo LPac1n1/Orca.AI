@@ -4,21 +4,22 @@
 {% block corpo %}
 <header class="cabecalho">
   <h1>Como usar o Orça.AI</h1>
-  <p class="cabecalho__intro">O sistema monta e confere o orçamento de um projeto para a Secretaria da Justiça e Cidadania de São Paulo (SEJC): a
+  <p class="cabecalho__intro">O sistema monta e confere o orçamento de um projeto para o órgão que vai analisá-lo (uma secretaria, um fundo, uma emenda): a
     <b>Grade Comparativa</b> (3 pesquisas de preço ou de salário para cada item) e o <b>Plano de Aplicação</b>. Ele pesquisa, guarda os comprovantes,
-    aponta o que a SEJC recusaria e exporta o Excel.</p>
+    aponta o que o órgão recusaria e entrega as planilhas e os PDFs prontos. Já vem com as regras da Secretaria da Justiça e Cidadania de São Paulo (SEJC);
+    as de outros órgãos você cadastra em <a href="/orgaos">Órgãos</a>.</p>
 </header>
 
 <section aria-labelledby="t-passos">
   <div class="secao__titulo"><h2 id="t-passos">O caminho, do começo ao fim</h2></div>
   <ol class="passos">
-    <li class="passo"><div><div class="passo__titulo">Crie o projeto</div><p class="passo__texto">Na página <a href="/">Projetos</a>, preencha o nome e o teto (o valor total que o orçamento precisa fechar).</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Crie o projeto</div><p class="passo__texto">Na página <a href="/">Projetos</a>, preencha o nome, o teto (o valor total que o orçamento precisa fechar) e o órgão que vai analisar o projeto. Se o órgão ainda não está na lista, cadastre em <a href="/orgaos">Órgãos</a>.</p></div></li>
     <li class="passo"><div><div class="passo__titulo">Monte o plano</div><p class="passo__texto">Adicione os cargos de mão de obra (com a quantidade de profissionais de cada um) e as rubricas de materiais e serviços. Em cada rubrica, cadastre os itens com a quantidade por mês; dá para colar uma lista inteira de uma vez.</p></div></li>
     <li class="passo"><div><div class="passo__titulo">Pesquise</div><p class="passo__texto">O botão "Pesquisar tudo automaticamente" procura 3 vagas para cada cargo e 3 preços para cada item, confere os CNPJs e guarda cada página em PDF. Pode levar de 30 minutos a algumas horas. O que já está pronto não é refeito.</p></div></li>
     <li class="passo"><div><div class="passo__titulo">Confira os CNPJs</div><p class="passo__texto">Em "CNPJs e comprovantes", emita o comprovante oficial de cada empresa no site da Receita e importe os PDFs.</p></div></li>
     <li class="passo"><div><div class="passo__titulo">Resolva as pendências</div><p class="passo__texto">A parte "Verificação" do projeto lista o que bloqueia o envio e o que merece revisão, com um botão para ir direto à tela onde se corrige.</p></div></li>
     <li class="passo"><div><div class="passo__titulo">Feche no teto</div><p class="passo__texto">A simulação mostra quais valores mudariam para o total ser exatamente o teto. Você confere e aplica.</p></div></li>
-    <li class="passo"><div><div class="passo__titulo">Exporte o Excel</div><p class="passo__texto">O arquivo sai com a Grade Comparativa e o Plano de Aplicação, no formato aceito pela SEJC.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Baixe o pacote</div><p class="passo__texto">"Baixar tudo para a Secretaria (.zip)", no topo do projeto, traz a planilha (Plano de Aplicação, Cronograma físico-financeiro, Etapas e Fases, Cronograma de desembolso e Comparativo de Preço) e o PDF de cada pesquisa, já com o comprovante de CNPJ da empresa.</p></div></li>
   </ol>
 </section>
 
@@ -33,7 +34,10 @@
       <dt>Comprovante</dt><dd>O PDF que prova a pesquisa: a página do produto, o carrinho da loja, a página da vaga ou a proposta do fornecedor.</dd>
       <dt>Média</dt><dd>A soma das 3 pesquisas dividida por 3. O valor no plano não pode passar dela.</dd>
       <dt>Valor no plano</dt><dd>O valor que vai para o Plano de Aplicação. Em cada item, é o menor dos 3 preços ou a média dos 3 (em sistemas, sempre o menor).</dd>
-      <dt>Pendência</dt><dd>Algo que a SEJC recusaria. Bloqueia o envio até ser resolvido.</dd>
+      <dt>Órgão</dt><dd>Quem analisa o projeto: secretaria, ministério, fundo, emenda. Cada órgão tem as suas regras, cadastradas em "Órgãos"; o projeto segue as do órgão dele.</dd>
+      <dt>Regra própria</dt><dd>Uma exigência que só um órgão tem (código P01, P02…): "só empresas do estado", "material permanente não pode", "mão de obra até 60% do total". É criada na tela do órgão, sem programar.</dd>
+      <dt>Pendência</dt><dd>Algo que o órgão recusaria. Bloqueia o envio até ser resolvido.</dd>
+      <dt>Começa no mês</dt><dd>Em que mês do projeto um cargo ou uma rubrica começa. Serve para os cronogramas da planilha. Em branco, quem dura menos que o projeto fica no meio dele (10 meses num projeto de 12: do 2º ao 11º mês).</dd>
       <dt>Banco de vagas</dt><dd>As vagas que o sistema já encontrou e guardou (valem por 180 dias). É comum a todos os projetos.</dd>
       <dt>Título similar</dt><dd>Outro título de vaga com a mesma função do cargo (ex.: Educador social para Orientador socioeducativo). Só entra quando faltam vagas com o título exato, e a verificação aponta cada um.</dd>
       <dt>Especificação</dt><dd>Tamanho, peso, cor, tipo ou embalagem de um produto (250 g, 1 L, azul, a vácuo, caixa com 5.000 unidades). É opcional: em branco, o sistema escolhe a opção mais barata que achar.</dd>
@@ -83,14 +87,25 @@
       <p>Na tela do projeto, use "Desfazer a última alteração". Para voltar mais atrás, abra o histórico e restaure a versão desejada. Nada é perdido: a restauração também vira uma versão.</p></div></details>
     <details class="detalhe"><summary>Posso fechar a página durante uma pesquisa?</summary><div class="detalhe__corpo">
       <p>Pode fechar a página e até usar outras telas. O que não pode fechar é a janela preta do sistema (iniciar.bat): ela é o sistema funcionando.</p></div></details>
+    <details class="detalhe"><summary>Meu projeto é de outra secretaria (ou de uma emenda, de um fundo). Funciona?</summary><div class="detalhe__corpo">
+      <p>Funciona. Em <a href="/orgaos">Órgãos</a>, adicione o órgão e diga o que vale para ele: quais regras do sistema ficam ligadas (e se cada uma bloqueia o envio ou só pede
+        revisão), as regras próprias dele, a validade das pesquisas, como o valor do plano é escolhido, quais planilhas vão no pacote e como é o repasse. Depois, escolha o órgão
+        ao criar o projeto ou na Configuração dele. Mudar uma regra do órgão muda a verificação dos projetos dele na hora.</p>
+      <p>As regras próprias são de tipos que o sistema sabe conferir sozinho — empresas só de certos estados, itens que não podem constar, um grupo de despesas até uma parte do
+        total, valor máximo, duração máxima — ou um texto livre, conferido por uma pessoa ou pela IA. Com a IA ligada, dá para colar o trecho do edital e ela propõe as regras:
+        nada é gravado antes de você conferir e aceitar.</p>
+      <p>Cinco regras valem para qualquer órgão e não podem ser desligadas, porque garantem que o orçamento está inteiro e é verdadeiro (a média calculada certo, o total até o
+        teto, a soma dos itens, o comprovante que prova o preço e os itens diferentes entre si).</p></div></details>
     <details class="detalhe"><summary>Os dados ficam na internet?</summary><div class="detalhe__corpo">
-      <p>Não. O sistema e os dados ficam só neste computador. A internet é usada apenas para consultar lojas, vagas e CNPJs. Vale manter uma cópia de segurança da pasta do sistema.</p></div></details>
+      <p>Não. O sistema e os dados ficam só neste computador. A internet é usada para consultar lojas, vagas e CNPJs. Vale manter uma cópia de segurança da pasta do sistema.</p>
+      <p>A IA gratuita é opcional. Ligada, ela recebe nomes de produtos anunciados e de cargos. Só quando você pede, recebe também: os itens do plano, com quantidades, valores
+        e nomes das empresas (para conferir uma regra escrita em texto; o nome da organização e o do projeto não vão), ou o trecho do edital que você colou (para propor regras).</p></div></details>
   </div>
 </section>
 
 <section class="secao" aria-labelledby="t-regras">
   <div class="secao__titulo"><h2 id="t-regras">Regras conferidas pelo sistema</h2><span class="contador">{{ REGRAS|length }}</span></div>
-  <p class="secao__intro">Os códigos (R01, R02…) aparecem na verificação do projeto. As regras da SEJC são as estabelecidas pela Secretaria para os orçamentos; as demais são proteções do próprio sistema.</p>
+  <p class="secao__intro">Os códigos (R01, R02…) aparecem na verificação do projeto. As regras da SEJC são as estabelecidas pela Secretaria para os orçamentos; as demais são proteções do próprio sistema. Esta é a lista completa: em cada órgão, dá para desligar ou mudar o peso da maioria delas e acrescentar as regras próprias (<a href="/orgaos">Órgãos</a>).</p>
   <div class="tabela-rolagem">
     <table class="tabela tabela--cartoes">
       <thead><tr><th scope="col">Código</th><th scope="col">O que a regra exige</th><th scope="col">De onde veio</th></tr></thead>

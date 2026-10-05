@@ -348,6 +348,44 @@ def titulos_similares_guardados(cargo):
         return []
 
 
+CONFERIR_REGRA = (
+    'Você confere o orçamento de um projeto social contra UMA regra do órgão que vai analisá-lo. A regra está em "regra", com as palavras do órgão. '
+    'O plano está em "plano": "itens" traz cada item numerado (n) — cargos de mão de obra (quantidade de profissionais, horas por mês, meses, '
+    'valor mensal por profissional, empresas das pesquisas de salário) e rubricas (com os itens, a quantidade por mês e o valor unitário de cada um). '
+    'Aponte SÓ o que claramente descumpre a regra, pelo que está escrito no plano; se a regra não puder ser conferida com esses dados, ou se nada a '
+    'descumpre, devolva a lista vazia. Não invente fatos. Responda com UM objeto JSON: {"violacoes": [{"n": número do item (ou null se for do plano '
+    'inteiro), "motivo": "uma frase curta dizendo o que descumpre"}]}')
+
+
+def conferir_regra(regra, plano, projeto_id=None):
+    """A IA aponta o que no plano parece descumprir a regra em texto: {'violacoes': [{'n', 'motivo'}]} ou None (IA indisponível ou resposta inválida)."""
+    r = perguntar('conferir_regra', CONFERIR_REGRA, {'regra': regra, 'plano': plano}, projeto_id, forte=True)
+    if not isinstance(r, dict) or not isinstance(r.get('violacoes'), list):
+        return None
+    return dict(violacoes=[dict(n=v.get('n') if isinstance(v.get('n'), int) else None, motivo=str(v.get('motivo') or '').strip()[:240])
+                           for v in r['violacoes'] if isinstance(v, dict) and str(v.get('motivo') or '').strip()][:30])
+
+
+PROPOR_REGRAS = (
+    'Você ajuda uma organização social a cadastrar, num sistema de orçamentos, as regras de um órgão público (secretaria, ministério, fundo) para a '
+    'pesquisa de preços e o plano de aplicação de um projeto. Em "texto" está um trecho do edital, manual ou parecer do órgão. Em "tipos" estão os '
+    'TIPOS de regra que o sistema sabe conferir, cada um com os campos que precisa. Em "catalogo" estão as regras que o sistema já tem (código e '
+    'descrição). Leia o texto e proponha: (1) "proprias": regras novas, cada uma com "tipo" (um dos tipos), "titulo" (frase curta), "gravidade" '
+    '("erro" se o órgão proíbe ou exige; "atencao" se recomenda) e "parametros" com os campos do tipo — use o tipo "lembrete" ou "ia" (com o campo '
+    '"texto") para o que nenhum outro tipo cobre; (2) "desligar": códigos do catálogo que o texto mostra que NÃO valem para este órgão. Para cada '
+    'proposta inclua "trecho": a frase do texto em que ela se baseia, copiada. Só proponha o que o texto diz: se o texto não fala de um assunto, não '
+    'crie regra sobre ele. Responda com UM objeto JSON: {"proprias": [...], "desligar": [{"codigo": "...", "trecho": "..."}]}')
+
+
+def propor_regras(texto, tipos, catalogo, projeto_id=None):
+    """Regras propostas pela IA a partir do texto do órgão. Devolve dict(proprias=[...], desligar=[...]) ainda SEM conferir — quem confere e
+    quem decide é a tela do órgão. None se a IA não estiver disponível."""
+    r = perguntar('propor_regras', PROPOR_REGRAS, {'texto': (texto or '')[:14000], 'tipos': tipos, 'catalogo': catalogo}, projeto_id, forte=True)
+    if not isinstance(r, dict):
+        return None
+    return dict(proprias=[x for x in (r.get('proprias') or []) if isinstance(x, dict)][:25], desligar=[x for x in (r.get('desligar') or []) if isinstance(x, dict)][:25])
+
+
 def melhor_substituto(pedido, candidatos, projeto_id=None):
     r = perguntar('substituto', SUBSTITUTO, {'pedido': pedido, 'candidatos': candidatos}, projeto_id)
     if isinstance(r, dict) and 'escolha' in r:

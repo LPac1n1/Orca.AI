@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, campo %}
+{% block titulo %}Órgãos{% endblock %}
+{% block corpo %}
+<header class="cabecalho">
+  <h1>Órgãos</h1>
+  <p class="cabecalho__intro">Cada órgão que analisa projetos (secretaria, ministério, fundo, emenda) tem as suas exigências. Aqui você cadastra o órgão e diz
+    <b>quais regras valem para ele</b>, o que pode e o que não pode constar e como o orçamento é feito. Cada projeto segue as regras do órgão a que pertence.</p>
+</header>
+
+{% if msg %}<div class="aviso aviso--info" role="status">{{ icone('info') }}<div class="aviso__corpo">{{ msg }}</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+
+<section class="secao" aria-labelledby="t-lista">
+  <div class="secao__titulo"><h2 id="t-lista">Órgãos cadastrados</h2><span class="contador">{{ lista|length }}</span></div>
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Órgão</th><th scope="col">Esfera</th><th scope="col" class="n">Regras do sistema desligadas</th><th scope="col" class="n">Regras próprias</th>
+        <th scope="col" class="n">Projetos</th><th scope="col"><span class="so-leitor">Ações</span></th></tr></thead>
+      <tbody>
+      {% for x in lista %}{% set o = x.orgao %}
+      <tr><th scope="row" data-rotulo="Órgão"><a href="/orgaos/{{ x.id }}">{{ o.nome }}</a>{% if o.sigla %} <span class="texto-apoio">({{ o.sigla }})</span>{% endif %}
+          {% if x.id == padrao %}<div>{{ selo('info', 'Padrão do sistema') }}</div>{% endif %}</th>
+        <td data-rotulo="Esfera">{{ ESFERAS[o.esfera] }}{% if o.uf %} · {{ o.uf }}{% endif %}</td>
+        <td class="n" data-rotulo="Regras do sistema desligadas">{{ o.regras.values()|rejectattr('ativa')|list|length }}</td>
+        <td class="n" data-rotulo="Regras próprias">{{ o.proprias|length }}</td>
+        <td class="n" data-rotulo="Projetos">{{ x.projetos }}</td>
+        <td class="acoes"><a class="btn btn--secundario" href="/orgaos/{{ x.id }}">{{ icone('editar') }}Abrir e editar<span class="so-leitor"> {{ o.nome }}</span></a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="cartao secao" aria-labelledby="t-novo" id="novo">
+  <h2 id="t-novo" class="cartao__titulo">{{ icone('mais') }}Adicionar órgão</h2>
+  <p class="texto-apoio">O órgão novo começa com as regras de costume ligadas (3 pesquisas por item, empresas diferentes e ativas, comprovante de cada pesquisa, valor até a
+    média). Depois de criar, você ajusta o que for diferente — ou cola o texto do edital e deixa a IA propor.</p>
+  <form method="post" action="/orgaos" class="formulario" style="margin-top: var(--esp-3)">
+    {{ campo('nome', 'Nome do órgão', obrigatorio=true, exemplo='Secretaria Municipal de Assistência Social', extra='maxlength="140"') }}
+    {{ campo('sigla', 'Sigla', opcional=true, tamanho='m', exemplo='SMAS', extra='maxlength="20"') }}
+    <div class="campo campo--m">
+      <label class="campo__rotulo" for="c-esfera">Esfera</label>
+      <select class="campo__controle" id="c-esfera" name="esfera">{% for k, t in ESFERAS.items() %}<option value="{{ k }}">{{ t }}</option>{% endfor %}</select>
+    </div>
+    {{ campo('uf', 'Estado', opcional=true, tamanho='p', exemplo='SP', extra='maxlength="2" style="text-transform: uppercase"') }}
+    <div class="campo">
+      <label class="campo__rotulo" for="c-copiar">Começar com as regras de</label>
+      <select class="campo__controle" id="c-copiar" name="copiar">
+        <option value="">As regras de costume do sistema</option>
+        {% for x in lista %}<option value="{{ x.id }}">Uma cópia de: {{ x.orgao.rotulo() }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="campo--inteiro"><button class="btn btn--primario" data-aguarde="Criando…">{{ icone('mais') }}Adicionar órgão</button></div>
+  </form>
+</section>
+
+{% if removidos %}
+<details class="detalhe secao"><summary>Órgãos removidos ({{ removidos|length }})</summary>
+  <div class="detalhe__corpo">
+    <p class="texto-apoio">Saíram da lista, mas nada foi apagado: os projetos ligados a eles continuam com as mesmas regras.</p>
+    <ul class="lista-simples">
+      {% for x in removidos %}<li class="linha linha--entre"><span>{{ x.orgao.nome }}{% if x.orgao.sigla %} ({{ x.orgao.sigla }}){% endif %}</span>
+        <form method="post" action="/orgaos/{{ x.id }}/restaurar"><button class="btn btn--secundario">{{ icone('desfazer') }}Restaurar<span class="so-leitor"> {{ x.orgao.nome }}</span></button></form></li>{% endfor %}
+    </ul>
+  </div>
+</details>
+{% endif %}
+{% endblock %}

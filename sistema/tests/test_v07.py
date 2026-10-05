@@ -76,7 +76,7 @@ REAIS = [  # (anúncios das 3 lojas, pedido, marca, nome simples esperado, espec
       'Bloco Post-It Cubo 400 Folhas Ultra'], 'Bloco de Notas', 'Post-it', 'Bloco Adesivo', '47.6mm 400 Folhas'),
     (['Régua Dello Poliestireno Cristal 30cm 3109 H.0100 1 UN', 'Régua 30cm Cristal - Dello', 'Régua 30cm Cristal'], 'Pasta', None, 'Régua', '30cm Cristal'),
     (['Lápis de Cor Bic Evolution 12 cores un', 'Lápis de cor 12 cores Evolution + 4 lápis grafite - Bic', 'Lápis De Cor Evolution Color Grátis 4 Lápis - Bic'],
-     'Lápis Grafite', 'Evolution', 'Lápis de Cor', '12 Cores'),
+     'Lápis Grafite', 'Bic', 'Lápis de Cor', '12 Cores'),
     (['Limpador Multiuso Limpol Essence 500ml', 'Limpador Multiuso Limpol 500ml 1 UN', 'Limpador Multiuso Limpol Essence 500ml'], 'Sabão em Pó', 'Limpol',
      'Limpador Multiuso', '500mL'),
     (['Suco Concentrado Maracujá Maguary Garrafa 1l', 'Suco Concentrado Maguary Maracujá 1L', 'Suco Concentrado de Maracujá Maguary 1L'], None, 'Maguary',
@@ -94,6 +94,35 @@ def test_nome_simples_do_produto_sem_marca_linha_e_medida(titulos, pedido, marca
     palavras = {T.sa(w) for t in titulos + [pedido or ''] for w in re.findall(r'\w+', t)}
     assert all(T.sa(w) in palavras for w in achado.split())                              # nenhuma palavra inventada
     assert not T.precisa_arrumar(achado, marca, trocado=True)                            # o nome já é simples: não é mexido de novo
+
+
+def test_linha_do_fabricante_nao_e_marca(cliente):
+    """Decisão de 05/10/2026: "Evolution" é uma linha de lápis da Bic — a marca do item é o fabricante. A pesquisa nova já acha "Bic", e o item
+    gravado com "Evolution" é acertado sozinho quando o projeto abre (os 3 anúncios precisam dizer o fabricante)."""
+    from orcamento import db, servico
+    from orcamento.modelo import RubricaMaterial, Subitem, descricao_completa
+    from orcamento.produtos import texto as T, identidade as ID
+    anuncios = ['Lápis de Cor Bic Evolution 12 cores un', 'Lápis de cor 12 cores Evolution + 4 lápis grafite - Bic', 'Lápis De Cor Evolution Color Grátis 4 Lápis - Bic']
+    assert 'evolution' not in ID.MARCAS_N and [ID.marca_de(dict(nome=a)) for a in anuncios] == ['bic'] * 3
+    assert servico.marca_do_produto(dict(ofertas=[dict(nome=a) for a in anuncios])) == 'Bic'
+    assert T.fabricante_da_linha('Evolution', anuncios) == 'Bic' and T.fabricante_da_linha('evolution', ['LÁPIS BIC EVOLUTION', 'Lápis BIC Evolution']) == 'Bic'
+    assert T.fabricante_da_linha('Evolution', anuncios[:1] + ['Lápis de cor Evolution 12 cores']) is None      # um anúncio sem o fabricante: não mexe
+    assert T.fabricante_da_linha('Pilot', anuncios) is None and T.fabricante_da_linha(None, anuncios) is None and T.fabricante_da_linha('Evolution', []) is None
+    pid = _novo(cliente)
+    p = db.carregar(pid)[0]
+    p.rubricas = [RubricaMaterial(item=1, descricao='Material', meses=10, subitens=[
+        Subitem(descricao='Lápis de Cor', marca='Evolution', especificacao='12 Cores', qtd=1, precos=[900, 990, 1100], valor_plano=990, produtos=anuncios, nivel=2,
+                descricao_original='Lápis Grafite', marca_original='', especificacao_original=''),
+        Subitem(descricao='Caneta Esferográfica', marca='Pilot', especificacao='Azul', qtd=1, precos=[300, 319, 350], valor_plano=319,
+                produtos=['Caneta Esferográfica Pilot Azul', 'Caneta esferográfica azul - Pilot', 'Caneta Esferográfica Pilot BP-1RT Azul'])])]
+    db.salvar(pid, p)
+    cliente.get(f'/p/{pid}')                                                                                  # abrir o projeto acerta o que estava gravado
+    p = db.carregar(pid)[0]
+    assert [(s.descricao, s.marca, s.especificacao) for s in p.rubricas[0].subitens] == [('Lápis de Cor', 'Bic', '12 Cores'), ('Caneta Esferográfica', 'Pilot', 'Azul')]
+    assert descricao_completa(p.rubricas[0].subitens[0]) == 'Lápis de Cor Bic 12 Cores' and p.rubricas[0].subitens[0].descricao_original == 'Lápis Grafite'
+    v = db.carregar(pid)[1]
+    cliente.get(f'/p/{pid}')
+    assert db.carregar(pid)[1] == v                                                                           # e não mexe de novo
 
 
 def test_item_digitado_marca_vai_para_o_campo_marca(cliente):
@@ -285,7 +314,7 @@ def test_pacote_para_a_secretaria_com_planilhas_e_pdfs_juntados(cliente):
     assert 'Sem PDF da pesquisa (não entrou no pacote): item 1 (Psicólogo), pesquisa 3 — GAMA' in leia and 'Sem o comprovante de CNPJ junto: item 1 (Psicólogo), pesquisa 2 — BETA: S/A (11.444.777/0001-61)' in leia
     # as planilhas, na formatação da planilha de pré-cálculos
     wb = load_workbook(io.BytesIO(cliente.get(f'/p/{pid}/planilhas').content))
-    assert wb.sheetnames == ['Plano de Aplicação', 'Comparativo de Preço']
+    assert wb.sheetnames == ['Plano de Aplicação', 'Cronograma fisico-financeiro', 'Etapa e Fases', 'Cronograma de desembolso', 'Comparativo de Preço']   # as abas da planilha de pré-cálculos
     c = wb['Comparativo de Preço']
     assert c['A1'].value == 'COMPARATIVO DE PREÇOS' and (c['A1'].font.name, c['A1'].font.sz, c['A1'].font.b) == ('Verdana', 8, True) and c['B5'].font.name == 'Times New Roman'
     assert {str(m) for m in c.merged_cells.ranges} >= {'A1:M1', 'A2:A4', 'B2:B4', 'C2:C4', 'D2:F2', 'D3:D4', 'E3:E4', 'G2:I2', 'J2:L2', 'M2:M4', 'A6:A8'}

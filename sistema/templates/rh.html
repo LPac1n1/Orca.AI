@@ -45,6 +45,8 @@
       {{ campo('horas_mes', 'Horas por mês', valor=r.horas_mes, mascara='inteiro', obrigatorio=true, sufixo='horas',
                dica='De cada profissional.' ~ (' Com a faixa preenchida, o sistema recalcula as horas quando a faixa ou as vagas mudam.' if r.faixa_pretendida else ''), extra='data-min="1" data-max="744"') }}
       {{ campo('meses', 'Duração', valor=r.meses, mascara='inteiro', obrigatorio=true, sufixo='meses', extra='data-min="1" data-max="60"') }}
+      {{ campo('mes_inicio', 'Começa no mês', valor=r.mes_inicio or '', mascara='inteiro', opcional=true, prefixo='mês', extra='data-min="1" data-max="60"',
+               dica='Para os cronogramas. Em branco, o sistema põe no meio do projeto: hoje, ' ~ periodo_texto(p, r) ~ '.') }}
     </div>
     <p class="texto-apoio" style="margin-top: var(--esp-3)">Jornada legal deste cargo: {{ e.semanais }} horas por semana ({{ e.base_legal }}){% if e.alerta %}. Atenção: {{ e.alerta }}{% endif %}.
       Horas de um mês usadas no cálculo: {{ mx[2] or '—' }} ({{ 'jornada legal' if p.config.divisor_horas == 'legal' else 'divisor já aceito pela SEJC' }}).</p>

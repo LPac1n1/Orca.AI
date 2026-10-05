@@ -57,9 +57,23 @@ folhas folha fls fl furos tamanho ref cod codigo""".split())
 SABORES = set("""uva maca laranja limao maracuja caju pessego morango abacaxi goiaba manga tangerina coco chocolate baunilha menta hortela framboesa amora cereja banana
 tomate azeite oleo molho mel leite cafe canela cebola alho queijo presunto frango carne peixe atum milho ervilha feijao arroz aveia""".split())
 # marcas que também são palavras comuns: não são tiradas de uma descrição DIGITADA só por estarem na lista de marcas
-AMBIGUAS = set('brilhante veja neve assim report personal comfort fofo magnum minuano zulu tupi urca eagle evolution spiral post-it candida uniao condor scotch'.split())
+AMBIGUAS = set('brilhante veja neve assim report personal comfort fofo magnum minuano zulu tupi urca eagle spiral post-it candida uniao condor scotch'.split())
 _MINUSCULAS = CONECTORES | {'sem'}
-_LINHAS = ID.LINHAS - {'concentrado', 'profissional'}   # nome de linha do fabricante (não entra no nome simples)
+# Linha de um fabricante que parece marca: o nome que vai no campo Marca é o do FABRICANTE (decisão de 05/10/2026: "Lápis de Cor Evolution"
+# é da Bic). linha -> fabricante, as duas como estão na lista de marcas (sem acento, minúsculas).
+LINHAS_DE_MARCA = {'evolution': 'bic'}
+_LINHAS = (ID.LINHAS - {'concentrado', 'profissional'}) | set(LINHAS_DE_MARCA)   # nome de linha do fabricante (não entra no nome simples)
+
+
+def fabricante_da_linha(marca, titulos):
+    """Se o que está no campo Marca é uma linha de fabricante (Evolution) e os anúncios dizem o fabricante (Bic), devolve o nome dele como
+    está escrito nos anúncios; senão, None."""
+    fab = LINHAS_DE_MARCA.get(sa(marca or '').strip())
+    achados = [m.group(0) for t in titulos for m in [re.search(r'(?<![\w])' + re.escape(fab) + r'(?![\w])', t or '', re.I)] if m] if fab else []
+    if not fab or len(achados) < max(2, len([t for t in titulos if t])):   # o fabricante precisa estar em todos os anúncios (e em pelo menos 2)
+        return None
+    escrito = achados[0]
+    return escrito.title() if escrito.isupper() or escrito.islower() else escrito
 
 
 def _tokens(titulo):

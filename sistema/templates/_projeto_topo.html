@@ -10,7 +10,7 @@
 <header class="cabecalho cabecalho--projeto">
   <div>
     <{{ 'h1' if not atual else 'p' }} class="cabecalho__nome">{{ p.nome }}</{{ 'h1' if not atual else 'p' }}>
-    <p class="cabecalho__meta">{{ p.proponente or 'Proponente não informado' }} · processo {{ p.processo or 'não informado' }} · versão {{ versao }}</p>
+    <p class="cabecalho__meta">{{ p.proponente or 'Proponente não informado' }} · {{ orgao.rotulo() }} · processo {{ p.processo or 'não informado' }} · versão {{ versao }}</p>
   </div>
   <div class="linha cabecalho__baixar" role="group" aria-label="Baixar os documentos do orçamento">
     <a class="btn btn--primario" href="/p/{{ pid }}/pacote" title="Um arquivo .zip com o Plano de Aplicação, o Comparativo de Preço e os comprovantes de cada vaga e produto (cada um já com o comprovante de CNPJ da empresa), separados por rubrica e na ordem do plano.">{{ icone('baixar') }}Baixar tudo para a Secretaria (.zip)</a>

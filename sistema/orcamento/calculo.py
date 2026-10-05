@@ -62,6 +62,23 @@ def total_rubrica(rub):
     return sum((s.valor_plano or 0) * s.qtd for s in rub.subitens) * rub.meses
 
 
+def duracao_do_projeto(p):
+    """Quantos meses o projeto dura: até o último mês de qualquer rubrica."""
+    return max([(r.mes_inicio or 1) + r.meses - 1 for r in p.rubricas] or [0])
+
+
+def periodo(p, rub):
+    """(primeiro mês, último mês) da rubrica dentro do projeto, para os cronogramas. Sem mês de início escolhido, a rubrica mais curta que o
+    projeto fica no MEIO dele — como na planilha de pré-cálculos: 10 meses num projeto de 12 vão do 2º ao 11º mês."""
+    ini = rub.mes_inicio or (duracao_do_projeto(p) - rub.meses) // 2 + 1
+    return ini, ini + rub.meses - 1
+
+
+def periodo_texto(p, rub):
+    a, b = periodo(p, rub)
+    return f'{a}º mês' if a == b else f'{a}º ao {b}º mês'
+
+
 def unitario_rubrica(rub):
     if isinstance(rub, RubricaRH):
         return (rub.valor_mensal_plano or 0) * (rub.quantidade or 1)
@@ -87,6 +104,12 @@ class Alerta:
 
     def dict(self):
         d = asdict(self); d['descricao_regra'], d['origem'] = REGRAS.get(self.regra, ('', '')); return d
+
+
+# a gravidade mais forte que cada regra do catálogo gera na verificação (as que não estão aqui valem na pesquisa e no cálculo, sem gerar ponto)
+GRAVIDADE_PADRAO = {'D09': 'atencao', 'R01': 'erro', 'R02': 'erro', 'R03': 'atencao', 'R04': 'atencao', 'R05': 'erro', 'R06': 'erro', 'R07': 'erro', 'R08': 'erro',
+                    'R09': 'erro', 'R10': 'erro', 'R11': 'erro', 'R16': 'erro', 'S01': 'atencao', 'S02': 'info', 'S03': 'info', 'S04': 'atencao', 'S05': 'erro',
+                    'S06': 'atencao', 'S07': 'erro', 'S08': 'erro', 'S09': 'atencao'}
 
 
 def verificar(p: Projeto, cnpj_status: dict | None = None, hoje: dt.date | None = None):
@@ -221,6 +244,8 @@ def verificar(p: Projeto, cnpj_status: dict | None = None, hoje: dt.date | None 
                     for dim in set(qd) & set(qn):
                         if not (qd[dim] & qn[dim]):
                             A.append(Alerta('R16', 'erro', rs, f'fonte {i + 1}: "{nome}" tem medida {sorted(qn[dim])}, a descrição pede {sorted(qd[dim])}'))
+    from . import orgaos   # o órgão do projeto: regras desligadas, gravidade ajustada e as regras próprias dele
+    A = orgaos.aplicar(p, A, Alerta)
     revisados = {chave_sem_valores(k) for k in (p.revisados or {})}
     for a in A:   # ponto "para revisar" que a OSC já conferiu: continua revisado se só os valores do texto mudarem (ex.: depois do "Fechar no teto")
         if a.gravidade == 'atencao' and chave_alerta(a) in revisados:

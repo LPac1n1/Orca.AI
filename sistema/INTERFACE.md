@@ -275,3 +275,15 @@ Peças comuns das telas de rubrica ficam em `templates/_rubrica.html` (cartão d
 | Página inicial | "Novo projeto" na largura toda (`.formulario.formulario--projeto`, 3 colunas) |
 | Cargo (05/10/2026) | Campo "Faixa salarial pretendida" (opcional) em "Adicionar cargo" e em "1. Dados do cargo"; em "3. Valor no plano", a linha "Faixa pretendida: R$ X → N h = R$ Y"; o botão do banco vira "Usar as 3 vagas de menor salário que chegam na faixa"; na lista de cargos do projeto, a faixa aparece junto da carga horária |
 | Proposta da pesquisa | Linha "O sistema entendeu: …" quando o pedido foi reescrito, ganhou outros nomes ou outras buscas |
+
+## 10. Órgãos (05/10/2026)
+
+| Tela | O que tem |
+|---|---|
+| Menu | Entrada "Órgãos" entre "Tarefas" e "Base da Receita" (`base.html`) |
+| Órgãos (`orgaos.html`, `/orgaos`) | Tabela-cartão com esfera, regras do sistema desligadas, regras próprias e projetos de cada órgão; selo "Padrão do sistema"; formulário "Adicionar órgão" com "Começar com as regras de" (em branco ou cópia de outro); abre-e-fecha "Órgãos removidos", com "Restaurar" |
+| Órgão (`orgao.html`, `/orgaos/{id}`) | Um formulário só para as partes 1 a 3, com barra de salvar fixa: **1. Dados** (nome, sigla, esfera, estado, nome na coluna do concedente, observações); **2. Como o orçamento é feito** (validade, valor do plano, valor da hora, planilhas do pacote, repasse); **3. Regras do sistema** (caixa "Vale?" e seletor de peso em cada regra; as cinco fixas mostram "Sempre"). **4. Regras próprias**: lista recolhível (código, título, o que confere em uma linha, peso, ligada/desligada); dentro, os campos do tipo; "Adicionar regra" é um abre-e-fecha por tipo, com a explicação de cada um. **5. Deixar a IA propor as regras**: caixa de texto e, depois da resposta, a proposta com caixas de marcar e a frase do texto de onde cada regra saiu. No fim, o quadro "Remover este órgão" (com confirmação; não aparece no órgão padrão) |
+| Página inicial | "Novo projeto" ganhou o seletor "Órgão que analisa o projeto" |
+| Projeto | O órgão aparece na linha de dados do topo; em Configuração, seletor de órgão com o link "Ver as regras de …"; a Verificação diz com as regras de quem o orçamento é conferido (link "Ver ou mudar as regras do órgão") e, quando há regra em texto para a IA, mostra o botão "Conferir regras com a IA (n)"; o texto de cada ponto usa o nome que o órgão deu à regra própria ("regra própria de …") |
+| Cargo e rubrica | Campo opcional "Começa no mês", ao lado da duração, com a dica dizendo onde a rubrica fica hoje nos cronogramas |
+| Ajuda | Glossário com "Órgão", "Regra própria" e "Começa no mês"; dúvida "Meu projeto é de outra secretaria. Funciona?"; a dúvida sobre os dados na internet diz o que a IA recebe |
