@@ -1,0 +1,128 @@
+{#- Componentes reutilizáveis (macros). Toda tela monta campos, selos, ajuda e migalhas por aqui: mesmo componente, mesmo comportamento. -#}
+
+{%- macro icone(nome) -%}
+<svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">{{ ICONES.get(nome, ICONES['info'])|safe }}</svg>
+{%- endmacro -%}
+
+{#- selo(tipo, texto): tipo = ok | alerta | erro | info | neutro. Sempre com ícone + texto (nunca só a cor). -#}
+{%- macro selo(tipo, texto, quebra=false) -%}
+<span class="selo selo--{{ tipo }}{% if quebra %} selo--quebra{% endif %}">{{ icone({'ok': 'certo', 'alerta': 'alerta', 'erro': 'erro', 'info': 'info', 'neutro': 'ponto'}[tipo]) }}{{ texto }}</span>
+{%- endmacro -%}
+
+{#- ajuda(assunto, texto): botão (?) que abre uma explicação curta. Funciona sem JavaScript (é um <details>). -#}
+{%- macro ajuda(assunto, texto) -%}
+<details class="dica"><summary aria-label="Ajuda: {{ assunto }}">?</summary><div class="dica__texto" role="note">{{ texto }}</div></details>
+{%- endmacro -%}
+
+{#- campo(...): rótulo sempre visível, dica/exemplo, erro embaixo (preenchido pelo _app.js), máscara e teclado certo no celular.
+    O exemplo fica na dica, embaixo do campo, e nunca escrito dentro dele (pedido da OSC: texto dentro do campo obriga a apagar antes de digitar).
+    mascara = moeda | cnpj | cep | inteiro | percentual. extra = atributos a mais no <input> (ex.: 'data-min="1"'). -#}
+{%- macro campo(nome, rotulo, valor='', tipo='text', mascara='', dica='', exemplo='', obrigatorio=false, opcional=false, prefixo='', sufixo='',
+                tamanho='', ajuda_texto='', extra='', id='', lugar='') -%}
+{%- set cid = id or ('c-' ~ nome) -%}
+{%- set modo = {'moeda': 'decimal', 'percentual': 'decimal', 'cnpj': 'numeric', 'cep': 'numeric', 'inteiro': 'numeric'}.get(mascara, '') -%}
+<div class="campo{% if mascara in ('moeda', 'inteiro', 'percentual') %} campo--numero{% endif %}{% if tamanho %} campo--{{ tamanho }}{% endif %}">
+  <label class="campo__rotulo" for="{{ cid }}">{{ rotulo }}
+    {%- if obrigatorio %} <span class="campo__obrig" aria-hidden="true">*</span><span class="so-leitor"> (obrigatório)</span>{% endif -%}
+    {%- if opcional %} <span class="campo__opcional">(opcional)</span>{% endif -%}
+    {%- if ajuda_texto %} {{ ajuda(rotulo, ajuda_texto) }}{% endif -%}
+  </label>
+  <div class="campo__grupo">
+    {%- if prefixo or mascara == 'moeda' %}<span class="campo__afixo" aria-hidden="true">{{ prefixo or 'R$' }}</span>{% endif -%}
+    <input class="campo__controle" id="{{ cid }}" name="{{ nome }}" type="{{ tipo }}" value="{{ valor if valor is not none else '' }}"
+           {%- if mascara %} data-mascara="{{ mascara }}" autocomplete="off"{% endif -%}
+           {%- if modo %} inputmode="{{ modo }}"{% endif -%}
+           {%- if lugar %} placeholder="{{ lugar }}"{% endif -%}
+           {%- if obrigatorio %} required aria-required="true"{% endif -%}
+           {%- if dica or exemplo %} aria-describedby="{{ cid }}-dica"{% endif %} {{ extra|safe }}>
+    {%- if sufixo %}<span class="campo__afixo" aria-hidden="true">{{ sufixo }}</span>{% endif -%}
+  </div>
+  {%- if dica or exemplo %}<p class="campo__dica" id="{{ cid }}-dica">{{ dica }}{% if dica and exemplo %} {% endif %}{% if exemplo %}Ex.: {{ exemplo }}{% endif %}</p>{% endif %}
+  <p class="campo__erro" id="{{ cid }}-erro" hidden></p>
+</div>
+{%- endmacro -%}
+
+{#- migalhas([(texto, endereço), ...], atual): caminho até a tela atual. -#}
+{%- macro migalhas(caminho, atual) -%}
+<nav class="migalhas" aria-label="Você está em"><ol>
+  {%- for texto, url in caminho %}<li><a href="{{ url }}">{{ texto }}</a></li>{% endfor -%}
+  <li aria-current="page">{{ atual }}</li>
+</ol></nav>
+{%- endmacro -%}
+
+{#- aviso(tipo, ...): mensagem em destaque. tipo = ok | alerta | erro | info. Use com {% call %} para o conteúdo. -#}
+{%- macro aviso(tipo, fechar=false, papel='') -%}
+<div class="aviso aviso--{{ tipo }}" role="{{ papel or ('alert' if tipo == 'erro' else 'status') }}">
+  {{ icone({'ok': 'certo', 'alerta': 'alerta', 'erro': 'erro', 'info': 'info'}[tipo]) }}
+  <div class="aviso__corpo">{{ caller() }}</div>
+  {%- if fechar %}<button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button>{% endif %}
+</div>
+{%- endmacro -%}
+
+{#- estado_tarefa(estado): selo com o nome claro do estado de uma tarefa. -#}
+{%- macro estado_tarefa(estado) -%}
+{%- set mapa = {'concluída': ('ok', 'Concluída'), 'rodando': ('info', 'Em andamento'), 'na fila': ('neutro', 'Na fila'), 'falhou': ('erro', 'Falhou'),
+                'cancelada': ('alerta', 'Cancelada'), 'interrompida': ('alerta', 'Interrompida')} -%}
+{%- set m = mapa.get(estado, ('neutro', estado)) -%}{{ selo(m[0], m[1]) }}
+{%- endmacro -%}
+
+{#- situacao_selo(s): a MESMA situação em todas as telas (lista do projeto e tela de edição): erro | atencao | ok. -#}
+{%- macro situacao_selo(s) -%}
+{%- if s == 'erro' %}{{ selo('erro', 'Pendência') }}{% elif s == 'atencao' %}{{ selo('alerta', 'Revisar') }}{% else %}{{ selo('ok', 'Em ordem') }}{% endif -%}
+{%- endmacro -%}
+
+{#- pontos_lista(lista, volta): pendências e pontos para revisar de um item, na tela onde se edita, com "Marcar como revisado" ali mesmo
+    (pedido da OSC: não precisar ir e voltar da verificação). Os botões usam o formulário #f-revisar do base.html. -#}
+{%- macro pontos_lista(lista, volta) -%}
+{%- if lista %}
+<ul class="pontos" aria-label="O que a verificação aponta aqui">
+  {%- for a in lista %}
+  <li class="ponto ponto--{{ a.gravidade }}">
+    {{ selo({'erro': 'erro', 'atencao': 'alerta', 'revisado': 'ok'}[a.gravidade], {'erro': 'Pendência', 'atencao': 'Revisar', 'revisado': 'Revisado'}[a.gravidade] ~ ' · ' ~ a.regra) }}
+    <span class="ponto__texto">{{ a.mensagem }} <span class="texto-apoio">({{ REGRAS[a.regra][0] }})</span></span>
+    {%- if a.gravidade == 'atencao' and not removido_em %}
+    <button type="button" class="btn btn--secundario" data-revisar="{{ chave_alerta(a) }}" data-acao="marcar" data-volta="{{ volta }}">{{ icone('certo') }}Marcar como revisado</button>
+    {%- elif a.gravidade == 'revisado' and not removido_em %}
+    <button type="button" class="btn btn--texto" data-revisar="{{ chave_alerta(a) }}" data-acao="desmarcar" data-volta="{{ volta }}">Desfazer</button>
+    {%- endif %}
+  </li>
+  {%- endfor %}
+</ul>
+{%- endif %}
+{%- endmacro -%}
+
+{#- catho_quadro(pid, catho, n): situação da sessão da Catho e o que fazer (n = pesquisas com a página que esconde a empresa). -#}
+{%- macro catho_quadro(pid, catho, n) -%}
+<div class="cartao cartao--plano secao" id="catho" aria-labelledby="t-catho">
+  <div class="cartao__titulo"><h3 id="t-catho">Catho: informações da empresa</h3>
+    {% if catho.ok %}{{ selo('ok', 'Sessão da Catho ativa neste computador') }}{% else %}{{ selo('alerta', 'Sem sessão da Catho') }}{% endif %}</div>
+  {% if catho.ok %}
+    {% if n %}<p>{{ n }} pesquisa(s) ainda estão com a página antiga, que esconde a empresa.</p>
+    <form method="post" action="/p/{{ pid }}/catho/recapturar"><button class="btn btn--primario" data-aguarde="Iniciando…">{{ icone('pdf') }}Guardar de novo as páginas da Catho</button></form>
+    {% else %}<p class="texto-apoio">As páginas da Catho são guardadas com a sua sessão, mostrando as informações da empresa.{% if catho.mensagem %} ({{ catho.mensagem }}){% endif %}</p>{% endif %}
+    <form method="post" action="/catho/sair" style="margin-top: var(--esp-2)" data-confirmar="Sair da Catho neste computador?"
+          data-confirmar-texto="A sessão guardada no navegador do sistema é apagada. As páginas já guardadas continuam valendo; as novas vagas da Catho voltam a esconder a empresa até você entrar de novo."
+          data-confirmar-botao="Sair da Catho"><button class="btn btn--texto">Sair da Catho neste computador</button></form>
+  {% else %}
+    <p>{% if n %}<b>{{ n }} pesquisa(s)</b> usam páginas da Catho que escondem as informações da empresa, e a SEJC pede essas informações visíveis.{% else %}As páginas da Catho escondem as informações da empresa para quem não está logado, e a SEJC pede essas informações visíveis.{% endif %}
+      A Catho só as mostra com login.{% if catho.mensagem %} <b>{{ catho.mensagem|capitalize }}.</b>{% endif %}</p>
+    <ol class="texto-apoio">
+      <li>Clique em "Entrar na Catho": abre uma janela do navegador do sistema, na página de login.</li>
+      <li>Entre com a sua conta de candidato da Catho (é gratuita; se não tiver, crie em "Comece por aqui"). Se aparecer uma verificação, resolva na janela.</li>
+      <li>Quando a sua conta aparecer, feche a janela. O sistema confere o login e guarda de novo as páginas das vagas, agora com a empresa.</li>
+    </ol>
+    <form method="post" action="/p/{{ pid }}/catho/entrar"><button class="btn btn--primario" data-aguarde="Abrindo a janela…">{{ icone('externo') }}Entrar na Catho</button></form>
+    <p class="texto-apoio" style="margin-top: var(--esp-2)">O e-mail e a senha você digita na própria Catho; o sistema não os vê nem guarda. A sessão fica só neste computador
+      (fora do OneDrive) e é usada só para guardar a página das vagas escolhidas; a busca de vagas continua sem login. Dá para sair quando quiser.</p>
+  {% endif %}
+</div>
+{%- endmacro -%}
+
+{#- tarefas_em_andamento(lista, pid): aviso com link para acompanhar. -#}
+{%- macro tarefas_em_andamento(lista) -%}
+{%- for t in lista %}
+<div class="aviso aviso--info" role="status">{{ icone('relogio') }}
+  <div class="aviso__corpo"><b>Em andamento:</b> {{ t.titulo }} — {{ t.progresso|int }}%{% if t.etapa %} · {{ t.etapa }}{% endif %}.
+    <a href="/tarefa/{{ t.id }}">Acompanhar</a></div></div>
+{%- endfor %}
+{%- endmacro -%}

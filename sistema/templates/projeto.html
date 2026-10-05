@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, campo, migalhas, tarefas_em_andamento, catho_quadro with context %}
+{% from "_projeto_topo.html" import projeto_topo with context %}
+{% block titulo %}{{ p.nome }}{% endblock %}
+{% macro situacao(s) %}{% if s == 'erro' %}{{ selo('erro', 'Pendência') }}{% elif s == 'atencao' %}{{ selo('alerta', 'Revisar') }}{% else %}{{ selo('ok', 'Em ordem') }}{% endif %}{% endmacro %}
+{% set NOME_TIPO = {'mercado': 'Produtos de mercado', 'material': 'Outros materiais', 'sistema': 'Sistema ou software', 'servico': 'Serviço'} %}
+{% set ACAO_TIPO = {'mercado': 'Editar e pesquisar preços', 'material': 'Editar e pesquisar preços', 'sistema': 'Editar e cotar sistemas', 'servico': 'Editar e anexar propostas'} %}
+{% macro cnpj_situacao(c) %}{% set x = cache.get(c|cnpj) %}{% if not c %}{{ selo('erro', 'Sem CNPJ') }}{% elif not x %}{{ selo('neutro', 'CNPJ não consultado') }}{% elif x.situacao == 'ATIVA' %}{{ selo('ok', 'CNPJ ativo') }}{% else %}{{ selo('erro', 'CNPJ ' ~ x.situacao|lower) }}{% endif %}{% endmacro %}
+{% block migalhas %}{{ migalhas([('Projetos', '/')], p.nome) }}{% endblock %}
+{% block corpo %}
+{% set cargos = p.rubricas|selectattr('tipo', 'equalto', 'rh')|list %}
+{% set materiais = p.rubricas|selectattr('tipo', 'equalto', 'material')|list %}
+{{ projeto_topo() }}
+
+{% if msg %}<div class="aviso aviso--info" role="status" data-toast-se-rolar>{{ icone('info') }}<div class="aviso__corpo">{{ msg }}</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+
+{# =================================================================== VISÃO GERAL #}
+<section id="visao" data-secao aria-labelledby="t-visao">
+  <div class="secao__titulo"><h2 id="t-visao">O que fazer agora</h2></div>
+  <p class="secao__intro">O orçamento fica pronto em 6 passos. O passo em destaque é o próximo; os marcados com ✓ já estão concluídos.</p>
+  {{ tarefas_em_andamento(tarefas_rodando) }}
+  <ol class="passos">
+    {% for x in guia %}
+    <li class="passo {% if x.feito %}passo--feito{% elif x.atual %}passo--atual{% endif %}">
+      <div>
+        <div class="passo__titulo">{{ x.titulo }} {% if x.feito %}{{ selo('ok', 'Concluído') }}{% elif x.atual %}{{ selo('info', 'Próximo passo') }}{% endif %}</div>
+        <p class="passo__texto">{{ x.texto }}</p>
+        <div class="passo__acoes">
+        {% if x.chave == 'plano' %}
+          <a class="btn {{ 'btn--primario' if x.atual else 'btn--secundario' }}" href="#novo-cargo">{{ icone('mais') }}Adicionar cargo</a>
+          <a class="btn btn--secundario" href="#nova-rubrica">{{ icone('mais') }}Adicionar rubrica de materiais ou serviços</a>
+        {% elif x.chave == 'pesquisa' %}
+          <form method="post" action="/p/{{ pid }}/pesquisar-tudo" data-confirmar="Pesquisar tudo automaticamente?"
+                data-confirmar-texto="O sistema procura vagas para os cargos e preços para os itens que ainda não têm as 3 pesquisas comprovadas, e guarda os comprovantes em PDF. O que já está pronto não é refeito.
+
+Pode levar de 30 minutos a algumas horas. O andamento aparece na tela e você pode continuar usando o computador."
+                data-confirmar-botao="Começar a pesquisa">
+            <button class="btn {{ 'btn--primario' if x.atual else 'btn--secundario' }}" {% if not cargos and not materiais %}disabled data-desabilitado{% endif %}>{{ icone('busca') }}Pesquisar tudo automaticamente</button></form>
+          {{ ajuda('Pesquisar tudo', 'Para cada cargo: 3 vagas de empresas diferentes e com CNPJ ativo, primeiro com o título exato e, se faltar, com os títulos similares aceitos na tela do cargo. Para cada item: o mesmo produto em 3 lojas de empresas diferentes, as mais baratas. Sistemas: pelas ferramentas de referência. Cada pesquisa fica com o comprovante em PDF.') }}
+        {% elif x.chave == 'cnpjs' %}
+          <form method="post" action="/p/{{ pid }}/cnpj"><button class="btn btn--secundario" data-aguarde="Consultando…">Consultar a situação dos CNPJs</button></form>
+          <a class="btn btn--secundario" href="/p/{{ pid }}/cnpjs">Comprovantes oficiais da Receita</a>
+        {% elif x.chave == 'pendencias' %}
+          <a class="btn btn--secundario" href="#verificacao">Ver a verificação</a>
+        {% elif x.chave == 'teto' %}
+          <form method="post" action="/p/{{ pid }}/otimizar" class="linha">
+            <label class="escolha"><input type="checkbox" name="ajustar_horas" value="1" checked>
+              <span class="escolha__texto">Permitir ajustar as horas dos cargos</span></label>
+            {{ ajuda('Ajustar horas', 'Com esta opção, o sistema pode mudar a quantidade de horas mensais de um cargo (sempre em horas inteiras) para o total chegar exatamente ao teto. Sem ela, só os valores mudam.') }}
+            <button class="btn {{ 'btn--primario' if x.atual else 'btn--secundario' }}" data-aguarde="Calculando…">{{ icone('alvo') }}Simular o fechamento no teto</button>
+          </form>
+          <span class="texto-apoio">A simulação mostra o que mudaria. Nada é gravado até você confirmar.</span>
+        {% elif x.chave == 'exportar' %}
+          <a class="btn {{ 'btn--primario' if x.atual else 'btn--secundario' }}" href="/p/{{ pid }}/pacote">{{ icone('baixar') }}Baixar tudo para a Secretaria (.zip)</a>
+          <a class="btn btn--secundario" href="/p/{{ pid }}/planilhas">{{ icone('baixar') }}Só as planilhas (.xlsx)</a>
+          <a class="btn btn--texto" href="/p/{{ pid }}/exportar">Excel de conferência (com memória de cálculo e verificação)</a>
+          {% if res.erros %}<span class="texto-apoio">Ainda há {{ res.erros }} pendência(s): o Excel é gerado, mas elas aparecem na aba de alertas.</span>{% endif %}
+        {% endif %}
+        </div>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+
+  <div class="cartao cartao--plano secao">
+    <div class="cartao__titulo"><h3>Errou alguma coisa?</h3></div>
+    <p class="texto-apoio">Cada alteração cria uma nova versão e nenhuma é apagada. Esta é a versão {{ versao }}. Para voltar a qualquer versão anterior, abra o
+      <a href="/p/{{ pid }}/historico">histórico</a>.</p>
+    {% if versao > 1 and not removido_em %}
+    <form method="post" action="/p/{{ pid }}/restaurar/{{ versao - 1 }}" data-confirmar="Desfazer a última alteração?"
+          data-confirmar-texto="O projeto volta a ficar como estava na versão {{ versao - 1 }}. A versão atual continua guardada no histórico, então dá para refazer."
+          data-confirmar-botao="Desfazer">
+      <button class="btn btn--secundario">{{ icone('desfazer') }}Desfazer a última alteração</button></form>
+    {% endif %}
+  </div>
+</section>
+
+{# =================================================================== MÃO DE OBRA #}
+<section id="mao-de-obra" data-secao aria-labelledby="t-rh">
+  <div class="secao__titulo"><h2 id="t-rh">Mão de obra</h2><span class="contador">{{ cargos|length }}</span></div>
+  <p class="secao__intro">Cada cargo precisa de <b>3 pesquisas de salário</b>, de empresas diferentes e com CNPJ ativo. O valor mensal no plano não pode
+    passar do máximo calculado pela média das 3 pesquisas. Vários profissionais com o mesmo cargo e a mesma carga ficam num item só, com a quantidade.</p>
+  {% if cargos_repetidos %}
+  <div class="aviso aviso--info" role="status">{{ icone('info') }}
+    <div class="aviso__corpo">
+      <p>{% for g in cargos_repetidos %}<b>{{ g[0].cargo }}</b> aparece em {{ g|length }} itens iguais ({% for r in g %}{{ r.item }}{{ ', ' if not loop.last }}{% endfor %}){{ '; ' if not loop.last else '.' }}{% endfor %}
+        Dá para juntar cada grupo num item só, com a quantidade de profissionais. O total do plano não muda.</p>
+      <form method="post" action="/p/{{ pid }}/juntar-cargos" data-confirmar="Juntar os cargos repetidos?"
+            data-confirmar-texto="Cada grupo de itens iguais vira um item só, com a quantidade de profissionais somada. O total do plano não muda. Os itens do plano são renumerados em sequência (1, 2, 3…). A versão atual continua no histórico."
+            data-confirmar-botao="Juntar cargos">
+        <button class="btn btn--secundario">{{ icone('pessoas') }}Juntar cargos repetidos</button></form>
+    </div></div>
+  {% endif %}
+  {% if cargos %}
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Cargo</th><th scope="col">Carga</th><th scope="col" style="min-width: 270px">As 3 pesquisas</th>
+        <th scope="col" class="n">Média</th><th scope="col" class="n">Máximo mensal</th><th scope="col" class="n">Valor mensal no plano</th><th scope="col" class="n">Total</th><th scope="col">Situação</th><th scope="col"><span class="so-leitor">Ações</span></th></tr></thead>
+      <tbody>
+      {% for r in cargos %}
+      {% set mx = mensal_maximo_rh(r, p.config) %}
+      <tr id="item{{ r.item }}">
+        <th scope="row" data-rotulo="Cargo"><span class="texto-apoio">Item {{ r.item }}</span><br>{{ r.cargo }}
+          {% if r.quantidade > 1 %}<div>{{ selo('info', r.quantidade ~ ' profissionais') }}</div>{% endif %}
+          <div class="texto-apoio">{{ {'RECIBO_MEI': 'Recibo / MEI', 'PJ': 'PJ', 'CLT': 'CLT'}[r.regime] }}</div></th>
+        <td data-rotulo="Carga">{{ r.horas_mes }} h por mês<div class="texto-apoio">durante {{ r.meses }} meses{% if r.faixa_pretendida %} · faixa pretendida {{ r.faixa_pretendida|brl }}{% endif %}</div></td>
+        <td data-rotulo="As 3 pesquisas">{% for q in r.pesquisas %}<div>{{ (q.valor or q.faixa_min)|brl }} · {{ q.nome or 'empresa não informada' }} {{ cnpj_situacao(q.cnpj) }}</div>{% else %}<span class="texto-apoio">nenhuma pesquisa ainda</span>{% endfor %}</td>
+        <td class="n" data-rotulo="Média">{{ media_rh(r)|brl }}</td><td class="n" data-rotulo="Máximo mensal">{{ mx[0]|brl }}</td>
+        <td class="n" data-rotulo="Valor mensal no plano"><b>{{ r.valor_mensal_plano|brl }}</b>{% if r.quantidade > 1 %}<div class="texto-apoio">por profissional{% if r.valor_mensal_plano %}<br>
+            {{ r.quantidade }} × = {{ (r.valor_mensal_plano * r.quantidade)|brl }} por mês{% endif %}</div>{% endif %}</td>
+        <td class="n" data-rotulo="Total">{{ total_rubrica(r)|brl }}{% if r.quantidade > 1 %}<div class="texto-apoio">{{ r.quantidade }} × {{ r.meses }} meses</div>{% endif %}</td><td data-rotulo="Situação">{{ situacao(st('Item %d' % r.item)) }}</td>
+        <td class="acoes"><a class="btn btn--secundario" href="/p/{{ pid }}/rh/{{ r.item }}">{{ icone('editar') }}Editar<span class="so-leitor"> o item {{ r.item }}, {{ r.cargo }}</span></a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="vazio">{{ icone('pessoas') }}
+    <p class="vazio__titulo">Nenhum cargo cadastrado.</p>
+    <p>Adicione os cargos de mão de obra do Plano de Aplicação no quadro abaixo. Depois, o sistema procura as vagas para você.</p>
+  </div>
+  {% endif %}
+  {% set n_s05 = alertas|selectattr('regra', 'equalto', 'S05')|list|length %}
+  {% if (n_s05 or catho.ok) and not removido_em %}{{ catho_quadro(pid, catho, n_s05) }}{% endif %}
+  <form method="post" action="/p/{{ pid }}/rubrica" class="cartao cartao--plano secao" id="novo-cargo" data-focar aria-labelledby="t-novo-cargo">
+    <input type="hidden" name="tipo" value="rh">
+    <h3 id="t-novo-cargo" class="cartao__titulo">{{ icone('mais') }}Adicionar cargo</h3>
+    <div class="formulario">
+      {{ campo('nome', 'Nome do cargo', id='c-novo-cargo', obrigatorio=true, exemplo='Assistente Social', dica='O nome que está no plano. O sistema procura vagas com esse título.', extra='maxlength="120"') }}
+      {{ campo('quantidade', 'Quantidade de profissionais', id='c-novo-qtd', valor=1, mascara='inteiro', tamanho='m', obrigatorio=true, dica='Ex.: 3 assistentes sociais = 3.', extra='data-min="1" data-max="999"') }}
+      {{ campo('faixa_pretendida', 'Faixa salarial pretendida', id='c-novo-faixa', mascara='moeda', tamanho='m', opcional=true,
+               dica='Quanto se quer pagar por mês a cada profissional. O sistema acha as vagas e as horas que chegam nesse valor.') }}
+      {{ campo('horas_mes', 'Horas por mês', id='c-novo-horas', mascara='inteiro', tamanho='m', sufixo='horas', dica='De cada profissional. Com a faixa preenchida, pode ficar em branco: o sistema calcula.', extra='data-min="1" data-max="744"') }}
+      {{ campo('meses', 'Duração', id='c-novo-meses', valor=meses_padrao, mascara='inteiro', tamanho='m', sufixo='meses', obrigatorio=true, extra='data-min="1" data-max="60"') }}
+    </div>
+    <div class="linha" style="margin-top: var(--esp-3)"><button class="btn btn--primario" data-aguarde="Adicionando…">{{ icone('mais') }}Adicionar cargo</button>
+      <span class="texto-apoio">Depois você abre o cargo para buscar as vagas.</span></div>
+  </form>
+</section>
+
+{# =================================================================== MATERIAIS E SERVIÇOS #}
+<section id="materiais" data-secao aria-labelledby="t-mat">
+  <div class="secao__titulo"><h2 id="t-mat">Materiais e serviços</h2><span class="contador">{{ materiais|length }}</span></div>
+  <p class="secao__intro">Cada rubrica (alimentação, limpeza, material de escritório, sistema…) tem os seus itens. Cada item precisa de <b>3 preços</b> do
+    mesmo produto, em 3 empresas diferentes, com o comprovante em PDF. O valor no plano não pode passar da média dos 3.</p>
+  {% for r in materiais %}
+  {% set tf = totais_fontes(r) %}
+  <article class="cartao item-cartao" id="item{{ r.item }}" style="margin-bottom: var(--esp-4)" aria-labelledby="t-item{{ r.item }}">
+    <div class="cartao__titulo linha--entre">
+      {% set tp = tipo_da_rubrica(r) %}
+      <div><h3 id="t-item{{ r.item }}">Item {{ r.item }} — {{ r.descricao }} {{ situacao(st('Item %d' % r.item)) }}</h3>
+        <p class="texto-apoio">{{ NOME_TIPO[tp] }} · {{ r.meses }} meses · {{ unitario_rubrica(r)|brl }} por mês{% if r.teto_mensal %} (teto da rubrica: {{ r.teto_mensal|brl }}){% endif %} · total {{ total_rubrica(r)|brl }}</p></div>
+      <a class="btn btn--secundario" href="/p/{{ pid }}/mat/{{ r.item }}">{{ icone('editar') }}{{ ACAO_TIPO[tp] }}<span class="so-leitor"> do item {{ r.item }}</span></a>
+    </div>
+    {% if r.subitens %}
+    <div class="tabela-rolagem" tabindex="0" role="region" aria-label="Itens e preços do item {{ r.item }}">
+      <table class="tabela">
+        {% set proprias = r.subitens|selectattr('fontes')|list %}{# itens com as suas próprias lojas: o cabeçalho não pode trazer o nome de uma loja só #}
+        <thead><tr><th scope="col">Item da rubrica</th><th scope="col" class="n">Quantidade</th>
+          {% for f in r.fontes %}<th scope="col" class="n">{% if proprias or not f.nome %}Pesquisa {{ loop.index }}{% else %}{{ f.nome }}{% if f.cnpj %}<div class="texto-apoio">{{ f.cnpj|cnpj }} {{ cnpj_situacao(f.cnpj) }}</div>{% endif %}{% endif %}</th>{% endfor %}
+          <th scope="col" class="n">Média</th><th scope="col" class="n">Valor no plano</th><th scope="col">Situação</th></tr></thead>
+        <tbody>
+        {% for s in r.subitens %}{% set fs = fontes_do_subitem(r, s) %}
+        <tr><th scope="row">{{ descricao_completa(s) }}
+            {% if s.nivel %}<div class="texto-apoio">Produto trocado ({{ {1: 'parecido', 2: 'relacionado', 3: 'da categoria da rubrica'}[s.nivel] }}). Pedido original: {{ s.descricao_original }}</div>{% endif %}
+            {% if s.confirmacao %}<div style="margin-top: var(--esp-1)">{% if s.confirmacao == 'EAN nas 3 lojas' %}{{ selo('ok', 'Mesmo código de barras nas 3 lojas') }}{% else %}{{ selo('neutro', 'Confirmado por: ' ~ s.confirmacao, quebra=true) }}{% endif %}</div>{% endif %}</th>
+          <td class="n">{{ s.qtd }}</td>
+          {% for v in s.precos %}<td class="n">{{ v|brl }}{% if s.fontes|length == 3 %}<div class="texto-apoio">{{ fs[loop.index0].plataforma or fs[loop.index0].nome }}</div>{% endif %}</td>{% endfor %}
+          <td class="n">{{ media_subitem(s)|brl }}</td><td class="n"><b>{{ s.valor_plano|brl }}</b>{% if s.qtd > 1 and s.valor_plano %}<div class="texto-apoio">{{ s.qtd }} × = {{ (s.valor_plano * s.qtd)|brl }} por mês</div>{% endif %}</td>
+          <td>{{ situacao(st('Item %d – %s / %s' % (r.item, r.descricao, s.descricao))) }}</td></tr>
+        {% endfor %}
+        </tbody>
+        <tfoot><tr><th scope="row">Total de cada orçamento</th><td></td>{% for t in tf %}<td class="n">{{ t|brl }}</td>{% endfor %}<td></td><td></td><td></td></tr></tfoot>
+      </table>
+    </div>
+    {% else %}
+    <p class="texto-apoio">Esta rubrica ainda não tem itens. Clique em "{{ ACAO_TIPO[tp] }}" para cadastrar.</p>
+    {% endif %}
+  </article>
+  {% else %}
+  <div class="vazio">{{ icone('caixa') }}
+    <p class="vazio__titulo">Nenhuma rubrica de materiais ou serviços.</p>
+    <p>Adicione as rubricas do Plano de Aplicação no quadro abaixo. Em cada uma você cadastra os itens e o sistema pesquisa os preços.</p>
+  </div>
+  {% endfor %}
+  <form method="post" action="/p/{{ pid }}/rubrica" class="cartao cartao--plano secao" id="nova-rubrica" data-focar aria-labelledby="t-nova-rubrica">
+    <input type="hidden" name="tipo" value="material">
+    <h3 id="t-nova-rubrica" class="cartao__titulo">{{ icone('mais') }}Adicionar rubrica de materiais ou serviços</h3>
+    <div class="formulario">
+      {{ campo('nome', 'Nome da rubrica', id='c-nova-rubrica', obrigatorio=true, exemplo='Alimentação; Material de limpeza; Sistema de gestão; Oficina de capoeira', extra='maxlength="120"') }}
+      <div class="campo">
+        <label class="campo__rotulo" for="c-nova-regra">Como cotar {{ ajuda('Como cotar', 'Cada tipo de rubrica é cotado de um jeito: produtos são pesquisados em lojas; sistemas, nas páginas de preços dos fornecedores, pelas ferramentas de referência; serviços, com 3 propostas de fornecedores em PDF. No automático, o sistema escolhe pelo nome da rubrica.') }}</label>
+        <select class="campo__controle" id="c-nova-regra" name="regra">
+          <option value="">Automático (pelo nome da rubrica)</option>
+          <option value="mercado">Produtos de mercado (alimentação, limpeza, escritório)</option>
+          <option value="material">Outros materiais</option>
+          <option value="sistema">Sistema ou software</option>
+          <option value="servico">Serviço (propostas de fornecedores)</option>
+        </select>
+      </div>
+      {{ campo('meses', 'Duração', id='c-nova-meses', valor=meses_padrao, mascara='inteiro', tamanho='m', sufixo='meses', obrigatorio=true, extra='data-min="1" data-max="60"') }}
+    </div>
+    <div class="linha" style="margin-top: var(--esp-3)"><button class="btn btn--primario" data-aguarde="Adicionando…">{{ icone('mais') }}Adicionar rubrica</button>
+      <span class="texto-apoio">Depois você abre a rubrica para cadastrar os itens (vários de uma vez).</span></div>
+  </form>
+</section>
+
+{# =================================================================== VERIFICAÇÃO #}
+<section id="verificacao" data-secao aria-labelledby="t-verif">
+  <span id="alertas"></span>
+  <div class="secao__titulo"><h2 id="t-verif">Verificação</h2><span class="contador">{{ alertas|length }}</span></div>
+  <p class="secao__intro">O sistema confere o orçamento com as regras estabelecidas pela SEJC. As <b>pendências</b> precisam ser
+    resolvidas antes do envio; os pontos <b>para revisar</b> pedem a sua conferência.</p>
+  {% if not alertas %}
+  <div class="vazio">{{ icone('escudo') }}<p class="vazio__titulo">Nada a apontar.</p><p>Quando houver itens no plano, as pendências e os pontos de atenção aparecem aqui, com um link para a tela onde se corrige.</p></div>
+  {% endif %}
+  {% for g, nome, tipo, explica in [('erro', 'Pendências', 'erro', 'Bloqueiam o envio: precisam ser resolvidas.'), ('atencao', 'Para revisar', 'alerta', 'Não bloqueiam, mas confira cada uma. Depois de conferir, marque como revisado.'), ('revisado', 'Revisados', 'ok', 'Pontos que você já conferiu. Mudança só de valor não desfaz a revisão; se o motivo mudar, o ponto volta para "Para revisar".'), ('info', 'Informações', 'info', 'Só para o seu conhecimento.')] %}
+  {% set lista = alertas|selectattr('gravidade', 'equalto', g)|list %}
+  {% if lista %}
+  <details class="detalhe" {% if g == 'erro' or (g == 'atencao' and not res.erros) %}open{% endif %} style="margin-bottom: var(--esp-3)">
+    <summary>{{ nome }} <span class="contador {{ 'contador--erro' if g == 'erro' else ('contador--alerta' if g == 'atencao' else ('contador--ok' if g == 'revisado' else '')) }}">{{ lista|length }}</span>
+      <span class="texto-apoio" style="font-weight: var(--peso-normal)">{{ explica }}</span></summary>
+    {% set em_massa = g in ('atencao', 'revisado') and not removido_em %}
+    {% if em_massa %}<form method="post" action="/p/{{ pid }}/revisar" data-lista-revisar>
+      <input type="hidden" name="acao" value="{{ 'marcar' if g == 'atencao' else 'desmarcar' }}">
+      <div class="linha" style="padding: var(--esp-3) var(--esp-4) 0">
+        <label class="escolha"><input type="checkbox" data-selecionar-todos><span class="escolha__texto">Selecionar todos</span></label>
+        <button class="btn {{ 'btn--primario' if g == 'atencao' else 'btn--secundario' }}" data-aguarde="Gravando…">{% if g == 'atencao' %}{{ icone('certo') }}Marcar os selecionados como revisados{% else %}{{ icone('desfazer') }}Voltar os selecionados para "Para revisar"{% endif %}</button>
+        <span class="texto-apoio">{% if g == 'atencao' %}Você também pode marcar na própria tela do item ("Conferir"): cada ponto aparece lá, com o mesmo botão.{% endif %}</span>
+      </div>{% endif %}
+    <div class="tabela-rolagem" style="border: 0; border-radius: 0">
+      <table class="tabela tabela--cartoes">
+        <thead><tr>{% if em_massa %}<th scope="col"><span class="so-leitor">Selecionar</span></th>{% endif %}<th scope="col">Regra</th><th scope="col">Onde</th><th scope="col">O que foi encontrado</th><th scope="col"><span class="so-leitor">Ações</span></th></tr></thead>
+        <tbody>
+        {% for a in lista %}{% set url = link_alerta(a) %}
+        <tr>{% if em_massa %}<td data-rotulo="Selecionar"><input type="checkbox" name="chave" value="{{ chave_alerta(a) }}" aria-label="Selecionar: {{ a.regra }}, {{ a.item }}"></td>{% endif %}
+          <td data-rotulo="Regra">{{ selo(tipo, a.regra) }}<div class="texto-apoio">{{ REGRAS[a.regra][0] }} ({{ REGRAS[a.regra][1] }})</div></td>
+          <td data-rotulo="Onde">{{ a.item }}</td><td data-rotulo="O que foi encontrado">{{ a.mensagem }}</td>
+          <td class="acoes"><div class="linha linha--fim">
+            {% if url and g in ('erro', 'atencao') %}<a class="btn btn--secundario" href="{{ url }}">{{ 'Corrigir' if g == 'erro' else 'Conferir' }}<span class="so-leitor">: {{ a.item }}</span></a>{% endif %}
+            {% if em_massa %}
+            <button class="btn {{ 'btn--secundario' if g == 'atencao' else 'btn--texto' }}" name="uma" value="{{ chave_alerta(a) }}">{% if g == 'atencao' %}{{ icone('certo') }}Marcar como revisado{% else %}{{ icone('desfazer') }}Voltar para "Para revisar"{% endif %}<span class="so-leitor">: {{ a.regra }}, {{ a.item }}</span></button>
+            {% endif %}</div></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if em_massa %}</form>{% endif %}
+  </details>
+  {% endif %}
+  {% endfor %}
+</section>
+
+{# =================================================================== CONFIGURAÇÃO #}
+<section id="configuracao" data-secao aria-labelledby="t-conf">
+  <div class="secao__titulo"><h2 id="t-conf">Configuração do projeto</h2></div>
+  <p class="secao__intro">Dados do projeto e regras usadas nas pesquisas e nos cálculos. Os valores já vêm como a SEJC aceitou; mude só se souber o motivo.</p>
+  <form method="post" action="/p/{{ pid }}/config" class="pilha" data-avisar-saida>
+    <fieldset class="cartao">
+      <legend>Dados do projeto</legend>
+      <div class="pilha">
+        {{ campo('nome', 'Nome do projeto', valor=p.nome, obrigatorio=true, extra='maxlength="120"') }}
+        <div class="formulario">
+          {{ campo('teto', 'Teto do projeto', valor=p.teto|moeda, mascara='moeda', obrigatorio=true, dica='Valor total que o plano precisa fechar.', extra='data-positivo') }}
+          {{ campo('processo', 'Número do processo', valor=p.processo, opcional=true) }}
+          {{ campo('cep', 'CEP de entrega', valor=p.cep, mascara='cep', obrigatorio=true, dica='Usado para conferir estoque e preço nas lojas.') }}
+        </div>
+        {{ campo('proponente', 'Proponente (nome da OSC)', valor=p.proponente, opcional=true) }}
+      </div>
+    </fieldset>
+
+    <fieldset class="cartao">
+      <legend>Mão de obra: horas de um mês de trabalho {{ ajuda('Horas mensais', 'É o número usado para calcular o valor da hora a partir do salário. Exemplo: salário de R$ 2.200 ÷ 220 horas = R$ 10 por hora.') }}</legend>
+      <label class="escolha"><input type="radio" name="divisor_horas" value="legal" {% if p.config.divisor_horas == 'legal' %}checked{% endif %}>
+        <span class="escolha__texto">Jornada legal <small>Horas semanais ÷ 6 × 30. Exemplos: 44 h → 220 horas; Assistente Social (30 h) → 150 horas.</small></span></label>
+      <label class="escolha"><input type="radio" name="divisor_horas" value="praticado" {% if p.config.divisor_horas == 'praticado' %}checked{% endif %}>
+        <span class="escolha__texto">Divisor já aceito pela SEJC <small>180 horas; Assistente Social, 120 horas.</small></span></label>
+    </fieldset>
+
+    <fieldset class="cartao">
+      <legend>Valores e validade das pesquisas</legend>
+      <label class="escolha"><input type="checkbox" name="valores_defensaveis" value="1" {% if p.config.valores_defensaveis %}checked{% endif %}>
+        <span class="escolha__texto">Valores defensáveis <small>O valor de cada item no plano é o menor dos 3 preços ou a média dos 3, nunca o preço do meio (recomendado). Desligado, vale qualquer valor entre o menor preço e a média.</small></span></label>
+      <div class="formulario" style="margin-top: var(--esp-3)">
+        {{ campo('validade_dias', 'Validade das pesquisas', valor=p.config.validade_dias, mascara='inteiro', sufixo='dias', tamanho='m',
+                 dica='A SEJC aceita pesquisas com até 180 dias.', extra='data-min="1" data-max="365"') }}
+      </div>
+    </fieldset>
+
+    <fieldset class="cartao">
+      <legend>Pesquisa de produtos</legend>
+      <label class="escolha"><input type="radio" name="modo_cesta" value="por_item" {% if p.config.modo_cesta == 'por_item' %}checked{% endif %}>
+        <span class="escolha__texto">Cada item com as suas 3 lojas <small>Recomendado: encontra mais itens e confirma o produto pelo código de barras. A SEJC aceita.</small></span></label>
+      <label class="escolha"><input type="radio" name="modo_cesta" value="trio" {% if p.config.modo_cesta == 'trio' %}checked{% endif %}>
+        <span class="escolha__texto">As mesmas 3 lojas para a rubrica inteira <small>Menos lojas, mas costuma encontrar menos itens.</small></span></label>
+      <p class="texto-apoio" style="margin-top: var(--esp-3)">As 3 pesquisas de cada item são sempre <b>exatamente do mesmo produto</b> (marca, cor, tipo e embalagem).
+        Quando o produto pedido não existe em 3 lojas, o sistema troca por outro (de outra marca ou parecido), que também é o mesmo nas 3 lojas, e nunca repete um
+        item que a rubrica já tem.</p>
+      <label class="escolha"><input type="checkbox" name="trocar_pela_categoria" value="1" {% if p.config.trocar_pela_categoria %}checked{% endif %}>
+        <span class="escolha__texto">Se nem um produto parecido existir em 3 lojas, trocar por outro produto da categoria da rubrica
+          <small>Exemplo: um grampeador que não existe igual em 3 lojas vira outro material de escritório (cola, tesoura…). Desmarcado, o item fica pendente para você
+            escolher a marca, mudar a descrição ou preencher à mão.</small></span></label>
+      <div class="formulario" style="margin-top: var(--esp-3)">
+        {{ campo('folga_teto', 'Folga do teto da rubrica', valor=('%.1f'|format(p.config.folga_teto * 100))|replace('.', ','), mascara='percentual', sufixo='%', tamanho='m',
+                 dica='Se sobrar mais que isso do teto mensal de uma rubrica, o sistema acrescenta itens da lista de itens extras.', extra='data-min="0" data-max="50"') }}
+      </div>
+    </fieldset>
+
+    <fieldset class="cartao">
+      <legend>Inteligência artificial</legend>
+      <label class="escolha"><input type="checkbox" name="usar_ia" value="1" {% if p.config.usar_ia %}checked{% endif %}>
+        <span class="escolha__texto">Usar a IA gratuita (Gemini) nos casos de dúvida <small>Por exemplo, para confirmar que dois anúncios são o mesmo produto. Cada resposta fica registrada.</small></span></label>
+      <p>{% if ia_ok %}{{ selo('ok', 'Chave encontrada neste computador') }}{% else %}{{ selo('alerta', 'Sem chave: veja o arquivo GEMINI_PASSO_A_PASSO.md') }}{% endif %}</p>
+    </fieldset>
+
+    <fieldset class="cartao">
+      <legend>Lojas pesquisadas <span class="texto-apoio" style="font-weight: var(--peso-normal)">(CEP {{ p.cep or 'não informado' }})</span></legend>
+      <p class="texto-apoio">Desmarque uma loja para ela não ser usada nas pesquisas deste projeto.</p>
+      <div class="lojas">
+        {% for k, l in LOJAS.items() if not l.descartada %}
+        <label class="escolha"><input type="checkbox" name="loja_{{ k }}" value="1" {% if k not in p.config.lojas_desligadas %}checked{% endif %}>
+          <span class="escolha__texto">{{ l.nome }}{% if k in bloqueadas %} <small>{{ selo('alerta', 'fora até ' ~ bloqueadas[k].ate|data_br(false)) }} {{ bloqueadas[k].motivo }}</small>{% endif %}</span></label>
+        {% endfor %}
+      </div>
+      <p class="texto-apoio">Fora de uso: {% for k, l in LOJAS.items() if l.descartada %}{{ l.nome }} ({{ l.descartada }}){{ '; ' if not loop.last }}{% endfor %}.
+        Loja que pede verificação humana (CAPTCHA) durante uma pesquisa fica fora por 30 dias, automaticamente.</p>
+    </fieldset>
+
+    <div class="barra-salvar">
+      <span class="barra-salvar__estado">Ao salvar, o sistema cria uma nova versão do projeto.</span>
+      <button class="btn btn--primario" data-aguarde="Salvando…">Salvar configuração</button>
+    </div>
+  </form>
+
+  {% if bloqueadas %}
+  <div class="cartao cartao--plano secao">
+    <div class="cartao__titulo"><h3>Lojas fora de uso por bloqueio</h3></div>
+    <p class="texto-apoio">Estas lojas pediram verificação humana ou limitaram os acessos. Elas voltam sozinhas na data indicada; se quiser tentar antes, reative.</p>
+    <div class="linha">
+    {% for k in bloqueadas %}<form method="post" action="/lojas/{{ k }}/reativar"><button class="btn btn--secundario">Reativar {{ LOJAS[k].nome if k in LOJAS else k }} agora</button></form>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not removido_em %}
+  <div class="cartao cartao--plano cartao--perigo secao">
+    <div class="cartao__titulo"><h3>Remover projeto</h3></div>
+    <p class="texto-apoio">O projeto sai da lista e das rotinas automáticas e vai para a área de projetos removidos, na página inicial. Nada é apagado
+      (versões, histórico e comprovantes ficam guardados) e dá para restaurar depois.</p>
+    <form method="post" action="/p/{{ pid }}/remover" data-confirmar="Remover este projeto da lista?"
+          data-confirmar-texto="Ele fica guardado na área de projetos removidos, na página inicial, e pode ser restaurado quando você quiser. Nada é apagado."
+          data-confirmar-botao="Remover projeto" data-confirmar-perigo>
+      <button class="btn btn--perigo">{{ icone('lixeira') }}Remover este projeto</button></form>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

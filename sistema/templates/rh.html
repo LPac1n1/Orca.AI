@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, campo, migalhas, tarefas_em_andamento, catho_quadro, situacao_selo, pontos_lista with context %}
+{% from "_rubrica.html" import enter_salva %}
+{% block titulo %}Item {{ r.item }} — {{ r.cargo }}{% endblock %}
+{% block migalhas %}{{ migalhas([('Projetos', '/'), (p.nome, '/p/%d#item%d' % (pid, r.item))], 'Item %d — %s' % (r.item, r.cargo)) }}{% endblock %}
+{% block corpo %}
+{% set mx = mensal_maximo_rh(r, p.config) %}
+{% set e = enquadrar(r.cargo) %}
+<header class="cabecalho">
+  <h1>Item {{ r.item }} — {{ r.cargo }}{% if r.quantidade > 1 %} <span class="texto-apoio">({{ r.quantidade }} profissionais)</span>{% endif %}</h1>
+  <p class="cabecalho__intro">Mão de obra. Nesta tela você define o cargo e as <b>3 pesquisas de salário</b> que justificam o valor no plano. As regras da SEJC:
+    3 empresas diferentes, identificadas pelo nome e pelo CNPJ de <b>quem contrata</b> (nunca do site de vagas); quando a vaga informa uma faixa, vale o
+    <b>menor valor</b>; a pesquisa vale por {{ p.config.validade_dias }} dias.</p>
+</header>
+
+{% if novo %}<div class="aviso aviso--ok" role="status">{{ icone('certo') }}<div class="aviso__corpo"><b>Cargo adicionado.</b> Confira os dados abaixo e clique em
+  "Salvar e buscar vagas automaticamente": o sistema procura as 3 vagas sozinho.</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+{% if msg %}<div class="aviso aviso--{{ 'ok' if ok else 'alerta' }}" role="{{ 'status' if ok else 'alert' }}">{{ icone('certo' if ok else 'alerta') }}<div class="aviso__corpo">{{ msg }}</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+{{ tarefas_em_andamento(tarefas_rodando) }}
+{% set pts = pontos('Item %d' % r.item) %}
+{% if pts %}<section class="cartao cartao--plano" aria-labelledby="t-pontos">
+  <div class="cartao__titulo"><h2 id="t-pontos" style="font-size: var(--texto-lg)">O que a verificação aponta neste cargo</h2>{{ situacao_selo(st('Item %d' % r.item)) }}</div>
+  {{ pontos_lista(pts, '/p/%d/rh/%d' % (pid, r.item)) }}
+</section>{% endif %}
+
+<form method="post" action="/p/{{ pid }}/rh/{{ r.item }}" class="pilha" id="f-cargo" data-avisar-saida>
+  {{ enter_salva() }}
+  <section class="cartao" aria-labelledby="t-cargo">
+    <h2 id="t-cargo" class="cartao__titulo">1. Dados do cargo</h2>
+    <div class="formulario">
+      {{ campo('cargo', 'Nome do cargo', valor=r.cargo, obrigatorio=true, dica='O nome que está no plano. As vagas com esse título vêm primeiro.', exemplo='Assistente Social', extra='maxlength="120"') }}
+      {{ campo('quantidade', 'Quantidade de profissionais', valor=r.quantidade, mascara='inteiro', obrigatorio=true, tamanho='m',
+               dica='Quantos profissionais com este cargo e esta carga. Ex.: 3 assistentes sociais = 3.', extra='data-min="1" data-max="999"') }}
+      <div class="campo">
+        <label class="campo__rotulo" for="c-regime">Forma de contratação</label>
+        <select class="campo__controle" id="c-regime" name="regime" aria-describedby="c-regime-dica">
+          {% for v, t in [('RECIBO_MEI', 'Recibo / MEI (sem encargos)'), ('PJ', 'PJ'), ('CLT', 'CLT')] %}<option value="{{ v }}" {% if r.regime == v %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+        <p class="campo__dica" id="c-regime-dica">Recibo / MEI não tem encargos no cálculo.</p>
+      </div>
+      {{ campo('faixa_pretendida', 'Faixa salarial pretendida', valor=r.faixa_pretendida|moeda, mascara='moeda', opcional=true,
+               dica='Quanto se quer pagar por mês a cada profissional. O sistema usa as vagas de menor salário que chegam nesse valor e ajusta as horas sozinho.') }}
+      {{ campo('horas_mes', 'Horas por mês', valor=r.horas_mes, mascara='inteiro', obrigatorio=true, sufixo='horas',
+               dica='De cada profissional.' ~ (' Com a faixa preenchida, o sistema recalcula as horas quando a faixa ou as vagas mudam.' if r.faixa_pretendida else ''), extra='data-min="1" data-max="744"') }}
+      {{ campo('meses', 'Duração', valor=r.meses, mascara='inteiro', obrigatorio=true, sufixo='meses', extra='data-min="1" data-max="60"') }}
+    </div>
+    <p class="texto-apoio" style="margin-top: var(--esp-3)">Jornada legal deste cargo: {{ e.semanais }} horas por semana ({{ e.base_legal }}){% if e.alerta %}. Atenção: {{ e.alerta }}{% endif %}.
+      Horas de um mês usadas no cálculo: {{ mx[2] or '—' }} ({{ 'jornada legal' if p.config.divisor_horas == 'legal' else 'divisor já aceito pela SEJC' }}).</p>
+
+    <details class="detalhe detalhe--leve" id="similares" {% if novo %}open{% endif %}>
+    <summary>Títulos similares aceitos: {{ (similares|join(', '))|truncate(90, true, '…') if similares else 'nenhum' }}</summary>
+    <fieldset class="sem-borda detalhe__corpo">
+      <legend class="campo__rotulo">Vagas com estes títulos também valem {{ ajuda('Títulos similares', 'Quando não há 3 vagas com o título exato do cargo (é comum em cargos como "Orientador socioeducativo"), o sistema completa as pesquisas com vagas destes títulos, que têm a mesma função. O título exato vem sempre primeiro, e cada vaga de título similar aparece na verificação para você conferir.') }}</legend>
+      <input type="hidden" name="similares_enviados" value="1">
+      {% if opcoes_similares %}
+      <p class="texto-apoio">Marque os títulos que fazem o mesmo trabalho. Desmarque os que não servem para este projeto.</p>
+      <div class="lojas">
+        {% for t in opcoes_similares %}<label class="escolha"><input type="checkbox" name="similar" value="{{ t }}" {% if t in similares %}checked{% endif %}>
+          <span class="escolha__texto">{{ t }}</span></label>{% endfor %}
+      </div>
+      {% else %}<p class="texto-apoio">O sistema não tem sugestões para este cargo. Se o título for difícil de achar, escreva abaixo outros títulos com a mesma função.</p>{% endif %}
+      {% set marcadas = opcoes_similares %}
+      <div class="campo" style="margin-top: var(--esp-3)">
+        <label class="campo__rotulo" for="c-outros-similares">Outros títulos aceitos <span class="campo__opcional">(opcional)</span></label>
+        <textarea class="campo__controle" id="c-outros-similares" name="outros_similares" rows="2" aria-describedby="c-outros-similares-dica">{% for t in similares if t not in marcadas %}{{ t }}{{ '\n' if not loop.last }}{% endfor %}</textarea>
+        <p class="campo__dica" id="c-outros-similares-dica">Um título por linha. Ex.: Educador social.</p>
+      </div>
+    </fieldset>
+    </details>
+  </section>
+
+  <section class="cartao" aria-labelledby="t-pesq-h" id="t-pesq">
+    <div class="cartao__titulo"><h2 id="t-pesq-h">2. As 3 pesquisas de salário</h2>
+      {{ selo('ok' if tres|length == 3 else 'alerta', 'Banco de vagas: ' ~ tres|length ~ ' de 3') }}
+      {{ ajuda('Banco de vagas', 'O sistema guarda por 180 dias as vagas que já encontrou para este cargo e para os títulos similares aceitos (empresa com CNPJ confirmado e página salva em PDF). Vaga com salário "a combinar" não entra.') }}</div>
+    <div class="linha">
+      <button class="btn btn--primario" name="depois" value="buscar" data-aguarde="Salvando e iniciando…">{{ icone('busca') }}Salvar e buscar vagas automaticamente</button>
+      {% if tres %}<button class="btn btn--secundario" type="submit" form="f-banco">Usar {{ 'as 3 vagas' if tres|length == 3 else ('a vaga' if tres|length == 1 else 'as ' ~ tres|length ~ ' vagas') }} de menor salário {{ 'que chegam na faixa' if r.faixa_pretendida and tres_alcanca else 'do banco' }}</button>{% endif %}
+    </div>
+    <p class="texto-apoio" style="margin: var(--esp-3) 0">O sistema prioriza as vagas de <b>menor salário</b> e o título exato.
+      {% if r.faixa_pretendida %}Com a faixa pretendida de {{ r.faixa_pretendida|brl }}, valem as de menor salário cuja <b>média chega na faixa</b>; as horas são ajustadas para o valor do plano ficar o mais perto dela.{% endif %} Se achar só 1 ou 2 vagas confirmadas, elas entram e as
+      outras pesquisas ficam como estavam. Clique numa pesquisa para abrir, conferir ou preencher à mão.
+      {% if tres|length < 3 %}Ainda não há 3 vagas válidas no banco; a coleta diária continua procurando.{% endif %}</p>
+    <div class="itens itens--vagas" id="lista-pesquisas" style="margin-bottom: 0">
+      <div class="itens__cabecalho" aria-hidden="true"><span></span><span>Pesquisa</span><span>Empresa e vaga</span><span class="n">Salário</span><span>Site</span><span>Data</span><span>Página</span><span>Situação</span></div>
+      {% for q in r.pesquisas %}{% set k = loop.index0 %}
+      {% set completa = q.nome and q.cnpj and (q.faixa_min or q.valor) and q.evidencia.arquivo %}
+      {% set oculta = q.evidencia.arquivo and empresa_oculta(q.evidencia.arquivo) %}
+      {% set similar = q.titulo_vaga and not mesmo_titulo(q.titulo_vaga, r.cargo) %}
+      <details class="item-recolhivel" id="pesquisa{{ k }}" data-recolhivel>
+        <summary class="item-resumo">
+          <span class="item-resumo__n">Pesquisa {{ k + 1 }}</span>
+          <h3 class="item-resumo__nome" id="t-pesq{{ k }}">{{ q.nome or 'Sem empresa' }}
+            {% if similar %}<small>{{ selo('alerta', 'Título similar: ' ~ q.titulo_vaga, quebra=true) }}</small>
+            {% elif q.titulo_vaga %}<small class="texto-apoio">Vaga: {{ q.titulo_vaga }}</small>{% endif %}</h3>
+          <span class="item-resumo__dados">
+            <span class="item-resumo__celula n"><span class="item-resumo__rotulo">Salário </span><b>{{ (q.faixa_min or q.valor)|brl }}</b></span>
+            <span class="item-resumo__celula"><span class="item-resumo__rotulo">Site </span>{{ q.plataforma or '—' }}</span>
+            <span class="item-resumo__celula"><span class="item-resumo__rotulo">Data </span>{{ q.data_pesquisa|data_br(false) if q.data_pesquisa else '—' }}</span>
+            <span class="item-resumo__celula">{% if q.evidencia.arquivo %}<a href="/p/{{ pid }}/arquivo?rel={{ q.evidencia.arquivo|urlencode }}" target="_blank"
+              title="Ver a página da vaga em PDF">{{ icone('pdf') }}PDF<span class="so-leitor"> da página da vaga, pesquisa {{ k + 1 }}</span></a>{% else %}<span class="item-resumo__falta">sem PDF</span>{% endif %}</span>
+          </span>
+          <span class="item-resumo__situacao">{% if completa and oculta %}{{ selo('erro', 'Empresa oculta') }}{% elif completa %}{{ selo('ok', 'Completa') }}{% elif q.nome or q.cnpj or q.faixa_min %}{{ selo('alerta', 'Incompleta') }}{% else %}{{ selo('neutro', 'Em branco') }}{% endif %}</span>
+        </summary>
+        <div class="item-recolhivel__corpo">
+          <div class="formulario">
+            {{ campo('nome' ~ k, 'Empresa que contrata', valor=q.nome, dica='O empregador, nunca o site de vagas.') }}
+            <div>{{ campo('cnpj' ~ k, 'CNPJ da empresa', valor=q.cnpj, mascara='cnpj', exemplo='00.000.000/0000-00', extra='data-preenche="c-nome' ~ k ~ '"') }}
+              {% if q.nome and not q.cnpj %}<a class="texto-apoio" href="https://www.google.com/search?q=CNPJ+%22{{ q.nome|urlencode }}%22" target="_blank" rel="noopener">Procurar o CNPJ desta empresa {{ icone('externo') }}</a>{% endif %}</div>
+            {{ campo('faixa_min' ~ k, 'Salário que vale (o menor)', valor=(q.faixa_min or q.valor)|moeda, mascara='moeda', dica='É o valor que entra na média e no cálculo.') }}
+            {{ campo('faixa_max' ~ k, 'Maior valor da faixa', valor=q.faixa_max|moeda, mascara='moeda', opcional=true, dica='Só informativo: não entra no cálculo.') }}
+            {{ campo('plataforma' ~ k, 'Site da vaga', valor=q.plataforma or '', exemplo='Catho') }}
+            {{ campo('data' ~ k, 'Data da pesquisa', valor=q.data_pesquisa or '', tipo='date', extra='data-nao-futura') }}
+            <div class="campo campo--largo">
+              <label class="campo__rotulo" for="c-url{{ k }}">Link da vaga <span class="campo__opcional">(opcional)</span>
+                {{ ajuda('Link da vaga', 'Se você mudar o link, o comprovante atual deixa de valer para esta pesquisa. Vaga encerrada no site costuma abrir a lista de vagas: o PDF guardado continua valendo.') }}</label>
+              <div class="campo__grupo">
+                <input class="campo__controle" id="c-url{{ k }}" name="url{{ k }}" type="url" inputmode="url" value="{{ q.evidencia.url or '' }}" data-url>
+                <a class="btn btn--secundario" data-abre="c-url{{ k }}" href="{{ q.evidencia.url or '#' }}" target="_blank" rel="noopener noreferrer" {% if not q.evidencia.url %}hidden{% endif %}>{{ icone('externo') }}<span class="so-leitor">Abrir a vaga no site, em outra aba</span></a>
+              </div>
+              <p class="campo__erro" id="c-url{{ k }}-erro" hidden></p>
+            </div>
+          </div>
+          {% if q.faixa_max and q.faixa_min and q.faixa_max != q.faixa_min %}<p class="texto-apoio">A vaga informa a faixa de {{ q.faixa_min|brl }} a {{ q.faixa_max|brl }}:
+            o cálculo usa sempre o <b>menor</b>, {{ q.faixa_min|brl }}.</p>{% endif %}
+          <div class="grade grade--3" style="border-top: 1px dashed var(--cor-borda); padding-top: var(--esp-3)">
+            <div>
+              <div class="campo__rotulo">Comprovante</div>
+              {% if q.evidencia.arquivo %}<a href="/p/{{ pid }}/arquivo?rel={{ q.evidencia.arquivo|urlencode }}" target="_blank">{{ icone('pdf') }}Ver a página da vaga em PDF</a>
+                <div class="texto-apoio">{{ 'anexado por você' if q.evidencia.origem == 'pdf' else 'página guardada pelo sistema' }}
+                  · <span class="codigo" title="Código que identifica o arquivo guardado (SHA-256)">código {{ q.evidencia.sha256[:10] }}…</span></div>
+                {% if oculta %}<p class="campo__erro"><b>A página não mostra as informações da empresa</b> (a Catho só as mostra
+                  para quem está logado) e a SEJC pede essas informações visíveis. Use "Entrar na Catho", logo abaixo das pesquisas; ou imprima a vaga em PDF com o
+                  login feito e anexe aqui; ou troque por outra vaga do banco.</p>{% endif %}
+              {% else %}{{ selo('alerta', 'Sem comprovante em PDF') }}<p class="campo__dica">A busca automática guarda a página da vaga em PDF; você também pode anexar.</p>{% endif %}
+            </div>
+            <div class="campo">
+              <label class="campo__rotulo" for="c-vpdf{{ k }}">{{ 'Trocar a página da vaga (PDF)' if q.evidencia.arquivo else 'Anexar a página da vaga (PDF)' }}
+                {{ ajuda('Anexar a página da vaga', 'O arquivo é enviado na hora, sem precisar salvar. O sistema confere se a página mostra a empresa e o salário.') }}</label>
+              <div class="arquivo">
+                <input type="file" id="c-vpdf{{ k }}" name="arquivo" accept="application/pdf,.pdf" form="vpdf{{ k }}" required>
+                <button class="btn btn--secundario" form="vpdf{{ k }}" data-aguarde="Enviando…">{{ icone('enviar') }}{{ 'Trocar o PDF' if q.evidencia.arquivo else 'Anexar PDF' }}</button>
+              </div>
+            </div>
+            <div>
+              <div class="campo__rotulo">Refazer só esta pesquisa</div>
+              <div class="acoes-pesquisa" role="group" aria-label="Refazer só a pesquisa {{ k + 1 }}">
+                <button class="btn btn--secundario" name="depois" value="outra-{{ k }}" data-aguarde="Salvando e iniciando…"
+                        title="Troca só esta pesquisa pela próxima vaga válida (do banco ou, se não houver, de uma nova busca). As outras duas ficam como estão.">Buscar outra vaga</button>
+                {% if q.evidencia.url %}<button class="btn btn--secundario" name="depois" value="pagina-{{ k }}" data-aguarde="Salvando e iniciando…"
+                        title="Abre a vaga de novo e guarda a página, sem avisos de cookies por cima. Se o anúncio já foi encerrado, a página atual é mantida.">Guardar a página de novo</button>{% endif %}
+              </div>
+              {% if not q.evidencia.url %}<p class="campo__dica">"Guardar a página de novo" aparece quando a pesquisa tem o link da vaga.</p>{% endif %}
+              {% if banco %}<a class="texto-apoio" href="#t-banco">Escolher outra vaga do banco ↓</a>{% endif %}
+            </div>
+          </div>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="cartao" aria-labelledby="t-valor">
+    <h2 id="t-valor" class="cartao__titulo">3. Valor no plano</h2>
+    <dl class="dl" style="margin-bottom: var(--esp-4)">
+      {% if r.faixa_pretendida %}<dt>Faixa pretendida</dt><dd>{{ r.faixa_pretendida|brl }}{% if horas_pela_faixa %} → {{ horas_pela_faixa[0] }} h = <b>{{ horas_pela_faixa[1]|brl }}</b>
+        {%- if media_rh(r) < r.faixa_pretendida %} <span class="texto-apoio">(a média das vagas não chega na faixa: é a jornada inteira)</span>{% endif %}
+        {%- else %} <span class="texto-apoio">(as horas são calculadas quando o cargo tiver as 3 pesquisas)</span>{% endif %}</dd>{% endif %}
+      <dt>Média das 3 pesquisas</dt><dd><b>{{ media_rh(r)|brl }}</b></dd>
+      <dt>Valor da hora</dt><dd>{{ mx[1]|brl }}</dd>
+      <dt>Máximo mensal para {{ r.horas_mes }} horas</dt><dd><b>{{ mx[0]|brl }}</b> por profissional</dd>
+      {% if r.quantidade > 1 %}<dt>Valor mensal do item</dt><dd>{{ ((r.valor_mensal_plano or 0) * r.quantidade)|brl }} ({{ r.quantidade }} profissionais × {{ r.valor_mensal_plano|brl }}) — é o "Valor Unitário" do Plano de Aplicação</dd>
+      <dt>Total do item</dt><dd>{{ total_rubrica(r)|brl }} ({{ r.quantidade }} profissionais × {{ r.meses }} meses)</dd>{% endif %}
+    </dl>
+    <div class="formulario">
+      {{ campo('valor_mensal_plano', 'Valor mensal no plano (por profissional)', valor=r.valor_mensal_plano|moeda, mascara='moeda', opcional=true, tamanho='g',
+               dica='Deixe em branco para usar o máximo permitido. Valor acima do máximo gera pendência (regra R02).') }}
+    </div>
+    <p class="texto-apoio" style="margin-top: var(--esp-3)">Os números acima são recalculados quando você salva.</p>
+  </section>
+
+  <div class="barra-salvar">
+    <span class="barra-salvar__estado">Ao salvar, o sistema cria uma nova versão; as mesmas pesquisas são copiadas para os outros itens com este cargo.</span>
+    <div class="linha">
+      <button class="btn btn--secundario" name="depois" value="ficar" data-aguarde="Salvando…">Salvar e continuar aqui</button>
+      <button class="btn btn--primario" name="depois" value="voltar" data-aguarde="Salvando…">Salvar e voltar para Mão de obra</button>
+    </div>
+  </div>
+</form>
+
+{% set ns = namespace(n=0) %}{% for q in r.pesquisas %}{% if q.evidencia.arquivo and empresa_oculta(q.evidencia.arquivo) %}{% set ns.n = ns.n + 1 %}{% endif %}{% endfor %}
+{% if (ns.n or catho.ok or banco|selectattr('oculta')|list) and not removido_em %}{{ catho_quadro(pid, catho, ns.n) }}{% endif %}
+
+<form id="f-banco" method="post" action="/p/{{ pid }}/rh/{{ r.item }}/vagas/banco"></form>
+{% for k in range(3) %}<form id="vpdf{{ k }}" method="post" action="/p/{{ pid }}/rh/{{ r.item }}/pesquisa/{{ k }}/pdf" enctype="multipart/form-data"></form>{% endfor %}
+
+{% set bc = namespace(completas=0, usaveis=0) %}
+{% for q in r.pesquisas %}{% if q.nome and q.cnpj and (q.faixa_min or q.valor) and q.evidencia.arquivo %}{% set bc.completas = bc.completas + 1 %}{% endif %}{% endfor %}
+{% for v in banco %}{% if v.usavel %}{% set bc.usaveis = bc.usaveis + 1 %}{% endif %}{% endfor %}
+<details class="detalhe secao" id="t-banco" data-recolhivel {% if bc.completas < 3 %}open{% endif %}>
+  <summary><h2>Banco de vagas deste cargo</h2><span class="contador">{{ banco|length }}</span>
+    <span class="texto-apoio">{{ bc.usaveis }} {{ 'pode ser usada' if bc.usaveis == 1 else 'podem ser usadas' }} · clique para {{ 'recolher' if bc.completas < 3 else 'escolher outra vaga' }}</span></summary>
+  <div class="detalhe__corpo">
+  <p class="secao__intro">Vagas já lidas e ainda válidas{% if similares %} (do cargo e dos títulos similares aceitos){% endif %}: primeiro as que estão em uso, depois as
+    confirmadas, da de menor salário para a maior. Para colocar uma vaga numa pesquisa, clique no número da pesquisa; o número preenchido mostra onde ela já está.
+    O nome da empresa abre a página guardada em PDF (a prova da pesquisa); "no site" abre o anúncio, que pode já ter sido encerrado (aí o site mostra a lista de vagas).
+    A lixeira descarta a vaga.</p>
+  {% if banco %}
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes tabela--densa">
+      <thead><tr><th scope="col">Empresa, vaga e local</th><th scope="col" class="n">Menor salário</th><th scope="col">Site</th><th scope="col">Lida em</th><th scope="col">CNPJ</th><th scope="col">Usar na pesquisa</th></tr></thead>
+      <tbody>
+      {% for v in banco %}{% set n = loop.index0 %}
+      <tr><th scope="row" data-rotulo="Empresa, vaga e local">
+          {% if v.pdf %}<a href="/vaga/pdf?url={{ v.url|urlencode }}" target="_blank">{{ icone('pdf') }}{{ v.empresa }}</a>{% else %}{{ v.empresa }}{% endif %}
+          <div class="texto-apoio">{{ v.titulo }}{% if v.similar %} {{ selo('alerta', 'título similar') }}{% endif %}{% if v.cidade or v.uf %} · {{ v.cidade or '' }}{% if v.uf %}/{{ v.uf }}{% endif %}{% endif %}
+            · <a href="{{ v.url }}" target="_blank" rel="noopener noreferrer">no site {{ icone('externo') }}<span class="so-leitor"> (abre o anúncio de {{ v.empresa }} em outra aba)</span></a></div></th>
+        <td class="n" data-rotulo="Menor salário">{{ v.faixa_min|brl }}</td>
+        <td data-rotulo="Site">{{ v.plataforma }}</td><td data-rotulo="Lida em">{{ v.coletada_em|data_br(false) }}</td>
+        <td data-rotulo="CNPJ"><div class="linha linha--junta">{% if v.cnpj_status == '🟢' %}{{ selo('ok', 'Confirmado') }}{% elif v.cnpj_status == '🟡' %}{{ selo('alerta', 'Em dúvida') }}{% else %}{{ selo('erro', 'Não confirmado') }}{% endif %}
+          {% if v.cnpj %}<span class="num">{{ v.cnpj|cnpj }}</span>{% endif %}</div>
+          {% if v.cnpj_motivo %}<details class="detalhe detalhe--leve detalhe--mini"><summary>{{ 'como foi confirmado' if v.cnpj_status == '🟢' else 'por quê' }}</summary><div class="detalhe__corpo texto-apoio">{{ v.cnpj_motivo }}</div></details>{% endif %}</td>
+        <td data-rotulo="Usar na pesquisa"><div class="linha{% if v.usavel or not v.confirmavel %} linha--junta{% endif %}">
+          {% if v.usavel %}
+          <span class="linha linha--junta" role="group" aria-label="Usar a vaga de {{ v.empresa }} na pesquisa">{% for k in range(3) %}
+            <form method="post" action="/p/{{ pid }}/rh/{{ r.item }}/usar-vaga"><input type="hidden" name="url" value="{{ v.url }}"><input type="hidden" name="k" value="{{ k }}">
+              <button class="btn btn--secundario btn--posicao" aria-pressed="{{ 'true' if v.em_uso == k else 'false' }}"
+                      aria-label="{{ ('A vaga de ' ~ v.empresa ~ ' está na pesquisa ' ~ (k + 1)) if v.em_uso == k else ('Usar a vaga de ' ~ v.empresa ~ ' na pesquisa ' ~ (k + 1)) }}"
+                      {% if v.em_uso == k %}title="Esta vaga está na pesquisa {{ k + 1 }}"{% endif %}>{{ k + 1 }}</button></form>{% endfor %}</span>
+          {% elif v.confirmavel %}
+          <details class="detalhe detalhe--leve"><summary>Confirmar a empresa</summary>
+            <form class="detalhe__corpo pilha" method="post" action="/p/{{ pid }}/rh/{{ r.item }}/vaga/confirmar">
+              <input type="hidden" name="url" value="{{ v.url }}">
+              <p class="texto-apoio">O sistema não teve certeza de qual empresa é esta. Se você souber, informe o CNPJ de <b>{{ v.empresa }}</b>{% if v.cidade %} ({{ v.cidade }}{% if v.uf %}/{{ v.uf }}{% endif %}){% endif %}:
+                ele confere se está ATIVO e guarda a página da vaga em PDF. Se houver pesquisa em branco, a vaga já entra nela.</p>
+              {{ campo('cnpj', 'CNPJ da empresa', id='c-vcnpj' ~ n, valor=(v.cnpj|cnpj) if v.cnpj else '', mascara='cnpj', obrigatorio=true, exemplo='00.000.000/0000-00', extra='data-preenche=""') }}
+              <a class="texto-apoio" href="{{ link_busca_cnpj(v.empresa) }}" target="_blank" rel="noopener noreferrer">Procurar o CNPJ de {{ v.empresa }} {{ icone('externo') }}</a>
+              <div><button class="btn btn--secundario" data-aguarde="Conferindo…">{{ icone('certo') }}Confirmar e guardar a vaga</button></div>
+            </form></details>
+          {% else %}<span class="texto-apoio">Não pode ser usada: {{ v.motivo_nao or 'faltam dados' }}</span>{% endif %}
+          {% if v.em_uso is none %}
+          <form method="post" action="/p/{{ pid }}/rh/{{ r.item }}/vaga/descartar"><input type="hidden" name="url" value="{{ v.url }}">
+            <button class="btn btn--texto" aria-label="Descartar a vaga de {{ v.empresa }}" title="Descartar esta vaga (ela deixa de aparecer no banco)">{{ icone('lixeira') }}</button></form>
+          {% else %}<span class="texto-apoio">em uso</span>{% endif %}</div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="vazio">{{ icone('busca') }}<p class="vazio__titulo">Nenhuma vaga guardada ainda.</p><p>Clique em "Salvar e buscar vagas automaticamente", acima.</p></div>
+  {% endif %}
+  {% if descartadas %}
+  <form method="post" action="/p/{{ pid }}/rh/{{ r.item }}/vaga/mostrar-descartadas" class="linha" style="margin-top: var(--esp-3)">
+    <span class="texto-apoio">{{ descartadas }} vaga(s) descartada(s) por você não aparecem.</span>
+    <button class="btn btn--texto">{{ icone('desfazer') }}Mostrar de novo</button></form>
+  {% endif %}
+  </div>
+</details>
+
+<div class="cartao cartao--plano cartao--perigo secao">
+  <div class="cartao__titulo"><h2 style="font-size: var(--texto-lg)">Excluir este cargo</h2></div>
+  <p class="texto-apoio">O item {{ r.item }} sai do plano. As versões anteriores continuam no histórico, então dá para desfazer.</p>
+  <form method="post" action="/p/{{ pid }}/excluir/{{ r.item }}" data-confirmar="Excluir o item {{ r.item }} — {{ r.cargo }}?"
+        data-confirmar-texto="O cargo sai do plano e o total do orçamento muda. As versões anteriores continuam no histórico: para voltar atrás, use &quot;Desfazer a última alteração&quot; na tela do projeto."
+        data-confirmar-botao="Excluir cargo" data-confirmar-perigo>
+    <button class="btn btn--perigo">{{ icone('lixeira') }}Excluir cargo</button></form>
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, migalhas %}
+{% block titulo %}Fechar no teto — {{ p.nome }}{% endblock %}
+{% block migalhas %}{{ migalhas([('Projetos', '/'), (p.nome, '/p/%d' % pid)], 'Fechar no teto') }}{% endblock %}
+{% block corpo %}
+<header class="cabecalho">
+  <h1>Fechar no teto — simulação</h1>
+  <p class="cabecalho__intro">O sistema procura uma combinação de valores que faça o total do plano ser exatamente o teto de <b>{{ p.teto|brl }}</b>, sem sair das
+    regras: nenhum valor acima da média das pesquisas nem abaixo do menor preço orçado.</p>
+  <p class="cabecalho__meta">Nesta simulação: as horas dos cargos {{ 'podem ser ajustadas (sempre em horas inteiras)' if ajustar else 'ficam como estão' }} ·
+    {{ 'o valor de cada item é o menor dos 3 preços ou a média dos 3' if p.config.valores_defensaveis else 'valores livres entre o menor preço orçado e a média' }}.</p>
+</header>
+
+{% if resultado.status == 'OK' %}
+<div class="aviso aviso--ok" role="status">{{ icone('certo') }}<div class="aviso__corpo"><b>Solução exata encontrada.</b> O plano fecha em {{ p.teto|brl }}, com todos os valores
+  dentro das regras. Nada foi gravado ainda: confira as mudanças abaixo e aplique.</div></div>
+{% if resultado.faixas %}
+{% set sf = resultado.sobra_das_faixas %}
+<section class="cartao" aria-labelledby="t-faixas">
+  <h2 id="t-faixas" class="cartao__titulo">Cargos com faixa salarial pretendida</h2>
+  {% if sf and sf.excesso_minimo > 0 %}
+  <div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo"><b>As faixas não cabem no teto.</b> Com todos os cargos exatamente na faixa, o
+    plano daria {{ sf.total|brl }}: {{ sf.excesso|brl }} acima do teto (e ainda {{ sf.excesso_minimo|brl }} acima com todos os materiais no menor preço). Para fechar, a diferença foi
+    repartida por igual entre os cargos, em proporção da faixa de cada um. Para manter as faixas, é preciso reduzir quantidades, meses ou itens (ou rever as faixas).</div></div>
+  {% elif sf and sf.excesso_minimo < 0 and sf.excesso < 0 %}
+  <p class="texto-apoio">Com todos os cargos na faixa, o plano fica {{ (-sf.excesso)|brl }} abaixo do teto: a diferença foi repartida por igual entre os cargos, em proporção da faixa
+    de cada um, e pelos materiais.</p>
+  {% else %}<p class="texto-apoio">As horas são inteiras, então o valor fica um pouco acima ou abaixo da faixa. Quando é preciso afastar para fechar o teto, a diferença é repartida
+    por igual entre os cargos.</p>{% endif %}
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Item</th><th scope="col">Cargo</th><th scope="col" class="n">Faixa pretendida</th><th scope="col" class="n">Horas</th><th scope="col" class="n">Valor mensal</th><th scope="col" class="n">Diferença para a faixa</th></tr></thead>
+      <tbody>
+      {% for x in resultado.faixas %}<tr><td data-rotulo="Item">{{ x.item }}</td><th scope="row" data-rotulo="Cargo">{{ x.cargo }}</th><td class="n" data-rotulo="Faixa pretendida">{{ x.faixa|brl }}</td>
+        <td class="n" data-rotulo="Horas">{{ x.horas }} h</td><td class="n" data-rotulo="Valor mensal"><b>{{ x.valor|brl }}</b></td>
+        <td class="n" data-rotulo="Diferença para a faixa">{{ x.diferenca|brl }} ({{ '%+.1f'|format(x.pct)|replace('.', ',') }}%)</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+<section aria-labelledby="t-mud" class="secao">
+  <div class="secao__titulo"><h2 id="t-mud">O que muda</h2><span class="contador">{{ resultado.mudancas|length }}</span></div>
+  {% if resultado.mudancas %}
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Item</th><th scope="col">Onde</th><th scope="col">O que muda</th><th scope="col" class="n">Antes</th><th scope="col" class="n">Depois</th></tr></thead>
+      <tbody>
+      {% for m in resultado.mudancas %}<tr><td data-rotulo="Item">{{ m.item }}</td><th scope="row" data-rotulo="Onde">{{ m.alvo }}</th><td data-rotulo="O que muda">{{ m.campo }}</td>
+        <td class="n" data-rotulo="Antes">{{ m.antes }}</td><td class="n" data-rotulo="Depois"><b>{{ m.depois }}</b></td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="texto-apoio">Nenhum valor precisa mudar: o plano já está no teto.</p>{% endif %}
+</section>
+<form method="post" action="/p/{{ pid }}/otimizar/aplicar" class="linha secao">
+  {% if ajustar %}<input type="hidden" name="ajustar_horas" value="1">{% endif %}
+  <button class="btn btn--primario" data-aguarde="Aplicando…">{{ icone('certo') }}Aplicar as mudanças</button>
+  <a class="btn btn--secundario" href="/p/{{ pid }}">Voltar sem aplicar</a>
+  <span class="texto-apoio">Aplicar cria uma nova versão; a atual continua no histórico.</span>
+</form>
+
+{% elif resultado.status == 'SEM_SOLUCAO' %}
+<div class="aviso aviso--erro" role="alert">{{ icone('erro') }}<div class="aviso__corpo"><b>Não existe combinação dentro das regras que feche exatamente no teto.</b>
+  <p>{{ resultado.prova }}</p></div></div>
+<section class="cartao" aria-labelledby="t-opcoes">
+  <h2 id="t-opcoes" class="cartao__titulo">O que você pode fazer</h2>
+  <p>O sistema não força números. As saídas possíveis:</p>
+  <ul>
+    <li>refazer a simulação <b>permitindo ajustar as horas</b> dos cargos (opção na tela do projeto);</li>
+    <li>incluir ou retirar itens do plano;</li>
+    <li>rever o valor do teto na configuração do projeto;</li>
+    <li>se for aceitável para a OSC, desligar "Valores defensáveis" na configuração.</li>
+  </ul>
+  <a class="btn btn--secundario" href="/p/{{ pid }}">Voltar ao projeto</a>
+</section>
+
+{% else %}
+<div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo"><b>A simulação não pôde ser feita.</b> {{ resultado.motivo }}</div></div>
+<a class="btn btn--secundario" href="/p/{{ pid }}">Voltar ao projeto</a>
+{% endif %}
+{% endblock %}

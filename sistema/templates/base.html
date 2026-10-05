@@ -1,0 +1,71 @@
+{% from "_ui.html" import icone, aviso -%}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="same-origin"><!-- os sites de vagas e lojas não ficam sabendo de onde veio o clique -->
+<title>Orça.AI · {% block titulo %}Projetos{% endblock %}</title>
+<script>/* tema antes de desenhar a página (sem piscar): a escolha guardada ou, se não houver, a preferência do computador */
+(function () { var t = 'auto'; try { t = localStorage.getItem('osc-tema') || 'auto'; } catch (e) {}
+  var escuro = t === 'escuro' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-tema', escuro ? 'escuro' : 'claro'); })();</script>
+<style>{% include "_estilo.css" %}</style>
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+{% set caminho = request.url.path if request else '' -%}
+{% set n_tarefas = tarefas_ativas() -%}
+<header class="topo">
+  <div class="topo__dentro">
+    <a class="marca" href="/" aria-label="Orça.AI, página inicial">{{ icone('planilha') }}<span>Orça.AI</span></a>
+    <nav class="menu" aria-label="Menu principal">
+      <a href="/" {% if caminho == '/' or caminho.startswith('/p/') %}aria-current="page"{% endif %}>{{ icone('pasta') }}Projetos</a>
+      <a href="/tarefas" {% if caminho.startswith('/tarefa') %}aria-current="page"{% endif %}>{{ icone('relogio') }}Tarefas
+        {%- if n_tarefas %} <span class="contador contador--info" title="{{ n_tarefas }} em andamento">{{ n_tarefas }}<span class="so-leitor"> em andamento</span></span>{% endif %}</a>
+      <a href="/base-receita" {% if caminho.startswith('/base-receita') %}aria-current="page"{% endif %}>{{ icone('banco') }}Base da Receita</a>
+      <a href="/ajuda" {% if caminho.startswith('/ajuda') or caminho.startswith('/guia') %}aria-current="page"{% endif %}>{{ icone('ajuda') }}Ajuda</a>
+      <button type="button" class="menu__tema" id="alternar-tema" aria-pressed="false" title="Muda as cores da tela. A escolha fica guardada neste computador.">
+        <span data-tema-icone="escuro">{{ icone('lua') }}</span><span data-tema-icone="claro" hidden>{{ icone('sol') }}</span><span id="alternar-tema-texto">Modo escuro</span></button>
+    </nav>
+  </div>
+</header>
+
+<main class="conteudo" id="conteudo" tabindex="-1">
+  <div class="aviso aviso--alerta" id="sem-conexao" role="status" hidden>{{ icone('alerta') }}
+    <div class="aviso__corpo"><b>Este computador está sem internet.</b> Você pode consultar e editar o orçamento, mas as pesquisas automáticas
+      (vagas, preços, CNPJ) só funcionam com conexão.</div></div>
+  {% block migalhas %}{% endblock %}
+  {% if removido_em %}
+  <div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}
+    <div class="aviso__corpo">Este projeto foi <b>removido da lista</b> em {{ removido_em|data_br }} e está só para consulta: nada pode ser alterado
+      nem pesquisado até ele ser restaurado. Para apagar de vez, vá à página inicial, em "Projetos removidos".
+      <form method="post" action="/p/{{ pid }}/restaurar-projeto"><button class="btn btn--secundario">{{ icone('desfazer') }}Restaurar projeto</button></form></div></div>
+  {% endif %}
+  {% block corpo %}{% endblock %}
+</main>
+
+<footer class="rodape">
+  <div class="rodape__dentro">
+    <span>Orça.AI · funciona só neste computador · regras da SEJC-SP</span>
+    <span><a href="/ajuda">Como usar</a> · <a href="/guia-de-interface">Guia de interface</a></span>
+  </div>
+</footer>
+
+<dialog class="modal" id="modal-confirmar" aria-labelledby="modal-titulo" aria-describedby="modal-texto">
+  <div class="modal__corpo">
+    <h2 class="modal__titulo" id="modal-titulo"></h2>
+    <p class="modal__texto" id="modal-texto"></p>
+  </div>
+  <div class="modal__acoes">
+    <button type="button" class="btn btn--secundario" id="modal-nao">Cancelar</button>
+    <button type="button" class="btn btn--primario" id="modal-sim">Confirmar</button>
+  </div>
+</dialog>
+{% if pid is defined and pid %}<form id="f-revisar" method="post" action="/p/{{ pid }}/revisar" hidden>
+  <input type="hidden" name="uma"><input type="hidden" name="acao"><input type="hidden" name="volta"></form>{% endif %}
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script>{% include "_app.js" %}</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

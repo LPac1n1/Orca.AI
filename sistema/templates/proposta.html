@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, migalhas %}
+{% block titulo %}Proposta — item {{ r.item }}{% endblock %}
+{% block migalhas %}{{ migalhas([('Projetos', '/'), (p.nome, '/p/%d#materiais' % pid), ('Item %d — %s' % (r.item, r.descricao), '/p/%d/mat/%d' % (pid, r.item))], 'Proposta da pesquisa') }}{% endblock %}
+{% block corpo %}
+<header class="cabecalho">
+  <h1>Proposta da pesquisa automática</h1>
+  <p class="cabecalho__intro">Confira o que o sistema encontrou para cada item. <b>Nada foi gravado ainda</b>: ao aplicar, o sistema gera os comprovantes em PDF
+    e cria uma nova versão do projeto.</p>
+</header>
+
+{% if not prop %}
+<div class="aviso aviso--erro" role="alert">{{ icone('erro') }}<div class="aviso__corpo"><b>A pesquisa ainda não terminou ou não chegou ao fim.</b>
+  Abra a tarefa para ver o andamento ou o motivo. <a href="/tarefa/{{ t.id }}">Ver a tarefa</a></div></div>
+{% else %}
+<p class="texto-apoio">
+  {% if prop.modo == 'por_item' %}Cada item com as <b>suas 3 lojas</b> (o mesmo produto nas 3). Critério: as 3 lojas <b>mais baratas</b>, de empresas diferentes; entre os
+  produtos que atendem o item, o mais próximo do pedido e, no empate, o mais barato.
+  {% else %}As <b>mesmas 3 lojas</b> para a rubrica inteira: {{ prop.trio|join(', ') }}.{% endif %}
+  Foram consultadas {{ prop.lojas|length }} lojas, com {{ prop.buscas }} buscas novas (as já feitas hoje são reaproveitadas){% if prop.falhas %} e {{ prop.falhas }} falhas{% endif %}.</p>
+
+{% for loja, m in (prop.lojas_incompletas or {}).items() %}
+<div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo"><b>Resultado incompleto em {{ loja }}</b> ({{ m }}): pode haver itens nessa loja que não foram lidos.</div></div>
+{% endfor %}
+
+{% if prop.teto %}
+<div class="indicadores" style="margin-bottom: var(--esp-4)">
+  <div class="indicador"><div class="indicador__rotulo">Teto mensal da rubrica</div><div class="indicador__valor">{{ prop.teto|brl }}</div></div>
+  <div class="indicador"><div class="indicador__rotulo">Total da proposta</div><div class="indicador__valor">{{ prop.total|brl }}</div></div>
+  <div class="indicador"><div class="indicador__rotulo">Sobra</div><div class="indicador__valor">{{ prop.sobra|brl }}</div>
+    <span class="indicador__nota">folga aceita: {{ (p.config.folga_teto * 100)|round(1) }}%</span></div>
+</div>
+{% endif %}
+
+<div class="tabela-rolagem">
+  <table class="tabela tabela--cartoes">
+    <thead><tr><th scope="col">Item</th><th scope="col" class="n">Quantidade</th><th scope="col">Produto encontrado em cada loja</th><th scope="col" class="n">Preços</th>
+      <th scope="col" class="n">Média</th><th scope="col" class="n">Valor no plano</th><th scope="col">Situação</th></tr></thead>
+    <tbody>
+    {% for l in prop.linhas %}{% set o = l.opcao_dados %}
+    <tr {% if l.acao == 'RETIRADO' %}class="is-apagado"{% endif %}>
+      <th scope="row" data-rotulo="Item">{{ l.desc }}
+        {% if o and o.nivel == 3 %}<div class="texto-apoio">Troca por um produto da categoria da rubrica ({{ o.substituto }}): o item pedido não existe igual em 3 lojas, nem parecido.</div>
+        {% elif o and o.trio_ia %}<div class="texto-apoio">3 produtos equivalentes ao pedido, escolhidos pela IA entre os anúncios das lojas.</div>
+        {% elif o and o.nivel %}<div class="texto-apoio">Troca por um item {{ 'parecido' if o.nivel == 1 else 'relacionado' }}{% if o.perdidos %} (sem: {{ o.perdidos|join(', ') }}){% endif %}.</div>
+        {% elif o and o.perdidos %}<div class="texto-apoio">Como pedido, mas sem: {{ o.perdidos|join(', ') }} (não existe assim em 3 lojas).</div>{% endif %}
+        {% set e = (prop.entendido or {}).get(l.desc) %}
+        {% if e and (e.busca != l.desc or e.nomes or e.buscas or e.varias_unidades) %}<div class="texto-apoio">O sistema entendeu: <b>{{ e.busca }}</b>
+          {%- if e.varias_unidades %} · embalagem com várias unidades{% endif %}{% if e.nomes %} · também vale: {{ e.nomes|join(', ') }}{% endif %}
+          {%- if e.buscas %} · procurou também por: {{ e.buscas|join('; ') }}{% endif %}.</div>{% endif %}</th>
+      <td class="n" data-rotulo="Quantidade">{{ l.qtd }}</td>
+      <td data-rotulo="Produto encontrado em cada loja">
+        {% if o %}{% for x in o.ofertas %}<div><span class="texto-apoio">{{ LOJAS[x.loja].nome }}:</span>
+          {% if x.url %}<a href="{{ x.url }}" target="_blank" rel="noopener noreferrer">{{ x.nome[:70] }}<span class="so-leitor"> (abre em outra aba)</span></a>{% else %}{{ x.nome[:70] }}{% endif %}
+          {% if x.ean %}<span class="codigo">código de barras {{ x.ean }}</span>{% endif %}</div>{% endfor %}
+          {% if o.misto %}<div class="texto-apoio">O mesmo produto não existe em 3 lojas: produto igual, de marcas diferentes.</div>{% endif %}
+          {% if o.ia %}<div class="texto-apoio">IA {{ 'confirmou' if o.ia.mesmo_produto else 'recusou' }}: {{ o.ia.motivo }}</div>
+          {% elif o.ia_sem_resposta %}<div class="texto-apoio">A IA não respondeu (serviço indisponível no momento). Confira você se é o mesmo produto.</div>{% endif %}
+          {% if o.ia_subst %}<div class="texto-apoio">A IA escolheu esta troca: {{ o.ia_subst }}</div>{% endif %}
+        {% else %}<span class="texto-apoio">{{ l.motivo }}</span>
+          {% for rj in l.reprovadas_ia or [] %}<div class="texto-apoio">Recusado pela IA: {{ rj.produtos|join(' × ') }} — {{ rj.motivo }}</div>{% endfor %}{% endif %}</td>
+      <td class="n" data-rotulo="Preços">{% if o %}{% for x in o.ofertas %}<div>{{ x.preco|brl }}</div>{% endfor %}{% endif %}</td>
+      <td class="n" data-rotulo="Média">{{ l.media|brl if l.media else '—' }}</td>
+      <td class="n" data-rotulo="Valor no plano"><b>{{ l.valor|brl if l.valor else '—' }}</b></td>
+      <td data-rotulo="Situação">
+        {% if l.acao == 'RETIRADO' %}{{ selo('erro', 'Retirado para caber no teto' if l.motivo.startswith('retirado') else ('Recusado pela IA' if l.reprovadas_ia else 'Não encontrado')) }}
+        {% elif l.acao == 'ACRESCENTADO' %}{{ selo('info', 'Acrescentado') }}
+        {% elif o.confirmacao == 'EAN nas 3 lojas' %}{{ selo('ok', 'Mesmo código de barras nas 3 lojas') }}
+        {% elif o.misto %}{{ selo('alerta', 'Mesma especificação, marcas diferentes', quebra=true) }}
+        {% else %}{{ selo('alerta', 'Confirmado pela descrição') }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="cartao secao">
+  <p>Ao aplicar, o sistema monta o carrinho ou abre a página de cada produto, guarda o comprovante em PDF de cada preço e grava uma nova versão. Pode levar
+    vários minutos; o andamento aparece na tela.</p>
+  <p class="texto-apoio">Itens "não encontrado" continuam na rubrica, com pendência, para a sua decisão. A versão atual continua no histórico.</p>
+  <form method="post" action="/p/{{ pid }}/mat/{{ r.item }}/proposta/{{ t.id }}/aplicar" class="linha">
+    <button class="btn btn--primario" data-aguarde="Iniciando…">{{ icone('certo') }}Aplicar a proposta e gerar os comprovantes</button>
+    <a class="btn btn--secundario" href="/p/{{ pid }}/mat/{{ r.item }}">Voltar sem aplicar</a>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

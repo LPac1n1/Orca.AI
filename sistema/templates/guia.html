@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, campo, migalhas, estado_tarefa %}
+{% block titulo %}Guia de interface{% endblock %}
+{% block migalhas %}{{ migalhas([('Ajuda', '/ajuda')], 'Guia de interface') }}{% endblock %}
+{% block corpo %}
+<header class="cabecalho">
+  <h1>Guia de interface</h1>
+  <p class="cabecalho__intro">Mostruário do design system do Orça.AI: as cores, os tamanhos e os componentes que todas as telas usam. Serve para conferir
+    visualmente e para manter as telas iguais entre si. A documentação escrita está em <span class="codigo">sistema/INTERFACE.md</span>.</p>
+</header>
+
+<section aria-labelledby="g-cores">
+  <div class="secao__titulo"><h2 id="g-cores">Cores</h2></div>
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Amostra</th><th scope="col">Variável</th><th scope="col">Uso</th></tr></thead>
+      <tbody>
+        {% for var, uso in [('--cor-primaria', 'Botão principal, links, foco'), ('--cor-primaria-forte', 'Botão principal sob o cursor'), ('--cor-primaria-suave', 'Fundo de destaque'),
+                            ('--cor-texto', 'Texto principal'), ('--cor-texto-suave', 'Texto de apoio'), ('--cor-fundo', 'Fundo da página'), ('--cor-superficie-2', 'Cabeçalho de tabela'),
+                            ('--cor-borda', 'Linhas e bordas de cartão'), ('--cor-borda-campo', 'Borda de campo'),
+                            ('--cor-ok', 'Sucesso: texto'), ('--cor-ok-fundo', 'Sucesso: fundo'), ('--cor-alerta', 'Atenção: texto'), ('--cor-alerta-fundo', 'Atenção: fundo'),
+                            ('--cor-erro', 'Erro: texto'), ('--cor-erro-fundo', 'Erro: fundo'), ('--cor-erro-solida', 'Erro: botão cheio e borda de campo')] %}
+        <tr><td data-rotulo="Amostra"><span class="amostra" style="background: var({{ var }})"></span></td><th scope="row" data-rotulo="Variável"><span class="codigo">{{ var }}</span></th><td data-rotulo="Uso">{{ uso }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="g-tipo">
+  <div class="secao__titulo"><h2 id="g-tipo">Tipografia</h2></div>
+  <div class="cartao pilha">
+    <p style="font-size: var(--texto-2xl); font-weight: var(--peso-forte); line-height: var(--linha-titulo); margin: 0">Título de página (26 px)</p>
+    <h2>Título de seção (20 px)</h2>
+    <h3>Subtítulo (17 px)</h3>
+    <p>Texto de corpo (15 px, altura de linha 1,5). Os números em tabelas e valores usam algarismos de largura fixa: <span class="num">R$ 1.234,56</span>.</p>
+    <p class="texto-apoio">Texto de apoio (13 px), para dicas e explicações secundárias.</p>
+    <p class="codigo">Código ou identificador (12 px, fonte monoespaçada).</p>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="g-botoes">
+  <div class="secao__titulo"><h2 id="g-botoes">Botões</h2></div>
+  <div class="cartao pilha">
+    <div class="linha">
+      <button type="button" class="btn btn--primario">{{ icone('certo') }}Principal</button>
+      <button type="button" class="btn btn--secundario">Secundário</button>
+      <button type="button" class="btn btn--perigo">{{ icone('lixeira') }}Perigoso</button>
+      <button type="button" class="btn btn--perigo-cheio">Perigoso (confirmação)</button>
+      <button type="button" class="btn btn--texto">Só texto</button>
+      <button type="button" class="btn btn--primario" disabled>Desabilitado</button>
+      <button type="button" class="btn btn--primario is-carregando">Aguarde…</button>
+    </div>
+    <p class="texto-apoio">Uma ação principal por área da tela. O rótulo diz o que acontece ("Salvar alterações", não "OK"). Altura mínima de 44 px. Ao enviar um formulário,
+      o botão fica desabilitado e mostra "Aguarde…", para não haver clique duplo.</p>
+    <form data-confirmar="Exemplo de confirmação" data-confirmar-texto="Antes de uma ação que não dá para desfazer com um clique, o sistema explica a consequência e pede confirmação." data-confirmar-botao="Entendi" data-demonstracao="Confirmado. Numa tela de verdade, a ação seria feita agora.">
+      <button class="btn btn--secundario" type="submit">Abrir uma janela de confirmação</button></form>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="g-campos">
+  <div class="secao__titulo"><h2 id="g-campos">Campos de formulário</h2></div>
+  <form class="cartao pilha" data-demonstracao="Formulário válido: nenhum campo com erro.">
+    <div class="formulario">
+      {{ campo('g_texto', 'Texto', obrigatorio=true, exemplo='Projeto de Cidadania 2027', dica='Rótulo sempre visível; dica embaixo.') }}
+      {{ campo('g_moeda', 'Valor em reais', mascara='moeda', exemplo='1.234,56', dica='Pontos de milhar automáticos; vírgula para os centavos.') }}
+      {{ campo('g_cnpj', 'CNPJ', mascara='cnpj', exemplo='00.000.000/0000-00', dica='Confere os dígitos ao sair do campo.') }}
+      {{ campo('g_cep', 'CEP', mascara='cep', exemplo='01001-000') }}
+      {{ campo('g_inteiro', 'Número inteiro', mascara='inteiro', sufixo='meses', extra='data-min="1" data-max="60"', dica='Com mínimo e máximo.') }}
+      {{ campo('g_pct', 'Porcentagem', mascara='percentual', sufixo='%', exemplo='5,0') }}
+      {{ campo('g_data', 'Data', tipo='date', extra='data-nao-futura') }}
+      {{ campo('g_url', 'Link', tipo='url', opcional=true, exemplo='https://…', ajuda_texto='O ícone (?) abre uma explicação curta sobre o campo.') }}
+    </div>
+    <label class="escolha"><input type="checkbox" checked><span class="escolha__texto">Caixa de seleção <small>Com uma linha de explicação.</small></span></label>
+    <label class="escolha"><input type="radio" name="g_radio" checked><span class="escolha__texto">Opção única A</span></label>
+    <label class="escolha"><input type="radio" name="g_radio"><span class="escolha__texto">Opção única B</span></label>
+    <div><button class="btn btn--primario">Validar este formulário</button></div>
+    <p class="texto-apoio">Deixe "Texto" em branco ou digite um CNPJ errado e clique em validar: a mensagem aparece embaixo do campo, em texto, e o foco vai para o primeiro erro.</p>
+  </form>
+</section>
+
+<section class="secao" aria-labelledby="g-selos">
+  <div class="secao__titulo"><h2 id="g-selos">Selos, contadores e avisos</h2></div>
+  <div class="cartao pilha">
+    <div class="linha">{{ selo('ok', 'Em ordem') }} {{ selo('alerta', 'Revisar') }} {{ selo('erro', 'Pendência') }} {{ selo('info', 'Próximo passo') }} {{ selo('neutro', 'Em branco') }}
+      <span class="contador">7</span> <span class="contador contador--erro">3</span> <span class="contador contador--alerta">2</span> <span class="contador contador--info">1</span>
+      {{ estado_tarefa('rodando') }} {{ estado_tarefa('concluída') }}</div>
+    <p class="texto-apoio">Todo selo tem ícone e texto: a cor nunca é a única informação.</p>
+    <div class="aviso aviso--ok" role="status">{{ icone('certo') }}<div class="aviso__corpo"><b>Sucesso.</b> A ação foi concluída.</div></div>
+    <div class="aviso aviso--info" role="status">{{ icone('info') }}<div class="aviso__corpo"><b>Informação.</b> Algo que vale saber.</div></div>
+    <div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo"><b>Atenção.</b> Algo pede a sua conferência.</div></div>
+    <div class="aviso aviso--erro" role="alert">{{ icone('erro') }}<div class="aviso__corpo"><b>Erro.</b> O que aconteceu e como resolver.</div>
+      <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>
+    <div class="linha"><button type="button" class="btn btn--secundario" onclick="OSC.toast('Aviso rápido: some sozinho em alguns segundos.')">Mostrar um aviso rápido</button>
+      <button type="button" class="btn btn--secundario" onclick="OSC.toast('Aviso rápido de erro.', 'erro')">Aviso rápido de erro</button></div>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="g-outros">
+  <div class="secao__titulo"><h2 id="g-outros">Indicadores, passos, progresso e estado vazio</h2></div>
+  <div class="pilha">
+    <div class="indicadores">
+      <div class="indicador"><div class="indicador__rotulo">Teto do projeto</div><div class="indicador__valor">R$ 150.000,00</div><span class="indicador__nota">nota de apoio</span></div>
+      <div class="indicador indicador--ok"><div class="indicador__rotulo">Diferença</div><div class="indicador__valor">R$ 0,00</div><span class="indicador__nota">plano fechado no teto</span></div>
+      <div class="indicador indicador--erro"><div class="indicador__rotulo">Pendências</div><div class="indicador__valor">3</div><span class="indicador__nota">bloqueiam o envio</span></div>
+    </div>
+    <ol class="passos">
+      <li class="passo passo--feito"><div><div class="passo__titulo">Passo concluído {{ selo('ok', 'Concluído') }}</div><p class="passo__texto">Texto curto com a situação.</p></div></li>
+      <li class="passo passo--atual"><div><div class="passo__titulo">Próximo passo {{ selo('info', 'Próximo passo') }}</div><p class="passo__texto">É onde fica o botão principal da tela.</p></div></li>
+      <li class="passo"><div><div class="passo__titulo">Passo futuro</div><p class="passo__texto">Ainda não é a vez dele.</p></div></li>
+    </ol>
+    <div class="cartao"><div class="progresso" role="progressbar" aria-label="Exemplo de progresso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62"><div class="progresso__barra" style="width: 62%"></div></div>
+      <p class="texto-apoio" style="margin-top: var(--esp-2)">Barra de progresso (62%). Enquanto os dados carregam: <span class="esqueleto" style="display: inline-block; width: 180px"></span></p></div>
+    <div class="vazio">{{ icone('pasta') }}<p class="vazio__titulo">Estado vazio</p><p>Explica o que vai aparecer aqui e qual é o primeiro passo.</p>
+      <button type="button" class="btn btn--secundario">Primeiro passo</button></div>
+    <details class="detalhe"><summary>Bloco que abre e fecha</summary><div class="detalhe__corpo">Conteúdo secundário, que não precisa ficar sempre à vista.</div></details>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="g-tabela">
+  <div class="secao__titulo"><h2 id="g-tabela">Tabela</h2></div>
+  <p class="secao__intro">No celular, cada linha vira um cartão e cada célula mostra o nome da coluna.</p>
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Item</th><th scope="col" class="n">Quantidade</th><th scope="col" class="n">Média</th><th scope="col">Situação</th></tr></thead>
+      <tbody>
+        <tr><th scope="row" data-rotulo="Item">Água sanitária 5L</th><td class="n" data-rotulo="Quantidade">5</td><td class="n" data-rotulo="Média">R$ 15,12</td><td data-rotulo="Situação">{{ selo('ok', 'Em ordem') }}</td></tr>
+        <tr><th scope="row" data-rotulo="Item">Sacos de lixo 50L</th><td class="n" data-rotulo="Quantidade">5</td><td class="n" data-rotulo="Média">R$ 17,95</td><td data-rotulo="Situação">{{ selo('alerta', 'Revisar') }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="g-icones">
+  <div class="secao__titulo"><h2 id="g-icones">Ícones</h2></div>
+  <div class="cartao linha">{% for nome in ICONES %}<span class="selo selo--neutro" style="font-size: var(--texto-sm)">{{ icone(nome) }}{{ nome }}</span>{% endfor %}</div>
+</section>
+{% endblock %}

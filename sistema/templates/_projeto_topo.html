@@ -1,0 +1,43 @@
+{#- Topo de TODAS as telas do projeto (pedido da OSC, 05/10/2026): nome, proponente, os números do orçamento, o que dá para baixar e a barra de
+    navegação. Na tela do projeto as partes são seções da própria página (âncoras, com data-secoes); nas outras telas (CNPJs, Histórico) os
+    mesmos botões levam de volta à parte certa do projeto. Importar com contexto:
+    {% from "_projeto_topo.html" import projeto_topo with context %} · atual = '' (tela do projeto) | 'cnpjs' | 'historico' -#}
+{%- from "_ui.html" import icone -%}
+{%- macro projeto_topo(atual='') -%}
+{%- set cargos = p.rubricas|selectattr('tipo', 'equalto', 'rh')|list -%}
+{%- set materiais = p.rubricas|selectattr('tipo', 'equalto', 'material')|list -%}
+{%- set base = '' if not atual else '/p/%d' % pid -%}
+<header class="cabecalho cabecalho--projeto">
+  <div>
+    <{{ 'h1' if not atual else 'p' }} class="cabecalho__nome">{{ p.nome }}</{{ 'h1' if not atual else 'p' }}>
+    <p class="cabecalho__meta">{{ p.proponente or 'Proponente não informado' }} · processo {{ p.processo or 'não informado' }} · versão {{ versao }}</p>
+  </div>
+  <div class="linha cabecalho__baixar" role="group" aria-label="Baixar os documentos do orçamento">
+    <a class="btn btn--primario" href="/p/{{ pid }}/pacote" title="Um arquivo .zip com o Plano de Aplicação, o Comparativo de Preço e os comprovantes de cada vaga e produto (cada um já com o comprovante de CNPJ da empresa), separados por rubrica e na ordem do plano.">{{ icone('baixar') }}Baixar tudo para a Secretaria (.zip)</a>
+    <a class="btn btn--secundario" href="/p/{{ pid }}/planilhas" title="Plano de Aplicação e Comparativo de Preço, no formato da planilha de pré-cálculos.">{{ icone('baixar') }}Só as planilhas (.xlsx)</a>
+  </div>
+</header>
+
+<div class="indicadores" role="group" aria-label="Resumo do orçamento">
+  <div class="indicador"><div class="indicador__rotulo">Teto do projeto</div><div class="indicador__valor">{{ p.teto|brl }}</div>
+    <span class="indicador__nota">valor que o plano precisa fechar</span></div>
+  <div class="indicador"><div class="indicador__rotulo">Total do plano</div><div class="indicador__valor">{{ res.total|brl }}</div>
+    <span class="indicador__nota">soma de todos os itens</span></div>
+  <div class="indicador indicador--{{ 'ok' if res.saldo == 0 else 'erro' }}"><div class="indicador__rotulo">Diferença para o teto</div><div class="indicador__valor">{{ res.saldo|brl }}</div>
+    <span class="indicador__nota">{{ 'plano fechado no teto' if res.saldo == 0 else ('falta para chegar ao teto' if res.saldo > 0 else 'acima do teto') }}</span></div>
+  <div class="indicador indicador--{{ 'erro' if res.erros else 'ok' }}"><div class="indicador__rotulo">Pendências</div><div class="indicador__valor">{{ res.erros }}</div>
+    <span class="indicador__nota">bloqueiam o envio à SEJC</span></div>
+  <div class="indicador {% if res.atencao %}indicador--alerta{% endif %}"><div class="indicador__rotulo">Para revisar</div><div class="indicador__valor">{{ res.atencao }}</div>
+    <span class="indicador__nota">não bloqueiam, mas confira</span></div>
+</div>
+
+<nav class="subnav" aria-label="Partes do projeto" {% if not atual %}data-secoes{% endif %}>
+  <a href="{{ base }}#visao">{{ icone('casa') }}Visão geral</a>
+  <a href="{{ base }}#mao-de-obra">{{ icone('pessoas') }}Mão de obra <span class="contador">{{ cargos|length }}</span></a>
+  <a href="{{ base }}#materiais">{{ icone('caixa') }}Materiais e serviços <span class="contador">{{ materiais|length }}</span></a>
+  <a href="{{ base }}#verificacao">{{ icone('escudo') }}Verificação {% if res.erros %}<span class="contador contador--erro">{{ res.erros }}<span class="so-leitor"> pendências</span></span>{% elif res.atencao %}<span class="contador contador--alerta">{{ res.atencao }}<span class="so-leitor"> para revisar</span></span>{% endif %}</a>
+  <a href="/p/{{ pid }}/cnpjs" {% if atual == 'cnpjs' %}aria-current="true"{% endif %}>{{ icone('banco') }}CNPJs e comprovantes</a>
+  <a href="{{ base }}#configuracao">{{ icone('ajustes') }}Configuração</a>
+  <a href="/p/{{ pid }}/historico" {% if atual == 'historico' %}aria-current="true"{% endif %}>{{ icone('historico') }}Histórico</a>
+</nav>
+{%- endmacro -%}

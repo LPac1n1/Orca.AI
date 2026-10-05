@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, estado_tarefa %}
+{% block titulo %}Base da Receita{% endblock %}
+{% block corpo %}
+<header class="cabecalho">
+  <h1>Base oficial do CNPJ (Receita Federal)</h1>
+  <p class="cabecalho__intro">É uma cópia do cadastro público de empresas, guardada neste computador (fora do OneDrive). O sistema usa a base para achar o CNPJ
+    de quem anunciou a vaga, conferir se a empresa está ativa e saber se existe outra empresa com o mesmo nome. A Receita publica dados novos uma vez por
+    mês; o sistema verifica todo dia e atualiza sozinho.</p>
+</header>
+
+<section class="cartao" aria-labelledby="t-situacao">
+  <div class="cartao__titulo"><h2 id="t-situacao">Situação</h2>{% if base.existe %}{{ selo('ok', 'Instalada') }}{% else %}{{ selo('erro', 'Não instalada') }}{% endif %}</div>
+  {% if base.existe %}
+  <dl class="dl">
+    <dt>Mês dos dados</dt><dd><b>{{ base.mes }}</b></dd>
+    <dt>Montada em</dt><dd>{{ base.montado_em|data_br }}</dd>
+    <dt>Tamanho no disco</dt><dd>{{ base.tamanho_mb }} MB</dd>
+    {% if base.estabelecimentos %}<dt>Estabelecimentos ativos</dt><dd>{{ base.estabelecimentos }}</dd>{% endif %}
+  </dl>
+  {% else %}
+  <p>Sem a base, o CNPJ de quem anunciou a vaga é procurado só pela internet, e o sistema não consegue conferir se há outra empresa com o mesmo nome.</p>
+  {% endif %}
+  <hr>
+  <form method="post" action="/base-receita/atualizar" class="pilha" data-confirmar="{{ 'Verificar e atualizar a base agora?' if base.existe else 'Instalar a base agora?' }}"
+        data-confirmar-texto="{{ 'Se a Receita já publicou o mês seguinte, o sistema baixa cerca de 6,4 GB e monta a base nova (cerca de 2 horas). A base atual continua valendo até a nova ficar pronta.' if base.existe else 'A primeira instalação baixa cerca de 6,4 GB (por volta de 1 hora) e leva mais 1 hora para montar. Você pode usar o resto do sistema enquanto isso.' }}"
+        data-confirmar-botao="{{ 'Verificar e atualizar' if base.existe else 'Instalar' }}">
+    <label class="escolha"><input type="checkbox" name="forcar" value="1">
+      <span class="escolha__texto">Refazer mesmo se já estiver no mês mais recente <small>Use só se a base parecer com problema: baixa tudo de novo.</small></span></label>
+    <div><button class="btn btn--primario" data-aguarde="Iniciando…">{{ icone('baixar') }}{{ 'Verificar e atualizar agora' if base.existe else 'Instalar a base agora' }}</button></div>
+  </form>
+</section>
+
+{% if tarefas_base %}
+<section class="secao" aria-labelledby="t-ultimas">
+  <div class="secao__titulo"><h2 id="t-ultimas">Últimas verificações</h2></div>
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Quando</th><th scope="col">Situação</th><th scope="col">Resultado</th></tr></thead>
+      <tbody>
+      {% for t in tarefas_base %}<tr><th scope="row" data-rotulo="Quando"><a href="/tarefa/{{ t.id }}">{{ t.criado_em|data_br }}</a></th><td data-rotulo="Situação">{{ estado_tarefa(t.estado) }}</td>
+        <td data-rotulo="Resultado" class="texto-apoio">{% if t.resultado %}{{ 'Atualizada para ' ~ t.resultado.mes if t.resultado.atualizado else t.resultado.motivo }}{% else %}{{ t.erro or 'em andamento' }}{% endif %}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

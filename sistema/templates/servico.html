@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, campo, migalhas, tarefas_em_andamento, situacao_selo, pontos_lista with context %}
+{% from "_rubrica.html" import pesquisa_cartao, item_resumo, itens_barra, itens_cabecalho, linhas_novas, barra_salvar, enter_salva, dados_rubrica, excluir_rubrica, formularios_pdf with context %}
+{% block titulo %}Item {{ r.item }} — {{ r.descricao }}{% endblock %}
+{% block migalhas %}{{ migalhas([('Projetos', '/'), (p.nome, '/p/%d#item%d' % (pid, r.item))], 'Item %d — %s' % (r.item, r.descricao)) }}{% endblock %}
+{% block corpo %}
+{% set NOME_TIPO = {'mercado': 'Produtos de mercado', 'material': 'Outros materiais', 'sistema': 'Sistema ou software', 'servico': 'Serviço'} %}
+<header class="cabecalho">
+  <h1>Item {{ r.item }} — {{ r.descricao }}</h1>
+  <p class="cabecalho__intro">Rubrica de <b>serviço</b> (oficinas, transporte, manutenção, consultoria…). Serviço não é produto de loja, então <b>não há
+    pesquisa automática</b>: cada serviço precisa de <b>3 propostas</b> de fornecedores diferentes, com CNPJ ativo, cada uma em PDF. O valor no plano não pode
+    passar da média das 3 propostas.</p>
+</header>
+
+{% if novo %}<div class="aviso aviso--ok" role="status">{{ icone('certo') }}<div class="aviso__corpo"><b>Rubrica de serviço adicionada.</b> Cadastre os serviços no
+  quadro "Adicionar serviços" e, para cada um, anexe as 3 propostas.</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+{% if leitura %}<div class="aviso aviso--{{ 'alerta' if leitura.startswith('Não') else 'ok' }}" role="status">{{ icone('alerta' if leitura.startswith('Não') else 'certo') }}
+  <div class="aviso__corpo">{{ leitura }}</div><button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+{{ tarefas_em_andamento(tarefas_rodando) }}
+{% set pts = pontos('Item %d' % r.item) %}
+{% if pts %}<section class="cartao cartao--plano" aria-labelledby="t-pontos">
+  <div class="cartao__titulo"><h2 id="t-pontos" style="font-size: var(--texto-lg)">O que a verificação aponta nesta rubrica</h2>{{ situacao_selo(st('Item %d' % r.item)) }}</div>
+  {{ pontos_lista(pts, '/p/%d/mat/%d' % (pid, r.item)) }}
+</section>{% endif %}
+
+<ol class="passos" aria-label="Como orçar um serviço">
+  <li class="passo {% if r.subitens %}passo--feito{% else %}passo--atual{% endif %}"><div><div class="passo__titulo">Cadastre os serviços</div>
+    <p class="passo__texto">O que será contratado e a quantidade por mês. Na especificação, o que muda o preço: carga horária, número de turmas, distância…</p></div></li>
+  <li class="passo {% if r.subitens %}passo--atual{% endif %}"><div><div class="passo__titulo">Peça 3 propostas</div>
+    <p class="passo__texto">A 3 empresas diferentes, com a mesma descrição e a mesma quantidade. Frete e taxas não entram.</p></div></li>
+  <li class="passo"><div><div class="passo__titulo">Preencha e anexe cada proposta</div>
+    <p class="passo__texto">Empresa, CNPJ, data e valor de cada uma, e o PDF. O sistema confere se o valor e o CNPJ aparecem no PDF.</p></div></li>
+</ol>
+
+<form method="post" action="/p/{{ pid }}/mat/{{ r.item }}" class="pilha secao" id="f-rubrica" data-avisar-saida>
+  {{ enter_salva() }}
+  <section aria-labelledby="t-itens">
+    <div class="secao__titulo"><h2 id="t-itens">Serviços e as 3 propostas</h2><span class="contador">{{ r.subitens|length }}</span></div>
+    {% if not r.subitens %}
+    <div class="vazio" style="margin-bottom: var(--esp-4)">{{ icone('lista') }}<p class="vazio__titulo">Esta rubrica ainda não tem serviços.</p>
+      <p>Escreva os serviços no quadro "Adicionar serviços", logo abaixo, e salve.</p></div>
+    {% endif %}
+    {% if r.subitens %}{{ itens_barra('lista-itens', r.subitens|length, 'serviços') }}
+    <div class="itens itens--produtos" id="lista-itens">
+    {{ itens_cabecalho('Proposta') }}
+    {% for s in r.subitens %}{% set i = loop.index0 %}{% set fs = fontes_do_subitem(r, s) %}
+    {% set chave_sub = 'Item %d – %s / %s' % (r.item, r.descricao, s.descricao) %}
+    {% set md = media_subitem(s) %}
+    <details class="item-recolhivel item-cartao" id="sub{{ i }}" data-recolhivel {% if r.subitens|length == 1 %}open{% endif %}>
+      {{ item_resumo(s, i, fs, st(chave_sub), rotulo='Serviço', pesquisa='Proposta') }}
+      <div class="item-recolhivel__corpo">
+        <div class="formulario formulario--servico">
+          {{ campo('sdesc' ~ i, 'Descrição do serviço', valor=s.descricao, extra='maxlength="200"') }}
+          {{ campo('sesp' ~ i, 'Especificação', valor=s.especificacao or '', opcional=true, extra='maxlength="120"',
+                   ajuda_texto='O que muda o preço. Ex.: 4 h por semana; 2 turmas; até 30 km.') }}
+          {{ campo('sqtd' ~ i, 'Quantidade por mês', valor=s.qtd, mascara='inteiro', tamanho='m', extra='data-min="1"') }}
+          {{ campo('splano' ~ i, 'Valor no plano', valor=s.valor_plano|moeda, mascara='moeda', tamanho='m',
+                   dica=('Média das 3 propostas: ' ~ (md|brl)) if md is not none else 'A média aparece com as 3 propostas.',
+                   ajuda_texto='Valor unitário que vai para o Plano de Aplicação. Não pode passar da média das 3 propostas.') }}
+        </div>
+        <div class="grade grade--3">
+          {% for k in range(3) %}{{ pesquisa_cartao(s, i, k, fs, titulo='Proposta', preco='Valor unitário da proposta', produto='Serviço proposto', aberto=true,
+                                                     dica_link='Página do fornecedor, se houver. A proposta em PDF não precisa de link.') }}{% endfor %}
+        </div>
+        <div class="item-recolhivel__rodape">
+          <label class="escolha"><input type="checkbox" name="sdel{{ i }}" value="1" data-marca-exclusao>
+            <span class="escolha__texto">Excluir este serviço ao salvar</span></label>
+        </div>
+      </div>
+    </details>
+    {% endfor %}
+    </div>{% endif %}
+    {{ linhas_novas(titulo='Adicionar serviços', rotulo='Descrição do serviço', exemplo='Oficina de capoeira', exemplo_esp='4 h por semana; 2 turmas',
+                    linhas=1 if r.subitens else 2, dica='Escreva quantos serviços quiser, um por linha, e salve uma vez só. Dá para colar uma lista (por exemplo, uma coluna do Excel) na primeira caixa.', marca=false) }}
+  </section>
+
+  <section class="cartao" aria-labelledby="t-dados">
+    <h2 id="t-dados" class="cartao__titulo">Dados da rubrica</h2>
+    {{ dados_rubrica(r, tipo, NOME_TIPO) }}
+  </section>
+
+  <input type="hidden" name="n_sub" value="{{ r.subitens|length }}">
+  {{ barra_salvar('Materiais e serviços') }}
+</form>
+{{ formularios_pdf(r) }}
+
+{{ excluir_rubrica(r, 'serviços') }}
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, campo, tarefas_em_andamento %}
+{% block titulo %}Projetos{% endblock %}
+{% block corpo %}
+<header class="cabecalho">
+  <h1>Projetos</h1>
+  <p class="cabecalho__intro">Cada projeto reúne o <b>Plano de Aplicação</b> e a <b>Grade Comparativa</b> de um orçamento para a SEJC. Abra um projeto para
+    pesquisar vagas e preços, conferir as pendências e baixar tudo pronto para a Secretaria.</p>
+</header>
+
+{% if msg %}<div class="aviso aviso--info" role="status">{{ icone('info') }}<div class="aviso__corpo">{{ msg }}</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+{{ tarefas_em_andamento(rodando) }}
+
+<section class="cartao cartao--plano" data-dispensar="guia-inicio" aria-labelledby="guia-titulo">
+  <div class="cartao__titulo linha--entre">
+    <h2 id="guia-titulo">Primeira vez aqui? Veja como funciona</h2>
+    <button type="button" class="btn btn--texto" data-dispensar-botao>Entendi, não mostrar de novo</button>
+  </div>
+  <ol class="passos passos--simples grade grade--2">
+    <li class="passo"><div><div class="passo__titulo">Crie o projeto</div><p class="passo__texto">Informe o nome e o teto (o valor total que o orçamento precisa fechar).</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Cadastre os itens do plano</div><p class="passo__texto">Os cargos (mão de obra) e as rubricas de materiais e serviços, com os itens de cada uma.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Clique em "Pesquisar tudo"</div><p class="passo__texto">O sistema procura 3 vagas para cada cargo e 3 preços para cada item, confere os CNPJs e guarda os comprovantes em PDF.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Confira, feche no teto e baixe o pacote</div><p class="passo__texto">A tela do projeto mostra o que falta. No fim, um arquivo .zip traz as planilhas e os comprovantes de cada rubrica, prontos para a Secretaria.</p></div></li>
+  </ol>
+  <p class="texto-apoio" style="margin-top: var(--esp-3)">Mais explicações, com o significado de cada palavra das telas, em <a href="/ajuda">Ajuda</a>.</p>
+</section>
+<p><button type="button" class="btn btn--texto" data-mostrar="guia-inicio" hidden>{{ icone('ajuda') }}Mostrar de novo o guia de primeiro acesso</button></p>
+
+<section class="secao" aria-labelledby="t-projetos">
+  <div class="secao__titulo"><h2 id="t-projetos">Seus projetos</h2>{% if projetos %}<span class="contador">{{ projetos|length }}</span>{% endif %}</div>
+  {% if projetos %}
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Projeto</th><th scope="col">Última alteração</th><th scope="col" class="n">Versões salvas</th><th scope="col"><span class="so-leitor">Ações</span></th></tr></thead>
+      <tbody>
+      {% for x in projetos %}
+      <tr><th scope="row" data-rotulo="Projeto"><a href="/p/{{ x.id }}">{{ x.nome }}</a></th>
+        <td data-rotulo="Última alteração">{{ x.alterado_em|data_br }}</td>
+        <td class="n" data-rotulo="Versões salvas">{{ x.versoes }}</td>
+        <td class="acoes"><a class="btn btn--secundario" href="/p/{{ x.id }}">Abrir projeto<span class="so-leitor"> {{ x.nome }}</span></a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="vazio">{{ icone('pasta') }}
+    <p class="vazio__titulo">Nenhum projeto em uso.</p>
+    <p>Crie o primeiro projeto no formulário abaixo: basta o nome, o teto e o CEP de entrega. Depois você cadastra os cargos e os itens do plano.</p>
+  </div>
+  {% endif %}
+</section>
+
+<div class="secao">
+  <section class="cartao" aria-labelledby="t-novo">
+    <h2 id="t-novo" class="cartao__titulo">Novo projeto</h2>
+    <p class="texto-apoio">Os campos com <span class="campo__obrig" aria-hidden="true">*</span> são obrigatórios. Tudo pode ser alterado depois, na configuração do projeto.</p>
+    <form method="post" action="/projetos" class="formulario formulario--projeto" style="margin-top: var(--esp-3)">
+      {{ campo('nome', 'Nome do projeto', obrigatorio=true, exemplo='Projeto de Cidadania 2027', extra='maxlength="120"') }}
+      {{ campo('teto', 'Teto do projeto', mascara='moeda', obrigatorio=true, exemplo='150.000,00', dica='Valor total que o orçamento precisa fechar. Use vírgula para os centavos.', extra='data-positivo') }}
+        {{ campo('processo', 'Número do processo', opcional=true, exemplo='SJC-PRC-2026/00123') }}
+        {{ campo('cep', 'CEP de entrega', mascara='cep', obrigatorio=true, exemplo='01001-000', dica='CEP da sede da OSC: as lojas mostram estoque e preço conforme a região.') }}
+      {{ campo('proponente', 'Proponente (nome da OSC)', opcional=true, exemplo='Associação Comunitária Exemplo') }}
+      <div class="campo--inteiro"><button class="btn btn--primario" data-aguarde="Criando o projeto…">{{ icone('mais') }}Criar projeto</button></div>
+    </form>
+  </section>
+</div>
+
+{% if removidos %}
+<details class="detalhe secao"><summary>Projetos removidos ({{ removidos|length }})</summary>
+  <div class="detalhe__corpo pilha">
+    <p class="texto-apoio">Estes projetos saíram da lista e das rotinas automáticas, mas nada foi apagado: versões, histórico e comprovantes continuam guardados.
+      <b>Restaurar</b> traz o projeto de volta. <b>Apagar de vez</b> apaga tudo do computador e não tem volta; o banco de vagas e os CNPJs já consultados,
+      que são comuns a todos os projetos, ficam.</p>
+    <div class="tabela-rolagem">
+      <table class="tabela tabela--cartoes">
+        <thead><tr><th scope="col">Projeto</th><th scope="col" class="n">Versões</th><th scope="col">Removido em</th><th scope="col">O que fazer</th></tr></thead>
+        <tbody>
+        {% for x in removidos %}
+        <tr><th scope="row" data-rotulo="Projeto"><a href="/p/{{ x.id }}">{{ x.nome }}</a> <span class="texto-apoio">(só consulta)</span></th>
+          <td class="n" data-rotulo="Versões">{{ x.versoes }}</td>
+          <td data-rotulo="Removido em">{{ x.removido_em|data_br }}</td>
+          <td data-rotulo="O que fazer">
+            <form method="post" action="/p/{{ x.id }}/restaurar-projeto"><button class="btn btn--secundario">{{ icone('desfazer') }}Restaurar<span class="so-leitor"> {{ x.nome }}</span></button></form>
+            <details class="detalhe detalhe--leve"><summary>Apagar de vez…</summary>
+              <div class="detalhe__corpo">
+                <form method="post" action="/p/{{ x.id }}/apagar-de-vez" class="pilha" data-confirmar="Apagar de vez o projeto?"
+                      data-confirmar-texto="Todas as {{ x.versoes }} versões, o histórico e os comprovantes em PDF de &quot;{{ x.nome }}&quot; serão apagados deste computador. Não será possível restaurar."
+                      data-confirmar-botao="Apagar de vez" data-confirmar-perigo>
+                  {{ campo('confirmacao', 'Para confirmar, digite o nome do projeto', obrigatorio=true, id='conf-' ~ x.id,
+                           dica='Exatamente como está escrito: ' ~ x.nome, extra=('autocomplete="off" data-igual="%s"'|format(x.nome|e))) }}
+                  <div><button class="btn btn--perigo">{{ icone('lixeira') }}Apagar de vez</button></div>
+                </form>
+              </div></details>
+          </td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</details>
+{% endif %}
+
+<section class="secao" aria-labelledby="t-sistema">
+  <div class="secao__titulo"><h2 id="t-sistema">Situação do sistema</h2></div>
+  <div class="indicadores">
+    <div class="indicador"><div class="indicador__rotulo">Base da Receita Federal
+        {{ ajuda('Base da Receita', 'Cópia oficial do cadastro de CNPJ, guardada neste computador. O sistema usa para achar o CNPJ das empresas e saber se estão ativas.') }}</div>
+      <div class="indicador__valor">{% if base.existe %}{{ selo('ok', 'Instalada (' ~ base.mes ~ ')') }}{% else %}{{ selo('erro', 'Não instalada') }}{% endif %}</div>
+      <a class="indicador__nota" href="/base-receita">Ver detalhes</a></div>
+    <div class="indicador"><div class="indicador__rotulo">Inteligência artificial gratuita
+        {{ ajuda('Inteligência artificial', 'Usada só nos casos de dúvida, por exemplo para confirmar que dois anúncios são o mesmo produto. Sem a chave, o sistema funciona, mas deixa mais itens para a sua conferência.') }}</div>
+      <div class="indicador__valor">{% if ia_ok %}{{ selo('ok', 'Chave encontrada') }}{% else %}{{ selo('alerta', 'Sem chave') }}{% endif %}</div>
+      <span class="indicador__nota">{% if ia_ok %}Pronta para uso{% else %}Veja o arquivo GEMINI_PASSO_A_PASSO.md{% endif %}</span></div>
+    <div class="indicador"><div class="indicador__rotulo">Tarefas em andamento</div>
+      <div class="indicador__valor">{{ rodando|length }}</div>
+      <a class="indicador__nota" href="/tarefas">Ver todas as tarefas</a></div>
+  </div>
+</section>
+{% endblock %}

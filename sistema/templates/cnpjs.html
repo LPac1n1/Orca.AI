@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, migalhas %}
+{% from "_projeto_topo.html" import projeto_topo with context %}
+{% block titulo %}CNPJs e comprovantes — {{ p.nome }}{% endblock %}
+{% block migalhas %}{{ migalhas([('Projetos', '/'), (p.nome, '/p/%d' % pid)], 'CNPJs e comprovantes') }}{% endblock %}
+{% block corpo %}
+{% set faltam = linhas|selectattr('comp', 'none')|list %}
+{{ projeto_topo('cnpjs') }}
+<header class="cabecalho">
+  <h1>CNPJs e comprovantes oficiais da Receita</h1>
+  <p class="cabecalho__intro">Toda empresa do orçamento precisa estar <b>ativa</b> na Receita Federal. O documento que prova isso é o
+    <b>Comprovante de Inscrição e de Situação Cadastral</b>, emitido no site da Receita. O site pede uma verificação humana (CAPTCHA) que o sistema não
+    resolve: por isso você emite cada comprovante e o sistema importa, confere e guarda.</p>
+</header>
+
+{% if msg %}{% set bom = 'importado' in msg and not msg.startswith('0 ') %}
+<div class="aviso aviso--{{ 'ok' if bom else 'alerta' }}" role="status">{{ icone('certo' if bom else 'alerta') }}<div class="aviso__corpo">{{ msg }}</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+
+<div class="indicadores" style="margin-bottom: var(--esp-5)">
+  <div class="indicador indicador--{{ 'ok' if linhas and not faltam else 'alerta' }}"><div class="indicador__rotulo">Comprovantes importados</div>
+    <div class="indicador__valor">{{ linhas|length - faltam|length }} de {{ linhas|length }}</div><span class="indicador__nota">empresas do orçamento</span></div>
+  {% set prontos = faltam|selectattr('baixado')|list %}
+  <div class="indicador {% if prontos %}indicador--alerta{% endif %}"><div class="indicador__rotulo">Já baixados, falta importar</div>
+    <div class="indicador__valor" data-baixados-total>{{ prontos|length }}</div><span class="indicador__nota">salvos na pasta Orça.AI</span></div>
+  <div class="indicador {% if faltam|length - prontos|length %}indicador--erro{% endif %}"><div class="indicador__rotulo">Falta emitir</div>
+    <div class="indicador__valor" data-faltam-total>{{ faltam|length - prontos|length }}</div><span class="indicador__nota">ainda sem PDF salvo</span></div>
+</div>
+
+<section class="cartao" aria-labelledby="t-como">
+  <h2 id="t-como" class="cartao__titulo">Como emitir e importar</h2>
+  <ol class="passos passos--simples">
+    <li class="passo"><div><div class="passo__titulo">Clique em "Emitir na Receita" na linha da empresa</div><p class="passo__texto">A página oficial abre em outra aba, com o CNPJ já preenchido.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Resolva a verificação e clique em "Consultar"</div><p class="passo__texto">É a única parte que só uma pessoa pode fazer.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Salve a página em PDF na pasta "Orça.AI", em Documentos</div><p class="passo__texto">No teclado: Ctrl+P → "Salvar como PDF" e, na janela de salvar,
+      escolha Documentos → Orça.AI (depois da primeira vez, o navegador já abre nela). Repita para as outras empresas.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Confira na lista o que já foi baixado</div><p class="passo__texto">Assim que o PDF é salvo na pasta Orça.AI, a linha da empresa
+      muda sozinha para "Já baixado: falta importar". As que continuam em "Falta emitir" ainda não têm o PDF salvo.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Volte aqui e importe</div><p class="passo__texto">O sistema confere que é o comprovante oficial, que o CNPJ é do projeto, que a empresa está ativa
+      e que foi emitido há até {{ p.config.validade_dias }} dias.</p></div></li>
+  </ol>
+  <p class="texto-apoio" style="margin-top: var(--esp-4)">Pasta dos comprovantes neste computador: <span class="codigo">{{ pasta_comprovantes }}</span></p>
+  <div class="linha" style="margin-top: var(--esp-2)">
+    <form method="post" action="/pasta-comprovantes/abrir"><button class="btn btn--secundario">{{ icone('pasta') }}Abrir a pasta Orça.AI</button></form>
+    <form method="post" action="/p/{{ pid }}/cnpjs/importar"><button class="btn btn--primario" data-aguarde="Importando…">{{ icone('baixar') }}Importar da pasta Orça.AI</button></form>
+    <span class="texto-apoio">ou escolha os arquivos:</span>
+    <form method="post" action="/p/{{ pid }}/cnpjs/enviar" enctype="multipart/form-data" class="arquivo">
+      <label class="so-leitor" for="c-arquivos">Comprovantes em PDF</label>
+      <input type="file" id="c-arquivos" name="arquivos" accept="application/pdf,.pdf" multiple required>
+      <button class="btn btn--secundario" data-aguarde="Enviando…">{{ icone('enviar') }}Enviar PDFs</button></form>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="t-empresas">
+  <div class="secao__titulo"><h2 id="t-empresas">Empresas do orçamento</h2><span class="contador">{{ linhas|length }}</span></div>
+  {% if linhas %}
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">CNPJ</th><th scope="col">Empresa (cadastro da Receita)</th><th scope="col">Onde é usada</th><th scope="col">Comprovante oficial</th><th scope="col"><span class="so-leitor">Emitir</span></th></tr></thead>
+      <tbody>
+      {% for l in linhas %}
+      <tr><th scope="row" data-rotulo="CNPJ" class="num">{{ l.cnpj }}</th>
+        <td data-rotulo="Empresa">{% if l.base %}{{ l.base.razao }}<div class="texto-apoio">{{ l.base.municipio }}/{{ l.base.uf }} · {{ 'matriz' if l.base.matriz else 'filial' }} · na base de dados abertos: {{ l.base.situacao or 'ATIVA' }}</div>
+            {% else %}<span class="texto-apoio">Não encontrada na base deste computador (pode estar baixada ou inativa, ou a base ainda não foi instalada).</span>{% endif %}</td>
+        <td data-rotulo="Onde é usada" class="texto-apoio">{% for u in l.usos %}<div>{{ u }}</div>{% endfor %}</td>
+        <td data-rotulo="Comprovante oficial">{% if l.comp %}{{ selo('ok', l.comp.situacao|capitalize) }} emitido em {{ l.comp.emitido_em|data_br(false) }}
+              <div><a href="/p/{{ pid }}/arquivo?rel={{ l.comp.arquivo|urlencode }}" target="_blank">{{ icone('pdf') }}Ver o PDF</a></div>
+            {% elif l.baixado %}<span data-baixado="{{ l.cnpj }}">{{ selo('info', 'Já baixado: falta importar') }}
+              <div class="texto-apoio">Está na pasta Orça.AI ({{ l.baixado.arquivo }}). Clique em "Importar da pasta Orça.AI".</div></span>
+            {% else %}<span data-baixado="{{ l.cnpj }}">{{ selo('erro', 'Falta emitir') }}</span>{% endif %}</td>
+        <td class="acoes"><a class="btn btn--secundario" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">Emitir na Receita {{ icone('externo') }}<span class="so-leitor"> o comprovante do CNPJ {{ l.cnpj }} (abre em outra aba)</span></a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="vazio">{{ icone('banco') }}<p class="vazio__titulo">Nenhuma empresa no orçamento ainda.</p>
+    <p>As empresas aparecem aqui depois que os itens do projeto tiverem pesquisas com CNPJ. Volte ao projeto e use "Pesquisar tudo automaticamente".</p>
+    <a class="btn btn--secundario" href="/p/{{ pid }}">Voltar ao projeto</a></div>
+  {% endif %}
+</section>
+{# a tela se atualiza sozinha: assim que o PDF é salvo na pasta "Orça.AI" (Documentos), a linha da empresa passa a "Já baixado" (sem recarregar a página) #}
+<script>
+(function () {
+  var marcas = document.querySelectorAll('[data-baixado]');
+  if (!marcas.length || !window.fetch) { return; }
+  var falhas = 0, relogio = null;
+  function conferir() {
+    if (document.hidden) { return; }
+    fetch('/p/{{ pid }}/cnpjs/baixados').then(function (r) { return r.json(); }).then(function (d) {
+      var prontos = 0, faltam = 0; falhas = 0;
+      Array.prototype.forEach.call(marcas, function (m) {
+        var x = d[m.dataset.baixado];
+        if (x && !m.dataset.pronto) {
+          m.dataset.pronto = '1';
+          m.innerHTML = '<span class="selo selo--info">Já baixado: falta importar</span><div class="texto-apoio">Está na pasta Orça.AI (' +
+            String(x.arquivo).replace(/[<>&"]/g, '') + '). Clique em "Importar da pasta Orça.AI".</div>';
+        }
+        if (x || m.querySelector('.selo--info')) { prontos += 1; } else { faltam += 1; }
+      });
+      var a = document.querySelector('[data-baixados-total]'), b = document.querySelector('[data-faltam-total]');
+      if (a) { a.textContent = prontos; } if (b) { b.textContent = faltam; }
+    }).catch(function () { falhas += 1; if (falhas >= 5) { clearInterval(relogio); } });   /* sistema fechado: para de perguntar */
+  }
+  relogio = setInterval(conferir, 4000);
+  document.addEventListener('visibilitychange', conferir);
+})();
+</script>
+{% endblock %}

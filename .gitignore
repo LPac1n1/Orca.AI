@@ -1,0 +1,22 @@
+# O repositório guarda SÓ o sistema: código, telas, testes, manuais e os relatórios da raiz.
+
+# Dados dos projetos, banco de vagas, comprovantes em PDF e banco de dados: nunca vão para o repositório.
+/sistema/dados/
+
+# Documentos da OSC e de empresas (pareceres, orçamentos enviados, comprovantes) e as pesquisas antigas: ficam só neste computador.
+/docs-base/
+/fase1/
+/poc/
+/fase0/*
+!/fase0/sejc/
+/fase0/sejc/*
+# ... menos o arquivo que os testes usam (o plano do caso de regressão).
+!/fase0/sejc/pt8_dados.json
+
+# Temporários e configurações locais.
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+*.tmp
+/.claude/

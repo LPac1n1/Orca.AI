@@ -1,0 +1,185 @@
+{#- Peças comuns às telas de rubrica (produtos, sistema, serviço). Importar com contexto:
+    {% from "_rubrica.html" import pesquisa_cartao, linhas_novas, barra_salvar, dados_rubrica, excluir_rubrica, formularios_pdf with context %} -#}
+{%- from "_ui.html" import icone, selo, ajuda, campo, situacao_selo -%}
+
+{#- Lista de itens recolhíveis: cada item é uma linha-resumo (item_resumo) e só abre o conteúdo completo ao clicar. Pedido da OSC: ver os itens
+    em lista, sem rolar uma tela inteira para chegar ao próximo. itens_barra = botões de abrir/recolher todos; itens_cabecalho = nomes das colunas. -#}
+{%- macro itens_barra(lista, n, o_que='itens') -%}
+{% if n > 1 %}<div class="itens__barra">
+  <span class="texto-apoio">Clique num item para abrir ou recolher. O que está recolhido também é salvo.</span>
+  <span class="linha"><button type="button" class="btn btn--texto" data-recolher="abrir" aria-controls="{{ lista }}">Abrir todos os {{ o_que }}</button>
+    <button type="button" class="btn btn--texto" data-recolher="fechar" aria-controls="{{ lista }}">Recolher todos</button></span>
+</div>{% endif %}
+{%- endmacro -%}
+
+{%- macro itens_cabecalho(pesquisa='Pesquisa', media='Média') -%}
+<div class="itens__cabecalho" aria-hidden="true"><span></span><span>Nº</span><span>Item</span><span class="n">Qtd.</span>
+  {% for k in range(3) %}<span class="n">{{ pesquisa }} {{ k + 1 }}</span>{% endfor %}<span class="n">{{ media }}</span><span class="n">No plano</span><span>Situação</span></div>
+{%- endmacro -%}
+
+{#- Linha-resumo de um item: descrição, quantidade, os 3 preços (com a loja, que abre o comprovante), média, valor no plano e situação. -#}
+{%- macro item_resumo(s, i, fs, situacao, rotulo='Item', pesquisa='Pesquisa') -%}
+<summary class="item-resumo">
+  <span class="item-resumo__n"><span class="so-leitor">{{ rotulo }} </span>{{ i + 1 }}</span>
+  <h3 class="item-resumo__nome" id="t-sub{{ i }}">{{ descricao_completa(s) }}</h3>
+  <span class="item-resumo__dados">
+    <span class="item-resumo__celula n"><span class="item-resumo__rotulo">Qtd. </span>{{ s.qtd }}</span>
+    {% for k in range(3) %}{% set fk = fs[k] if k < fs|length else none %}{% set v = s.precos[k] if k < s.precos|length else none %}
+    <span class="item-resumo__celula n"><span class="item-resumo__rotulo">{{ pesquisa }} {{ k + 1 }} </span>{{ v|brl }}
+      {%- if (v or (fk and fk.nome)) and not (fk and v and pesquisa_comprovada(fk, v)) %} <span class="item-resumo__falta" title="Falta o comprovante desta {{ pesquisa|lower }}">!<span class="so-leitor"> falta o comprovante</span></span>{% endif %}
+      {% if fk and (fk.plataforma or fk.nome) %}{% if fk.evidencia.arquivo %}<a class="item-resumo__loja" href="/p/{{ pid }}/arquivo?rel={{ fk.evidencia.arquivo|urlencode }}" target="_blank"
+         title="Abrir o comprovante em PDF ({{ fk.plataforma or fk.nome }})">{{ fk.plataforma or fk.nome }}</a>{% else %}<span class="item-resumo__loja">{{ fk.plataforma or fk.nome }}</span>{% endif %}{% endif %}</span>
+    {% endfor %}
+    <span class="item-resumo__celula n"><span class="item-resumo__rotulo">Média </span>{{ media_subitem(s)|brl }}</span>
+    <span class="item-resumo__celula n"><span class="item-resumo__rotulo">No plano </span><b>{{ s.valor_plano|brl }}</b></span>
+  </span>
+  <span class="item-resumo__situacao">{{ situacao_selo(situacao) }}</span>
+</summary>
+{%- endmacro -%}
+
+{#- Uma das 3 pesquisas (cotações, propostas) de um item. preco = rótulo do preço; produto = rótulo do produto/plano cotado. -#}
+{%- macro pesquisa_cartao(s, i, k, fs, titulo='Pesquisa', preco='Preço unitário', produto='Produto cotado', aberto=false, dica_link='Endereço da página do produto ou dos preços. Proposta em PDF não precisa de link.', acao='', acao_rotulo='', acao_dica='') -%}
+{%- set fk = fs[k] if k < fs|length else none -%}
+{%- set v = s.precos[k] if k < s.precos|length else none -%}
+{%- set ok = fk and v and pesquisa_comprovada(fk, v) -%}
+{%- set uid = i ~ '_' ~ k -%}
+<div class="pesquisa" role="group" aria-labelledby="t-p{{ uid }}" id="p{{ uid }}">
+  <div class="pesquisa__titulo"><span id="t-p{{ uid }}">{{ titulo }} {{ k + 1 }}</span>
+    {% if ok %}{{ selo('ok', 'Comprovada') }}{% elif v or (fk and fk.nome) %}{{ selo('alerta', 'Pendente') }}{% else %}{{ selo('neutro', 'Em branco') }}{% endif %}</div>
+  {{ campo('sp' ~ uid, preco, valor=v|moeda, mascara='moeda') }}
+  <div class="texto-apoio">
+    {% if fk and (fk.plataforma or fk.nome) %}<div><b>{{ fk.plataforma or fk.nome }}</b></div>{% endif %}
+    {% if k < s.produtos|length and s.produtos[k] %}<div class="quebra">{{ s.produtos[k][:120] }}</div>{% endif %}
+    {% if fk and fk.evidencia.arquivo %}<div><a href="/p/{{ pid }}/arquivo?rel={{ fk.evidencia.arquivo|urlencode }}" target="_blank">{{ icone('pdf') }}ver PDF do comprovante</a>
+      · {{ 'anexado por você' if fk.evidencia.origem == 'pdf' else 'página guardada pelo sistema' }}{% if not fk.evidencia.url %} · sem link{% endif %}</div>{% endif %}
+    {% if not ok and (v or (fk and fk.nome)) %}<div style="color: var(--cor-erro)"><b>O que falta:</b>
+      {{ (fk.evidencia.problema if fk else '') or ('o comprovante não mostra este preço ou está fora do formato' if fk and fk.evidencia.arquivo else 'o comprovante em PDF') }}.</div>{% endif %}
+  </div>
+  {% set pode_guardar = fk and fk.evidencia.url and fk.evidencia.origem != 'pdf' %}
+  {% if acao or pode_guardar %}<div class="acoes-pesquisa" role="group" aria-label="Refazer só a {{ titulo|lower }} {{ k + 1 }}">
+    {% if acao %}<button class="btn btn--secundario" name="depois" value="{{ acao }}" data-aguarde="Salvando e iniciando…" title="{{ acao_dica }}">{{ acao_rotulo }}</button>{% endif %}
+    {% if pode_guardar %}<button class="btn btn--secundario" name="depois" value="pagina-{{ i }}-{{ k }}" data-aguarde="Salvando e iniciando…"
+            title="Abre a mesma página de novo e guarda o comprovante, sem avisos ou propagandas por cima. A loja e as outras duas pesquisas não mudam. Se a página não servir, o comprovante atual é mantido.">{{ 'Guardar a página de novo' if fk.evidencia.arquivo else 'Guardar a página em PDF' }}</button>{% endif %}
+  </div>{% endif %}
+  {#- aberto: a tela é preenchida à mão (sistema, serviço), então os campos já aparecem — menos na pesquisa que já está comprovada -#}
+  <details class="detalhe detalhe--leve" {% if not ok and (aberto or v or (fk and fk.nome)) %}open{% endif %}>
+    <summary>Detalhes e comprovante</summary>
+    <div class="detalhe__corpo pilha">
+      {{ campo('sfn' ~ uid, 'Empresa (razão social)', valor=fk.nome if fk else '') }}
+      {{ campo('sfc' ~ uid, 'CNPJ', valor=fk.cnpj if fk else '', mascara='cnpj', exemplo='00.000.000/0000-00', extra='data-preenche="c-sfn' ~ uid ~ '"') }}
+      {{ campo('sfd' ~ uid, 'Data da pesquisa', valor=(fk.data_pesquisa if fk else '') or '', tipo='date', extra='data-nao-futura') }}
+      {{ campo('sfp' ~ uid, produto, valor=(s.produtos[k] or '') if k < s.produtos|length else '') }}
+      <div class="campo">
+        <label class="campo__rotulo" for="c-surl{{ uid }}">Link <span class="campo__opcional">(opcional)</span></label>
+        <div class="campo__grupo">
+          <input class="campo__controle" id="c-surl{{ uid }}" name="surl{{ uid }}" type="url" inputmode="url" value="{{ (fk.evidencia.url if fk else '') or '' }}" data-url aria-describedby="c-surl{{ uid }}-dica">
+          <a class="btn btn--secundario" data-abre="c-surl{{ uid }}" href="{{ (fk.evidencia.url if fk else '') or '#' }}" target="_blank" rel="noopener noreferrer" {% if not (fk and fk.evidencia.url) %}hidden{% endif %}>{{ icone('externo') }}<span class="so-leitor">Abrir o link em outra aba</span></a>
+        </div>
+        <p class="campo__dica" id="c-surl{{ uid }}-dica">{{ dica_link }}</p>
+        <p class="campo__erro" id="c-surl{{ uid }}-erro" hidden></p>
+      </div>
+      <div class="campo">
+        <label class="campo__rotulo" for="c-arq{{ uid }}">{{ 'Trocar o comprovante (PDF)' if fk and fk.evidencia.arquivo else 'Anexar o comprovante (PDF)' }}</label>
+        <div class="arquivo">
+          <input type="file" id="c-arq{{ uid }}" name="arquivo" accept="application/pdf,.pdf" form="pdf{{ uid }}" required>
+          <button class="btn btn--secundario" form="pdf{{ uid }}" data-aguarde="Enviando…">{{ icone('enviar') }}{{ 'Trocar o PDF' if fk and fk.evidencia.arquivo else 'Anexar PDF' }}</button>
+        </div>
+        <p class="campo__dica">O arquivo é enviado na hora, sem precisar salvar. O sistema confere se o preço e o CNPJ aparecem nele.</p>
+      </div>
+    </div>
+  </details>
+</div>
+{%- endmacro -%}
+
+{#- Quadro para adicionar vários itens de uma vez: cada linha com descrição, especificação (opcional) e quantidade. -#}
+{%- macro linhas_novas(titulo='Adicionar itens', rotulo='Descrição do item', exemplo='Água sanitária', rotulo_esp='Especificação', exemplo_esp='5 L; 250 g; caixa com 5.000 unidades; 26/6', rotulo_qtd='Quantidade por mês', linhas=1, dica='', marca=true) -%}
+<article class="cartao cartao--plano" aria-labelledby="t-novos" id="novos-itens">
+  <h3 id="t-novos" class="cartao__titulo">{{ icone('mais') }}{{ titulo }}</h3>
+  <p class="texto-apoio">{{ dica or 'Escreva quantos itens quiser, um por linha, e salve uma vez só. Dica: dá para colar uma lista inteira (por exemplo, uma coluna do Excel) na primeira caixa: cada linha vira um item.' }}</p>
+  <div class="linhas-novas" id="linhas-novas" data-linhas-novas="modelo-linha">
+    {% for n in range(linhas) %}{{ _linha_nova('n' ~ n, rotulo, exemplo, rotulo_esp, exemplo_esp, rotulo_qtd, marca) }}{% endfor %}
+  </div>
+  <template id="modelo-linha">{{ _linha_nova('__N__', rotulo, exemplo, rotulo_esp, exemplo_esp, rotulo_qtd, marca) }}</template>
+  <div class="linha" style="margin-top: var(--esp-3)">
+    <button type="button" class="btn btn--secundario" data-adicionar-linha="linhas-novas">{{ icone('mais') }}Adicionar outra linha</button>
+    <span class="texto-apoio">Linhas em branco são ignoradas.</span>
+  </div>
+</article>
+{%- endmacro -%}
+
+{%- macro _linha_nova(n, rotulo, exemplo, rotulo_esp, exemplo_esp, rotulo_qtd, marca=true) -%}
+<div class="linha-nova{% if marca %} linha-nova--marca{% endif %}">
+  <div class="campo">
+    <label class="campo__rotulo" for="c-nd{{ n }}">{{ rotulo }}</label>
+    <input class="campo__controle" id="c-nd{{ n }}" name="ndesc" type="text" maxlength="200" aria-describedby="c-nd{{ n }}-dica">
+    <p class="campo__dica" id="c-nd{{ n }}-dica">Ex.: {{ exemplo }}</p>
+  </div>
+  {% if marca %}<div class="campo">
+    <label class="campo__rotulo" for="c-nm{{ n }}">Marca <span class="campo__opcional">(opcional)</span></label>
+    <input class="campo__controle" id="c-nm{{ n }}" name="nmarca" type="text" maxlength="60" aria-describedby="c-nm{{ n }}-dica">
+    <p class="campo__dica" id="c-nm{{ n }}-dica">Em branco, o sistema preenche com a que achar.</p>
+  </div>{% endif %}
+  <div class="campo">
+    <label class="campo__rotulo" for="c-ne{{ n }}">{{ rotulo_esp }} <span class="campo__opcional">(opcional)</span></label>
+    <input class="campo__controle" id="c-ne{{ n }}" name="nesp" type="text" maxlength="120" aria-describedby="c-ne{{ n }}-dica">
+    <p class="campo__dica" id="c-ne{{ n }}-dica">Ex.: {{ exemplo_esp }}</p>
+  </div>
+  <div class="campo campo--numero">
+    <label class="campo__rotulo" for="c-nq{{ n }}">{{ rotulo_qtd }}</label>
+    <input class="campo__controle" id="c-nq{{ n }}" name="nqtd" type="text" inputmode="numeric" data-mascara="inteiro" autocomplete="off" value="1" data-min="1">
+  </div>
+  <button type="button" class="btn btn--texto" data-remover-linha hidden>{{ icone('fechar') }}<span class="so-leitor">Remover esta linha</span></button>
+</div>
+{%- endmacro -%}
+
+{#- Barra de salvar: salvar e voltar ao projeto (na parte de onde veio) ou continuar nesta tela. Enter num campo = salvar e continuar. -#}
+{%- macro barra_salvar(destino='Materiais e serviços') -%}
+<div class="barra-salvar">
+  <span class="barra-salvar__estado">Ao salvar, o sistema cria uma nova versão; a anterior continua no histórico.</span>
+  <div class="linha">
+    <button class="btn btn--secundario" name="depois" value="ficar" data-aguarde="Salvando…">Salvar e continuar aqui</button>
+    <button class="btn btn--primario" name="depois" value="voltar" data-aguarde="Salvando…">Salvar e voltar para {{ destino }}</button>
+  </div>
+</div>
+{%- endmacro -%}
+
+{#- Botão invisível no começo do formulário: Enter num campo salva e continua (e nunca dispara uma pesquisa). -#}
+{%- macro enter_salva() -%}
+<button type="submit" name="depois" value="ficar" class="so-leitor" tabindex="-1" aria-hidden="true">Salvar</button>
+{%- endmacro -%}
+
+{#- Nome, duração e tipo da rubrica (comum a todos os tipos). -#}
+{%- macro dados_rubrica(r, tipo, NOME_TIPO, titulo='Dados da rubrica') -%}
+<div class="pilha">
+  {{ campo('descricao', 'Nome da rubrica', valor=r.descricao, obrigatorio=true, extra='maxlength="120"') }}
+  <div class="formulario">
+    {{ campo('meses', 'Duração', valor=r.meses, mascara='inteiro', obrigatorio=true, sufixo='meses', tamanho='m', extra='data-min="1" data-max="60"') }}
+    <div class="campo">
+      <label class="campo__rotulo" for="c-regra">Como cotar {{ ajuda('Como cotar', 'Cada tipo de rubrica é cotado de um jeito e tem a sua tela: produtos são pesquisados em lojas; sistemas, nas páginas de preços dos fornecedores, pelas ferramentas de referência; serviços, com 3 propostas de fornecedores em PDF. Ao mudar o tipo e salvar, a tela muda.') }}</label>
+      <select class="campo__controle" id="c-regra" name="regra" aria-describedby="c-regra-dica">
+        <option value="">Automático ({{ NOME_TIPO[tipo]|lower }})</option>
+        {% for k in ['mercado', 'material', 'sistema', 'servico'] %}<option value="{{ k }}" {% if r.regra == k %}selected{% endif %}>{{ NOME_TIPO[k] }}</option>{% endfor %}
+      </select>
+      <p class="campo__dica" id="c-regra-dica">No automático, o tipo vem do nome da rubrica.</p>
+    </div>
+  </div>
+</div>
+{%- endmacro -%}
+
+{#- Formulários (fora do formulário principal) para anexar o PDF de cada pesquisa. -#}
+{%- macro formularios_pdf(r) -%}
+{% for s in r.subitens %}{% set i = loop.index0 %}{% for k in range(3) %}
+<form id="pdf{{ i }}_{{ k }}" method="post" action="/p/{{ pid }}/mat/{{ r.item }}/sub/{{ i }}/pdf/{{ k }}" enctype="multipart/form-data"></form>
+{% endfor %}{% endfor %}
+{%- endmacro -%}
+
+{%- macro excluir_rubrica(r, n_itens_rotulo='itens') -%}
+<div class="cartao cartao--plano cartao--perigo secao">
+  <div class="cartao__titulo"><h2 style="font-size: var(--texto-lg)">Excluir esta rubrica</h2></div>
+  <p class="texto-apoio">O item {{ r.item }} e todos os seus {{ n_itens_rotulo }} saem do plano. As versões anteriores continuam no histórico, então dá para desfazer.</p>
+  <form method="post" action="/p/{{ pid }}/excluir/{{ r.item }}" data-confirmar="Excluir o item {{ r.item }} — {{ r.descricao }}?"
+        data-confirmar-texto="A rubrica e os {{ r.subitens|length }} {{ n_itens_rotulo }} dela saem do plano e o total do orçamento muda. As versões anteriores continuam no histórico: para voltar atrás, use &quot;Desfazer a última alteração&quot; na tela do projeto."
+        data-confirmar-botao="Excluir rubrica" data-confirmar-perigo>
+    <button class="btn btn--perigo">{{ icone('lixeira') }}Excluir rubrica</button></form>
+</div>
+{%- endmacro -%}

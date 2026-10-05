@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, campo, migalhas, tarefas_em_andamento, situacao_selo, pontos_lista with context %}
+{% from "_rubrica.html" import pesquisa_cartao, barra_salvar, enter_salva, dados_rubrica, excluir_rubrica, formularios_pdf with context %}
+{% block titulo %}Item {{ r.item }} — {{ r.descricao }}{% endblock %}
+{% block migalhas %}{{ migalhas([('Projetos', '/'), (p.nome, '/p/%d#item%d' % (pid, r.item))], 'Item %d — %s' % (r.item, r.descricao)) }}{% endblock %}
+{% block corpo %}
+{% set NOME_TIPO = {'mercado': 'Produtos de mercado', 'material': 'Outros materiais', 'sistema': 'Sistema ou software', 'servico': 'Serviço'} %}
+{% set ferr = sistemas.ferramentas(r.referencia) if r.referencia else [] %}
+<header class="cabecalho">
+  <h1>Item {{ r.item }} — {{ r.descricao }}</h1>
+  <p class="cabecalho__intro">Rubrica de <b>sistema ou software</b>. Aqui não se pesquisa produto em loja: o orçamento são <b>3 sistemas diferentes, com
+    ferramentas parecidas</b>, de 3 empresas ativas. O plano de cada sistema é o que corresponde às <b>ferramentas de referência</b>, não o mais barato.
+    Uma proposta comercial em PDF, sem link, vale como cotação.</p>
+</header>
+
+{% if novo %}<div class="aviso aviso--ok" role="status">{{ icone('certo') }}<div class="aviso__corpo"><b>Rubrica de sistema adicionada.</b> Comece pelo passo 1:
+  as ferramentas que o sistema precisa ter. Depois, anexe as propostas que já tem e deixe o sistema cotar o restante.</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+{% if leitura %}<div class="aviso aviso--{{ 'alerta' if leitura.startswith('Não') else 'ok' }}" role="status">{{ icone('alerta' if leitura.startswith('Não') else 'certo') }}
+  <div class="aviso__corpo">{{ leitura }}</div><button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+{{ tarefas_em_andamento(tarefas_rodando) }}
+{% set pts = pontos('Item %d' % r.item) %}
+{% if pts %}<section class="cartao cartao--plano" aria-labelledby="t-pontos">
+  <div class="cartao__titulo"><h2 id="t-pontos" style="font-size: var(--texto-lg)">O que a verificação aponta nesta rubrica</h2>{{ situacao_selo(st('Item %d' % r.item)) }}</div>
+  {{ pontos_lista(pts, '/p/%d/mat/%d' % (pid, r.item)) }}
+</section>{% endif %}
+
+{# etapas: cada uma fica concluída pelo que já foi feito (as propostas anexadas são opcionais: com as 3 cotações prontas, a etapa 2 também conta) #}
+{% set et = namespace(anexadas=0, prontas=r.subitens|length > 0) %}
+{% for s in r.subitens %}{% if not subitem_pronto(s) %}{% set et.prontas = false %}{% endif %}
+  {% for f in fontes_do_subitem(r, s) %}{% if f.evidencia.arquivo and f.evidencia.origem != 'navegador' %}{% set et.anexadas = et.anexadas + 1 %}{% endif %}{% endfor %}{% endfor %}
+{% set feito = [ferr|length > 0, et.anexadas > 0 or et.prontas, et.prontas] %}
+{% set atual = (feito.index(false) if false in feito else -1) %}
+<ol class="passos" aria-label="Como cotar um sistema">
+  {% for titulo, texto in [('Diga o que o sistema precisa ter', 'As ferramentas de referência: escreva ou anexe a proposta de referência em PDF (o sistema lê as ferramentas dela).'),
+                           ('Anexe as propostas que já tem (se tiver)', 'Cada proposta em PDF ocupa uma das 3 cotações e não é trocada pela cotação automática.' ~ (' ' ~ et.anexadas ~ ' anexada(s).' if et.anexadas else ' Se não tiver nenhuma, passe direto para a cotação automática.')),
+                           ('Deixe o sistema cotar o que falta', 'Ele abre a página de preços de cada fornecedor, escolhe o plano pelas ferramentas e guarda a página em PDF.')] %}
+  <li class="passo {% if feito[loop.index0] %}passo--feito{% elif loop.index0 == atual %}passo--atual{% endif %}"><div>
+    <div class="passo__titulo">{{ titulo }} {% if feito[loop.index0] %}{{ selo('ok', 'Concluído') }}{% elif loop.index0 == atual %}{{ selo('info', 'Próximo passo') }}{% endif %}</div>
+    <p class="passo__texto">{{ texto }}</p></div></li>
+  {% endfor %}
+</ol>
+{% if atual == -1 %}<div class="aviso aviso--ok" role="status">{{ icone('certo') }}<div class="aviso__corpo"><b>As 3 cotações estão prontas.</b> O valor no plano é
+  o menor das 3. Se a verificação ainda apontar algo nesta rubrica, use "Conferir" ou "Marcar como revisado", na tela do projeto.</div></div>{% endif %}
+
+<form method="post" action="/p/{{ pid }}/mat/{{ r.item }}" class="pilha secao" id="f-rubrica" data-avisar-saida>
+  {{ enter_salva() }}
+  {# ---------------------------------------------------------------- 1. ferramentas de referência #}
+  <section class="cartao" aria-labelledby="t-ref">
+    <div class="cartao__titulo"><h2 id="t-ref">1. Ferramentas de referência</h2>
+      {% if ferr %}{{ selo('ok', ferr|length ~ ' ferramentas') }}{% else %}{{ selo('alerta', 'Faltam as ferramentas') }}{% endif %}
+      {{ ajuda('Ferramentas de referência', 'São as funções que o sistema precisa ter (por exemplo, as de uma proposta que a organização já recebeu). O plano de cada sistema cotado é escolhido por elas, e não pelo menor preço.') }}</div>
+    <div class="campo">
+      <label class="campo__rotulo" for="c-referencia">O que o sistema precisa ter</label>
+      <textarea class="campo__controle" id="c-referencia" name="referencia" rows="8" aria-describedby="c-referencia-dica">{{ r.referencia or '' }}</textarea>
+      <p class="campo__dica" id="c-referencia-dica">Uma ferramenta por linha. Ex.: Cadastro de atendidos e responsáveis; Controle de frequência; Relatórios em gráficos.
+        Se você anexar a proposta de referência em PDF numa das cotações abaixo e este quadro estiver vazio, o sistema preenche sozinho.</p>
+    </div>
+  </section>
+
+  {# ---------------------------------------------------------------- 2. as 3 cotações #}
+  {% for s in r.subitens %}{% set i = loop.index0 %}{% set fs = fontes_do_subitem(r, s) %}
+  <section class="cartao item-cartao" id="sub{{ i }}" aria-labelledby="t-cot{{ i }}">
+    <div class="cartao__titulo"><h2 id="t-cot{{ i }}">2. As 3 cotações de sistemas{% if r.subitens|length > 1 %}: {{ s.descricao }}{% endif %}</h2>
+      {% if subitem_pronto(s) %}{{ selo('ok', '3 cotações comprovadas') }}{% else %}{{ selo('alerta', 'Cotações pendentes') }}{% endif %}</div>
+    <input type="hidden" name="sdesc{{ i }}" value="{{ s.descricao }}"><input type="hidden" name="sqtd{{ i }}" value="{{ s.qtd }}">
+    {% if s.justificativa %}<details class="detalhe detalhe--leve"><summary>Por que estes sistemas e estes planos</summary><div class="detalhe__corpo texto-apoio">{{ s.justificativa }}</div></details>{% endif %}
+    <div class="grade grade--3" style="margin-top: var(--esp-3)">
+      {% for k in range(3) %}{{ pesquisa_cartao(s, i, k, fs, titulo='Cotação', preco='Preço mensal do plano', produto='Sistema e plano cotado', aberto=true,
+                                                 dica_link='Página de preços do sistema. Proposta em PDF não precisa de link.',
+                                                 acao=('cotar-%d' % k) if i == 0 else '', acao_rotulo='Cotar de novo com outro sistema',
+                                                 acao_dica='Troca só esta cotação por outro sistema, cotado automaticamente. As outras duas ficam como estão.') }}{% endfor %}
+    </div>
+    {% set menor = (s.precos|min) if (s.precos|length == 3 and none not in s.precos) else none %}
+    <div class="formulario" style="margin-top: var(--esp-4)">
+      <div class="campo campo--m"><span class="campo__rotulo">Valor mensal no plano {{ ajuda('Valor do sistema', 'Na rubrica de sistema, o valor que vai para o Plano de Aplicação é o menor das 3 cotações (não a média). O sistema preenche sozinho ao salvar, na cotação automática e no "Fechar no teto".') }}</span>
+        <div class="indicador__valor" style="min-height: var(--alvo); display: flex; align-items: center">{{ menor|brl if menor is not none else '—' }}</div>
+        <p class="campo__dica">O menor das 3 cotações{% if menor is none %} (aparece quando as 3 tiverem preço){% endif %}.</p></div>
+      <div class="campo campo--m"><span class="campo__rotulo">Média das 3 cotações</span>
+        <div style="min-height: var(--alvo); display: flex; align-items: center">{{ media_subitem(s)|brl }}</div>
+        <p class="campo__dica">Só para conferência.</p></div>
+    </div>
+    {% if menor is not none and s.valor_plano != menor %}<div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo">O plano está
+      com {{ s.valor_plano|brl }}. Ao salvar esta tela, o valor passa a ser o menor das 3 cotações ({{ menor|brl }}). Depois, use "Fechar no teto" na tela do projeto,
+      porque o total do plano muda.</div></div>{% endif %}
+  </section>
+  {% endfor %}
+
+  {# ---------------------------------------------------------------- 3. cotação automática #}
+  <section class="cartao" aria-labelledby="t-auto">
+    <h2 id="t-auto" class="cartao__titulo">3. Cotação automática</h2>
+    <p class="texto-apoio"><b>O que você deixou numa cotação fica onde está</b> (proposta anexada ou sistema digitado). Só as cotações em branco, ou as que a cotação
+      automática tinha posto, são cotadas. Para elas, o sistema abre a página de preços de cada
+      fornecedor, guarda a página em PDF, escolhe o plano <b>de acordo com as ferramentas de referência</b> (a IA compara; quem escolhe é a regra) e confere o
+      CNPJ na base oficial da Receita. O que você escreveu nesta tela é salvo antes.</p>
+    {% if not (p.config.usar_ia and ia_ok) %}<div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo">A escolha do plano pelas
+      ferramentas precisa da IA gratuita (chave GEMINI_API_KEY neste computador e IA ligada na configuração do projeto). Sem ela, preencha as cotações à mão.</div></div>{% endif %}
+    <div class="linha" style="margin: var(--esp-3) 0">
+      <button class="btn btn--primario" name="depois" value="pesquisar" data-aguarde="Salvando e iniciando…" {% if not ferr %}aria-describedby="sem-ferr"{% endif %}>{{ icone('busca') }}Salvar e cotar sistemas automaticamente</button>
+      {% if not ferr %}<span class="texto-apoio" id="sem-ferr">Sem as ferramentas de referência, o plano é escolhido só pela descrição da rubrica.</span>{% endif %}
+    </div>
+    <details class="detalhe detalhe--leve"><summary>Fornecedores que o sistema conhece</summary>
+      <div class="detalhe__corpo">
+        <div class="tabela-rolagem">
+          <table class="tabela tabela--cartoes">
+            <thead><tr><th scope="col">Sistema</th><th scope="col">Empresa e CNPJ</th><th scope="col">Preços</th></tr></thead>
+            <tbody>
+            {% for f in sistemas.FORNECEDORES %}
+            <tr><th scope="row" data-rotulo="Sistema">{{ f.nome }}</th>
+              <td data-rotulo="Empresa e CNPJ">{{ f.razao or 'não informado' }}{% if f.cnpj %}<div class="num">{{ f.cnpj }}</div>{% endif %}</td>
+              <td data-rotulo="Preços">{% if f.precos %}<a href="{{ f.precos }}" target="_blank" rel="noopener noreferrer">página de preços {{ icone('externo') }}</a> · cotado automaticamente
+                {% else %}sob consulta: peça a proposta{% if f.contato %} (<a href="{{ f.contato }}" target="_blank" rel="noopener noreferrer">contato {{ icone('externo') }}</a>){% endif %} e anexe o PDF{% endif %}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div></details>
+  </section>
+
+  {# ---------------------------------------------------------------- 4. dados da rubrica #}
+  <section class="cartao" aria-labelledby="t-dados">
+    <h2 id="t-dados" class="cartao__titulo">4. Dados da rubrica</h2>
+    {{ dados_rubrica(r, tipo, NOME_TIPO) }}
+  </section>
+
+  <input type="hidden" name="n_sub" value="{{ r.subitens|length }}">
+  {{ barra_salvar('Materiais e serviços') }}
+</form>
+{{ formularios_pdf(r) }}
+
+{{ excluir_rubrica(r, 'cotações') }}
+{% endblock %}

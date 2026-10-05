@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone %}
+{% block titulo %}Algo deu errado{% endblock %}
+{% block corpo %}
+<header class="cabecalho">
+  <h1>{{ 'Não deu para gravar' if valor else 'Algo deu errado nesta tela' }}</h1>
+</header>
+<div class="aviso aviso--erro" role="alert">{{ icone('erro') }}<div class="aviso__corpo">
+  {% if valor %}
+  <p><b>Algum campo foi preenchido com um valor que o sistema não entendeu.</b> Nada foi gravado.</p>
+  <p>Volte à tela anterior, confira os campos de número, valor e data, e salve de novo.</p>
+  {% else %}
+  <p><b>O sistema encontrou um erro que não esperava.</b> Os seus dados gravados continuam como estavam.</p>
+  <p>Volte e tente de novo. Se o erro se repetir, anote a mensagem abaixo e a hora em que aconteceu.</p>
+  {% endif %}
+</div></div>
+<div class="linha">
+  <button type="button" class="btn btn--primario" onclick="history.back()">Voltar à tela anterior</button>
+  <a class="btn btn--secundario" href="/">Ir para os projetos</a>
+</div>
+<details class="detalhe detalhe--leve secao"><summary>Mensagem técnica (para quem for dar suporte)</summary>
+  <div class="detalhe__corpo"><p class="codigo">{{ detalhe }}</p></div></details>
+{% endblock %}

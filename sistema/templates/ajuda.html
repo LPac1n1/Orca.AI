@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo %}
+{% block titulo %}Ajuda{% endblock %}
+{% block corpo %}
+<header class="cabecalho">
+  <h1>Como usar o Orça.AI</h1>
+  <p class="cabecalho__intro">O sistema monta e confere o orçamento de um projeto para a Secretaria da Justiça e Cidadania de São Paulo (SEJC): a
+    <b>Grade Comparativa</b> (3 pesquisas de preço ou de salário para cada item) e o <b>Plano de Aplicação</b>. Ele pesquisa, guarda os comprovantes,
+    aponta o que a SEJC recusaria e exporta o Excel.</p>
+</header>
+
+<section aria-labelledby="t-passos">
+  <div class="secao__titulo"><h2 id="t-passos">O caminho, do começo ao fim</h2></div>
+  <ol class="passos">
+    <li class="passo"><div><div class="passo__titulo">Crie o projeto</div><p class="passo__texto">Na página <a href="/">Projetos</a>, preencha o nome e o teto (o valor total que o orçamento precisa fechar).</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Monte o plano</div><p class="passo__texto">Adicione os cargos de mão de obra (com a quantidade de profissionais de cada um) e as rubricas de materiais e serviços. Em cada rubrica, cadastre os itens com a quantidade por mês; dá para colar uma lista inteira de uma vez.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Pesquise</div><p class="passo__texto">O botão "Pesquisar tudo automaticamente" procura 3 vagas para cada cargo e 3 preços para cada item, confere os CNPJs e guarda cada página em PDF. Pode levar de 30 minutos a algumas horas. O que já está pronto não é refeito.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Confira os CNPJs</div><p class="passo__texto">Em "CNPJs e comprovantes", emita o comprovante oficial de cada empresa no site da Receita e importe os PDFs.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Resolva as pendências</div><p class="passo__texto">A parte "Verificação" do projeto lista o que bloqueia o envio e o que merece revisão, com um botão para ir direto à tela onde se corrige.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Feche no teto</div><p class="passo__texto">A simulação mostra quais valores mudariam para o total ser exatamente o teto. Você confere e aplica.</p></div></li>
+    <li class="passo"><div><div class="passo__titulo">Exporte o Excel</div><p class="passo__texto">O arquivo sai com a Grade Comparativa e o Plano de Aplicação, no formato aceito pela SEJC.</p></div></li>
+  </ol>
+</section>
+
+<section class="secao" aria-labelledby="t-glossario">
+  <div class="secao__titulo"><h2 id="t-glossario">Palavras que aparecem nas telas</h2></div>
+  <div class="cartao">
+    <dl class="dl">
+      <dt>Teto</dt><dd>Valor total do recurso. O total do plano precisa ser exatamente esse valor.</dd>
+      <dt>Rubrica</dt><dd>Um grupo de despesas do plano, como "Alimentação" ou "Limpeza". Cada rubrica tem os seus itens.</dd>
+      <dt>Item</dt><dd>Cada produto, serviço ou cargo que recebe 3 pesquisas.</dd>
+      <dt>Pesquisa</dt><dd>Um preço (ou um salário) encontrado numa empresa, com data, CNPJ e comprovante.</dd>
+      <dt>Comprovante</dt><dd>O PDF que prova a pesquisa: a página do produto, o carrinho da loja, a página da vaga ou a proposta do fornecedor.</dd>
+      <dt>Média</dt><dd>A soma das 3 pesquisas dividida por 3. O valor no plano não pode passar dela.</dd>
+      <dt>Valor no plano</dt><dd>O valor que vai para o Plano de Aplicação. Em cada item, é o menor dos 3 preços ou a média dos 3 (em sistemas, sempre o menor).</dd>
+      <dt>Pendência</dt><dd>Algo que a SEJC recusaria. Bloqueia o envio até ser resolvido.</dd>
+      <dt>Banco de vagas</dt><dd>As vagas que o sistema já encontrou e guardou (valem por 180 dias). É comum a todos os projetos.</dd>
+      <dt>Título similar</dt><dd>Outro título de vaga com a mesma função do cargo (ex.: Educador social para Orientador socioeducativo). Só entra quando faltam vagas com o título exato, e a verificação aponta cada um.</dd>
+      <dt>Especificação</dt><dd>Tamanho, peso, cor, tipo ou embalagem de um produto (250 g, 1 L, azul, a vácuo, caixa com 5.000 unidades). É opcional: em branco, o sistema escolhe a opção mais barata que achar.</dd>
+      <dt>Marca</dt><dd>Opcional. Se você escolher, o sistema só aceita produtos dela; em branco, ele preenche com a marca que achou nas 3 lojas.</dd>
+      <dt>Mesmo produto</dt><dd>As 3 pesquisas de um item têm de ser exatamente o mesmo produto: mesma marca, cor, variante, tamanho e tipo de embalagem.</dd>
+      <dt>Revisado</dt><dd>Ponto "para revisar" que você já conferiu e marcou. Continua revisado se só os valores do texto mudarem (por exemplo, depois do "Fechar no teto"); volta para a lista se o motivo mudar.</dd>
+      <dt>Versão</dt><dd>Cada alteração cria uma versão nova. As anteriores ficam no histórico e podem ser restauradas.</dd>
+      <dt>Tarefa</dt><dd>Um trabalho demorado que o sistema faz sozinho, como uma pesquisa. Dá para acompanhar em "Tarefas".</dd>
+    </dl>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="t-duvidas">
+  <div class="secao__titulo"><h2 id="t-duvidas">Dúvidas comuns</h2></div>
+  <div class="pilha">
+    <details class="detalhe"><summary>O sistema não achou 3 preços para um item. E agora?</summary><div class="detalhe__corpo">
+      <p>O item fica marcado como pendente. Você pode: rodar a pesquisa de novo outro dia (o estoque das lojas muda); trocar por outra opção já pesquisada, na tela da rubrica; ou preencher a pesquisa à mão e anexar o PDF em "Detalhes e comprovante".</p></div></details>
+    <details class="detalhe"><summary>O sistema achou só 1 ou 2 vagas para um cargo. E agora?</summary><div class="detalhe__corpo">
+      <p>As vagas confirmadas já entram nas pesquisas; as outras ficam em branco. Na tela do cargo você pode: aceitar títulos similares (o sistema busca por eles também);
+        confirmar uma vaga "em dúvida" do banco, informando o CNPJ da empresa; ou preencher a pesquisa à mão. A coleta diária continua procurando.</p></div></details>
+    <details class="detalhe"><summary>Uma vaga está "Em dúvida". O que fazer?</summary><div class="detalhe__corpo">
+      <p>O sistema achou mais de uma empresa com aquele nome e não teve certeza de qual é. Se você souber, abra "Confirmar a empresa" na tabela do banco de vagas e
+        informe o CNPJ: o sistema confere se está ativo e guarda a página da vaga em PDF. Se a vaga não servir, clique em "Descartar".</p></div></details>
+    <details class="detalhe"><summary>A página da Catho não mostra as informações da empresa. E agora?</summary><div class="detalhe__corpo">
+      <p>A SEJC pede que a página da vaga mostre as informações da empresa, e a Catho só as mostra para quem está logado. Sem isso, a pesquisa fica pendente
+        (regra S05) e a vaga não entra nas pesquisas automáticas. O jeito mais simples: na tela do projeto (Mão de obra) ou do cargo, clique em
+        <b>"Entrar na Catho"</b>. Abre uma janela do navegador do sistema; você entra com a sua conta de candidato (gratuita) e fecha a janela. O sistema confere
+        o login e guarda de novo as páginas, agora com a empresa. O e-mail e a senha você digita na própria Catho: o sistema não os vê nem guarda. A sessão fica
+        só neste computador; "Sair da Catho neste computador" apaga. Outros caminhos: imprimir a vaga em PDF com o login feito (Ctrl+P → Salvar como PDF) e anexar
+        na pesquisa; ou trocar por uma vaga de outro site (InfoJobs, Vagas.com, BNE, LinkedIn).</p></div></details>
+    <details class="detalhe"><summary>O link da vaga abre uma lista de vagas, e não a vaga. Por quê?</summary><div class="detalhe__corpo">
+      <p>O link é o do anúncio, mas o anúncio foi encerrado no site, que passa a mostrar outras vagas. O comprovante é o PDF guardado no dia da pesquisa: na tela do
+        cargo, o nome da empresa abre esse PDF.</p></div></details>
+    <details class="detalhe"><summary>Um item ficou com o produto errado. Dá para pesquisar só ele de novo?</summary><div class="detalhe__corpo">
+      <p>Dá. Na tela da rubrica, abra "Pesquisar de novo só este item" no próprio item. Você pode mudar a descrição, a marca ou a especificação antes, e escolher
+        procurar só em lojas diferentes das atuais. As pesquisas do item só mudam se o sistema achar outra opção completa.</p>
+      <p>Se o problema é em uma das 3 pesquisas só, abra o item e use os botões dentro dela: "Buscar outra loja" (o mesmo produto, em outra loja) nos produtos,
+        "Buscar outra vaga" nos cargos, "Cotar de novo com outro sistema" nos sistemas. As outras duas ficam como estão.</p>
+      <p>Se a pesquisa está certa e só o PDF ficou ruim (aviso de cookies ou propaganda por cima, página cortada), use "Guardar a página de novo": o sistema abre a
+        mesma página e guarda o comprovante outra vez, sem trocar de loja nem de vaga. Vale para cargos, produtos, sistemas e serviços com link. Se a página não
+        servir mais (produto indisponível, vaga encerrada), o comprovante que já estava guardado é mantido.</p></div></details>
+    <details class="detalhe"><summary>Tenho uma proposta em PDF, sem link. Posso usar?</summary><div class="detalhe__corpo">
+      <p>Pode. Na tela da rubrica, abra "Detalhes e comprovante" da pesquisa, informe a empresa, o CNPJ, a data e o preço, anexe o PDF e deixe o link em branco. O sistema nunca troca um PDF anexado por você.</p></div></details>
+    <details class="detalhe"><summary>Uma loja ficou "fora de uso". Por quê?</summary><div class="detalhe__corpo">
+      <p>A loja pediu uma verificação humana (CAPTCHA), que o sistema não resolve, ou limitou os acessos. Ela volta sozinha depois do prazo. Para tentar antes, vá à configuração do projeto e clique em "Reativar".</p></div></details>
+    <details class="detalhe"><summary>Fiz uma alteração errada. Como desfaço?</summary><div class="detalhe__corpo">
+      <p>Na tela do projeto, use "Desfazer a última alteração". Para voltar mais atrás, abra o histórico e restaure a versão desejada. Nada é perdido: a restauração também vira uma versão.</p></div></details>
+    <details class="detalhe"><summary>Posso fechar a página durante uma pesquisa?</summary><div class="detalhe__corpo">
+      <p>Pode fechar a página e até usar outras telas. O que não pode fechar é a janela preta do sistema (iniciar.bat): ela é o sistema funcionando.</p></div></details>
+    <details class="detalhe"><summary>Os dados ficam na internet?</summary><div class="detalhe__corpo">
+      <p>Não. O sistema e os dados ficam só neste computador. A internet é usada apenas para consultar lojas, vagas e CNPJs. Vale manter uma cópia de segurança da pasta do sistema.</p></div></details>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="t-regras">
+  <div class="secao__titulo"><h2 id="t-regras">Regras conferidas pelo sistema</h2><span class="contador">{{ REGRAS|length }}</span></div>
+  <p class="secao__intro">Os códigos (R01, R02…) aparecem na verificação do projeto. As regras da SEJC são as estabelecidas pela Secretaria para os orçamentos; as demais são proteções do próprio sistema.</p>
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Código</th><th scope="col">O que a regra exige</th><th scope="col">De onde veio</th></tr></thead>
+      <tbody>{% for cod, regra in REGRAS.items() %}
+        <tr><th scope="row" data-rotulo="Código">{{ cod }}</th><td data-rotulo="O que a regra exige">{{ regra[0] }}</td><td data-rotulo="De onde veio" class="texto-apoio">{{ regra[1] }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

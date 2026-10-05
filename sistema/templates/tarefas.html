@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, estado_tarefa %}
+{% block titulo %}Tarefas{% endblock %}
+{% block corpo %}
+<header class="cabecalho">
+  <h1>Tarefas</h1>
+  <p class="cabecalho__intro">Tudo o que o sistema faz sozinho e demora: pesquisas de vagas e de preços, comprovantes, coleta diária de vagas e atualização da base
+    da Receita. Clique numa tarefa para acompanhar o andamento ou ver os avisos.</p>
+</header>
+{% if msg %}<div class="aviso aviso--info" role="status">{{ icone('info') }}<div class="aviso__corpo">{{ msg }}</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+{% if lista %}
+<div class="tabela-rolagem">
+  <table class="tabela tabela--cartoes">
+    <thead><tr><th scope="col">Tarefa</th><th scope="col">Situação</th><th scope="col" class="n">Andamento</th><th scope="col">Início</th><th scope="col" class="n">Duração</th><th scope="col">Avisos</th></tr></thead>
+    <tbody>
+    {% for t in lista %}
+    <tr><th scope="row" data-rotulo="Tarefa"><a href="/tarefa/{{ t.id }}">{{ t.titulo }}</a>
+        <div class="texto-apoio">{% if t.projeto_id %}{{ nomes.get(t.projeto_id, 'projeto apagado') }}{% else %}Rotina do sistema (não pertence a um projeto){% endif %}</div></th>
+      <td data-rotulo="Situação">{{ estado_tarefa(t.estado) }}{% if t.parece_travada %} {{ selo('alerta', 'Sem notícias há algum tempo') }}{% endif %}</td>
+      <td class="n" data-rotulo="Andamento">{{ t.progresso|int }}%</td><td data-rotulo="Início">{{ t.criado_em|data_br }}</td>
+      <td class="n" data-rotulo="Duração">{{ t.duracao_s|duracao }}</td>
+      <td data-rotulo="Avisos">{% if t.avisos %}{{ t.avisos|length }} aviso(s){% else %}<span class="texto-apoio">nenhum</span>{% endif %}{% if t.erro %}<div class="texto-apoio">{{ t.erro[:80] }}</div>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if n_terminadas %}
+<div class="cartao cartao--plano secao">
+  <div class="cartao__titulo"><h2 style="font-size: var(--texto-lg)">Limpar o registro</h2></div>
+  <p class="texto-apoio">Esta lista é só um registro do que o sistema fez. Limpar tira daqui as {{ n_terminadas }} tarefa(s) que já terminaram; as que estão
+    em andamento ficam. Os orçamentos, os comprovantes e o banco de vagas não mudam. As rotinas do sistema (coleta diária de vagas e verificação da
+    base da Receita) voltam a aparecer quando rodarem de novo.</p>
+  <form method="post" action="/tarefas/limpar" data-confirmar="Limpar as tarefas terminadas?"
+        data-confirmar-texto="As {{ n_terminadas }} tarefa(s) que já terminaram saem desta lista, com os avisos de cada uma. Não dá para trazer de volta. Os orçamentos e os comprovantes não mudam."
+        data-confirmar-botao="Limpar o registro" data-confirmar-perigo>
+    <button class="btn btn--secundario">{{ icone('vassoura') }}Limpar tarefas terminadas</button></form>
+</div>
+{% endif %}
+{% else %}
+<div class="vazio">{{ icone('relogio') }}<p class="vazio__titulo">Nenhuma tarefa ainda.</p>
+  <p>As tarefas aparecem aqui quando você inicia uma pesquisa automática num projeto, por exemplo com o botão "Pesquisar tudo automaticamente".</p>
+  <a class="btn btn--secundario" href="/">Ir para os projetos</a></div>
+{% endif %}
+{% endblock %}

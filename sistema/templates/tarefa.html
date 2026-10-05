@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, migalhas, estado_tarefa %}
+{% block titulo %}{{ t.titulo if t else 'Tarefa não encontrada' }}{% endblock %}
+{% block migalhas %}{% if t %}{{ migalhas([('Tarefas', '/tarefas')] + ([(projeto_nome, '/p/%d' % t.projeto_id)] if t.projeto_id and projeto_nome else []), 'Acompanhar tarefa') }}{% endif %}{% endblock %}
+{% block corpo %}
+{% if not t %}
+<div class="vazio">{{ icone('relogio') }}<p class="vazio__titulo">Tarefa não encontrada.</p>
+  <p>Ela pode ser de um projeto que foi apagado. Veja as tarefas existentes na lista.</p>
+  <a class="btn btn--secundario" href="/tarefas">Ver todas as tarefas</a></div>
+{% else %}
+<header class="cabecalho">
+  <h1 id="titulo">{{ t.titulo }}</h1>
+  <p class="cabecalho__intro">A tarefa roda em segundo plano: você pode deixar esta página aberta, usar outras telas ou voltar depois. O computador não entra em
+    suspensão enquanto ela roda, mas a janela preta do sistema (iniciar.bat) precisa continuar aberta.</p>
+</header>
+
+<section class="cartao" aria-labelledby="t-andamento">
+  <div class="cartao__titulo linha--entre"><h2 id="t-andamento">Andamento</h2><span id="estado-selo">{{ estado_tarefa(t.estado) }}</span></div>
+  <div class="progresso" id="progresso" role="progressbar" aria-labelledby="t-andamento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ t.progresso|int }}">
+    <div class="progresso__barra" id="barra" style="width: {{ t.progresso }}%"></div></div>
+  <p style="margin: var(--esp-3) 0 var(--esp-1)"><b id="pct">{{ t.progresso|int }}%</b> · <span id="etapa" aria-live="polite">{{ t.etapa or 'aguardando para começar…' }}</span></p>
+  <p class="texto-apoio">Tempo decorrido: <span id="tempo">{{ t.duracao_s|duracao }}</span></p>
+
+  <div class="aviso aviso--alerta" id="travada" role="status" hidden>{{ icone('alerta') }}<div class="aviso__corpo">Sem notícias da tarefa há <span id="seg"></span>.
+    Ela pode estar esperando uma página que demora a responder; cada etapa tem limite de tempo e segue sozinha. Se continuar assim por vários minutos, cancele e tente de novo.</div></div>
+  <div class="aviso aviso--erro" id="erro" role="alert" hidden>{{ icone('erro') }}<div class="aviso__corpo" id="erro-texto"></div></div>
+  <div class="aviso aviso--alerta" id="sem-sistema" role="status" hidden>{{ icone('alerta') }}<div class="aviso__corpo"><b>Sem contato com o sistema.</b>
+    Confira se a janela preta do sistema (iniciar.bat) continua aberta. Esta página tenta de novo sozinha.</div></div>
+  <div class="aviso aviso--ok" id="concluida" role="status" hidden>{{ icone('certo') }}<div class="aviso__corpo"><b>Tarefa concluída.</b> <span id="concluida-texto"></span></div></div>
+
+  <div class="linha" style="margin-top: var(--esp-4)">
+    <a id="resultado" class="btn btn--primario" href="#" hidden>{{ icone('seta') }}Ver o resultado</a>
+    <button type="button" id="cancelar" class="btn btn--perigo" {% if t.cancelar %}disabled data-desabilitado{% endif %}>{{ 'Cancelando…' if t.cancelar else 'Cancelar a tarefa' }}</button>
+    <p class="texto-apoio" id="cancelando" {% if not t.cancelar %}hidden{% endif %}>Cancelamento pedido: a tarefa para assim que terminar a etapa atual (pode levar alguns segundos).</p>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="t-avisos" id="bloco-avisos" hidden>
+  <div class="secao__titulo"><h2 id="t-avisos">Avisos</h2><span class="contador contador--alerta" id="n-avisos">0</span></div>
+  <p class="secao__intro">O que o sistema encontrou no caminho e como resolveu. Vale ler ao final.</p>
+  <div class="cartao cartao--plano"><ul class="lista-simples lista-simples--avisos" id="avisos"></ul></div>
+</section>
+
+<section class="secao" aria-labelledby="t-fontes">
+  <div class="secao__titulo"><h2 id="t-fontes">Sites consultados</h2></div>
+  <p class="secao__intro">Cada loja ou plataforma de vagas que a tarefa está usando, com o que já foi feito e o que falhou.</p>
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Site</th><th scope="col">Situação</th><th scope="col" class="n">Concluídas</th><th scope="col" class="n">Falhas</th><th scope="col">Detalhe</th></tr></thead>
+      <tbody id="fontes"><tr><td colspan="5"><span class="esqueleto" style="width: 60%"></span></td></tr></tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}{% if t %}
+<script>
+(function () {
+  var ID = {{ t.id }};
+  var SITUACAO = { rodando: ['info', 'Em andamento'], ok: ['ok', 'Concluída'], repetindo: ['alerta', 'Tentando de novo'], falhou: ['erro', 'Com falha'], pulada: ['neutro', 'Pulada'] };
+  var ESTADO = { 'concluída': ['ok', 'Concluída'], 'rodando': ['info', 'Em andamento'], 'na fila': ['neutro', 'Na fila'], 'falhou': ['erro', 'Falhou'],
+                 'cancelada': ['alerta', 'Cancelada'], 'interrompida': ['alerta', 'Interrompida'] };
+  var el = function (id) { return document.getElementById(id); };
+  function selo(tipo, texto) { var s = document.createElement('span'); s.className = 'selo selo--' + tipo; s.textContent = texto; return s; }
+  function celula(tr, conteudo, rotulo, classe) {
+    var td = document.createElement('td'); if (rotulo) { td.setAttribute('data-rotulo', rotulo); } if (classe) { td.className = classe; }
+    if (typeof conteudo === 'string' || typeof conteudo === 'number') { td.textContent = conteudo; } else { td.appendChild(conteudo); }
+    tr.appendChild(td);
+  }
+  function tempo(s) { s = Math.max(0, s | 0); return s < 60 ? s + ' s' : s < 3600 ? Math.floor(s / 60) + ' min ' + ('0' + s % 60).slice(-2) + ' s' : Math.floor(s / 3600) + ' h ' + ('0' + Math.floor(s % 3600 / 60)).slice(-2) + ' min'; }
+  var falhasSeguidas = 0;
+
+  function atualizar() {
+    fetch('/api/tarefa/' + ID).then(function (r) { return r.json(); }).then(function (t) {
+      falhasSeguidas = 0; el('sem-sistema').hidden = true;
+      var pct = Math.round(t.progresso);
+      el('barra').style.width = t.progresso + '%'; el('progresso').setAttribute('aria-valuenow', pct);
+      el('pct').textContent = pct + '%';
+      if (el('etapa').textContent !== (t.etapa || '')) { el('etapa').textContent = t.etapa || ''; }
+      el('tempo').textContent = tempo(t.duracao_s);
+      var e = ESTADO[t.estado] || ['neutro', t.estado];
+      el('estado-selo').replaceChildren(selo(e[0], e[1]));
+      el('travada').hidden = !t.parece_travada; el('seg').textContent = tempo(t.segundos_sem_noticia);
+
+      var corpo = el('fontes'), linhas = [];
+      Object.keys(t.fontes || {}).forEach(function (nome) {
+        var f = t.fontes[nome], tr = document.createElement('tr'), s = SITUACAO[f.estado] || ['neutro', f.estado];
+        var th = document.createElement('th'); th.scope = 'row'; th.setAttribute('data-rotulo', 'Site'); th.textContent = nome; tr.appendChild(th);
+        celula(tr, selo(s[0], s[1]), 'Situação'); celula(tr, f.feitas == null ? '—' : f.feitas, 'Concluídas', 'n'); celula(tr, f.falhas == null ? '—' : f.falhas, 'Falhas', 'n');
+        celula(tr, f.detalhe || '', 'Detalhe', 'texto-apoio'); linhas.push(tr);
+      });
+      if (!linhas.length) {
+        var vazio = document.createElement('tr'), td = document.createElement('td'); td.colSpan = 5; td.className = 'texto-apoio';
+        td.textContent = t.estado === 'rodando' || t.estado === 'na fila' ? 'Os sites aparecem aqui assim que a tarefa começa a consultá-los.' : 'Esta tarefa não consultou sites.';
+        vazio.appendChild(td); linhas.push(vazio);
+      }
+      corpo.replaceChildren.apply(corpo, linhas);
+
+      var av = el('avisos'), itens = (t.avisos || []).map(function (a) { var li = document.createElement('li'); li.textContent = a; return li; });
+      if (av.children.length !== itens.length) { av.replaceChildren.apply(av, itens); }
+      el('bloco-avisos').hidden = !itens.length; el('n-avisos').textContent = itens.length;
+
+      if (t.cancelar) { cancelando(); }
+      if (['concluída', 'falhou', 'cancelada', 'interrompida'].indexOf(t.estado) >= 0) {
+        el('cancelar').hidden = true; el('cancelando').hidden = true;
+        el('progresso').classList.add(t.estado === 'concluída' ? 'progresso--ok' : 'progresso--erro');
+        if (t.estado !== 'concluída') {
+          el('erro').hidden = false;
+          el('erro-texto').textContent = (t.estado === 'cancelada' ? 'A tarefa foi cancelada. ' : t.estado === 'interrompida' ? 'A tarefa foi interrompida porque o sistema foi fechado. ' : 'A tarefa não chegou ao fim. ')
+            + 'O que já tinha sido gravado continua no histórico. ' + (t.erro ? 'Motivo: ' + t.erro : '') + ' Você pode iniciar a tarefa de novo.';
+        } else {
+          el('concluida').hidden = false;
+          el('concluida-texto').textContent = itens.length ? 'Leia os avisos abaixo antes de ver o resultado.' : 'Abrindo o resultado…';
+        }
+        if (t.resultado && t.resultado.ir_para) {
+          var b = el('resultado'); b.href = t.resultado.ir_para; b.hidden = false;
+          if (t.estado === 'concluída' && !itens.length) { setTimeout(function () { location.href = t.resultado.ir_para; }, 1500); }
+        }
+        return;
+      }
+      setTimeout(atualizar, 1000);
+    }).catch(function () {
+      falhasSeguidas++;
+      if (falhasSeguidas >= 3) { el('sem-sistema').hidden = false; }
+      setTimeout(atualizar, 3000);
+    });
+  }
+  function cancelando() {   /* o pedido de cancelamento vale uma vez: o botão fica travado até a tarefa parar */
+    var b = el('cancelar'); b.disabled = true; b.setAttribute('data-desabilitado', ''); b.textContent = 'Cancelando…'; el('cancelando').hidden = false;
+  }
+  el('cancelar').addEventListener('click', function () {
+    if (el('cancelar').disabled) { return; }
+    OSC.confirmar({ titulo: 'Cancelar esta tarefa?', texto: 'A tarefa para na próxima etapa. O que já foi gravado continua no histórico; o que faltava pode ser refeito depois.',
+                    botao: 'Cancelar a tarefa', cancelar: 'Continuar rodando', perigo: true }).then(function (ok) {
+      if (!ok) { return; }
+      cancelando();
+      fetch('/api/tarefa/' + ID + '/cancelar', { method: 'POST' }).then(function () { OSC.toast('Pedido de cancelamento enviado. A tarefa para na próxima etapa.'); })
+        .catch(function () { var b = el('cancelar'); b.disabled = false; b.removeAttribute('data-desabilitado'); b.textContent = 'Cancelar a tarefa'; el('cancelando').hidden = true;
+                             OSC.toast('Não foi possível pedir o cancelamento: confira se o sistema continua aberto e tente de novo.', 'erro'); });
+    });
+  });
+  atualizar();
+})();
+</script>
+{% endif %}{% endblock %}

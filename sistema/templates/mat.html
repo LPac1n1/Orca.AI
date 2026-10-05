@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, ajuda, campo, migalhas, tarefas_em_andamento, situacao_selo, pontos_lista with context %}
+{% from "_rubrica.html" import pesquisa_cartao, item_resumo, itens_barra, itens_cabecalho, linhas_novas, barra_salvar, enter_salva, dados_rubrica, excluir_rubrica, formularios_pdf with context %}
+{% block titulo %}Item {{ r.item }} — {{ r.descricao }}{% endblock %}
+{% block migalhas %}{{ migalhas([('Projetos', '/'), (p.nome, '/p/%d#item%d' % (pid, r.item))], 'Item %d — %s' % (r.item, r.descricao)) }}{% endblock %}
+{% block corpo %}
+{% set NOME_TIPO = {'mercado': 'Produtos de mercado', 'material': 'Outros materiais', 'sistema': 'Sistema ou software', 'servico': 'Serviço'} %}
+<header class="cabecalho">
+  <h1>Item {{ r.item }} — {{ r.descricao }}</h1>
+  <p class="cabecalho__intro">Rubrica de <b>{{ NOME_TIPO[tipo]|lower }}</b>. Cada item precisa de <b>3 preços exatamente do mesmo produto</b> (mesma marca, cor, tipo
+    e embalagem), nas mesmas quantidades, em 3 empresas diferentes e ativas, cada um com o comprovante em PDF. Frete não entra. O valor de cada item no plano
+    não pode passar da média dos 3 preços.</p>
+</header>
+{{ pontos_lista(pontos('Item %d' % r.item, true), '/p/%d/mat/%d' % (pid, r.item)) }}
+
+{% if novo %}<div class="aviso aviso--ok" role="status">{{ icone('certo') }}<div class="aviso__corpo"><b>Rubrica adicionada.</b> Agora cadastre os itens no quadro
+  "Adicionar itens" (vários de uma vez) e clique em "Salvar e pesquisar". O sistema procura os preços sozinho.</div>
+  <button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+{% if leitura %}<div class="aviso aviso--{{ 'alerta' if leitura.startswith('Não') else 'ok' }}" role="status">{{ icone('alerta' if leitura.startswith('Não') else 'certo') }}
+  <div class="aviso__corpo">{{ leitura }}</div><button type="button" class="aviso__fechar" data-fechar aria-label="Fechar este aviso">{{ icone('fechar') }}</button></div>{% endif %}
+{{ tarefas_em_andamento(tarefas_rodando) }}
+
+{# ------------------------------------------------------------------ 1. pesquisa automática #}
+<section class="cartao" aria-labelledby="t-auto">
+  <div class="cartao__titulo"><h2 id="t-auto">1. Pesquisa automática</h2>{{ selo('info', NOME_TIPO[tipo]) }}</div>
+  <div class="linha">
+    <button class="btn btn--primario" form="f-rubrica" name="depois" value="pesquisar" data-aguarde="Salvando e iniciando…">{{ icone('busca') }}Salvar e pesquisar os preços</button>
+    <span class="texto-apoio">O sistema procura o mesmo produto em 3 lojas e mostra uma <b>proposta</b> para você aprovar. O que já está comprovado não é refeito.
+      Modo: {{ 'cada item com as suas 3 lojas' if p.config.modo_cesta == 'por_item' else 'as mesmas 3 lojas para a rubrica' }} · IA: {{ 'ligada' if (p.config.usar_ia and ia_ok) else 'desligada' }}.</span>
+  </div>
+  <details class="detalhe detalhe--leve"><summary>Como a pesquisa funciona</summary>
+    <div class="detalhe__corpo texto-apoio">O sistema procura o mesmo produto em 3 lojas de empresas diferentes (as mais baratas), confere estoque e preço no CEP
+    {{ p.cep or '(informe o CEP na configuração do projeto)' }} e mostra uma proposta para você aprovar antes de gravar. Se o produto não existir em 3 lojas, ele propõe uma troca
+    (o mesmo produto de outra marca, um produto parecido ou da mesma categoria, sempre o MESMO nas 3 lojas) e explica o motivo. O que já está com as 3 pesquisas
+    comprovadas não é refeito; as pesquisas sem comprovante o sistema tenta resolver sozinho (de novo na mesma loja ou em outra loja com o mesmo produto).
+    O que você escreveu nesta tela é salvo antes de pesquisar. Para pesquisar um item só, abra o item e use "Pesquisar de novo só este item".</div></details>
+</section>
+
+<form method="post" action="/p/{{ pid }}/mat/{{ r.item }}" class="pilha secao" id="f-rubrica" data-avisar-saida>
+  {{ enter_salva() }}
+  {# ---------------------------------------------------------------- 2. itens e preços #}
+  <section aria-labelledby="t-itens">
+    <div class="secao__titulo"><h2 id="t-itens">2. Itens e as 3 pesquisas de preço</h2><span class="contador">{{ r.subitens|length }}</span></div>
+    <p class="secao__intro">Cada linha é um item, com os 3 preços, a média e o valor no plano. Clique na linha para abrir o item e editar: descrição, marca,
+      especificação, quantidade e as 3 pesquisas. O nome da loja abre o comprovante em PDF.</p>
+    {% if not r.subitens %}
+    <div class="vazio" style="margin-bottom: var(--esp-4)">{{ icone('lista') }}<p class="vazio__titulo">Esta rubrica ainda não tem itens.</p>
+      <p>Escreva os itens no quadro "Adicionar itens", logo abaixo (quantos quiser), e salve.</p></div>
+    {% endif %}
+
+    {% if r.subitens %}{{ itens_barra('lista-itens', r.subitens|length) }}
+    <div class="itens itens--produtos" id="lista-itens">
+    {{ itens_cabecalho() }}
+    {% for s in r.subitens %}{% set i = loop.index0 %}{% set fs = fontes_do_subitem(r, s) %}
+    {% set chave_sub = 'Item %d – %s / %s' % (r.item, r.descricao, s.descricao) %}
+    {% set md = media_subitem(s) %}
+    <details class="item-recolhivel item-cartao" id="sub{{ i }}" data-recolhivel {% if r.subitens|length == 1 %}open{% endif %}>
+      {{ item_resumo(s, i, fs, st(chave_sub)) }}
+      <div class="item-recolhivel__corpo">
+        {{ pontos_lista(pontos(chave_sub), '/p/%d/mat/%d#sub%d' % (pid, r.item, i)) }}
+        <div class="formulario formulario--item">
+          {{ campo('sdesc' ~ i, 'Descrição do item (o que está no plano)', valor=s.descricao, extra='maxlength="200"') }}
+          {{ campo('smarca' ~ i, 'Marca', valor=s.marca or '', opcional=true, extra='maxlength="60"',
+                   ajuda_texto='Se você escolher a marca, o sistema só aceita produtos dela. Em branco, ele preenche com a marca que achar nas 3 lojas.') }}
+          {{ campo('sesp' ~ i, 'Especificação', valor=s.especificacao or '', opcional=true, extra='maxlength="120"',
+                   ajuda_texto='Tamanho, peso, cor, tipo ou embalagem. Ex.: 250 g; 1 L; azul; a vácuo; caixa com 5.000 unidades; 26/6. Em branco, o sistema escolhe a opção mais barata que achar nas 3 lojas.') }}
+          {{ campo('sqtd' ~ i, 'Quantidade por mês', valor=s.qtd, mascara='inteiro', tamanho='m', extra='data-min="1"') }}
+          {{ campo('splano' ~ i, 'Valor no plano', valor=s.valor_plano|moeda, mascara='moeda', tamanho='m',
+                   dica=('Média dos 3 preços: ' ~ (md|brl)) if md is not none else 'A média aparece com os 3 preços.',
+                   ajuda_texto='Valor unitário que vai para o Plano de Aplicação. Não pode passar da média. Em branco, o "Fechar no teto" escolhe: o menor dos 3 preços ou a média.') }}
+        </div>
+        {% if s.descricao_original and pedido_do_subitem(s) != descricao_completa(s) %}<p class="texto-apoio"><b>Pedido original:</b> {{ pedido_do_subitem(s) }}.
+          O sistema trocou pelo produto acima (a descrição, a marca e a especificação são as do produto orçado). Se você mudar um desses campos, o que escrever passa a ser o novo pedido.</p>{% endif %}
+        {% if produtos_diferentes(s) %}<div class="aviso aviso--erro" role="status">{{ icone('erro') }}<div class="aviso__corpo"><b>As 3 pesquisas não são do mesmo produto</b> (marca, cor, variante ou tipo de embalagem diferente).
+          O produto tem de ser exatamente o mesmo nas 3 lojas. Use "Pesquisar de novo só este item" (abaixo): o sistema agora só aceita o mesmo produto.
+          Se quiser uma marca específica, escreva em "Marca" antes.</div></div>{% endif %}
+
+        <div class="grade grade--3">
+          {% set pode_trocar = s.fontes|length == 3 and not produtos_diferentes(s) and (s.precos|select|list|length == 3) %}
+          {% for k in range(3) %}{{ pesquisa_cartao(s, i, k, fs, produto='Produto cotado', acao=('trocarloja-%d-%d' % (i, k)) if pode_trocar else '',
+                                                     acao_rotulo='Buscar outra loja',
+                                                     acao_dica='Procura outra loja com o MESMO produto das outras duas pesquisas. As outras duas ficam como estão.') }}{% endfor %}
+        </div>
+
+        <div class="item-recolhivel__rodape">
+          <details class="detalhe detalhe--leve" id="repesquisar{{ i }}"><summary>Pesquisar de novo só este item</summary>
+            <div class="detalhe__corpo pilha">
+              <p class="texto-apoio">Use quando o produto, a loja ou o preço não servem. Se quiser outro produto, mude a descrição ou a especificação acima antes:
+                o que estiver escrito é salvo e vira o novo pedido. O item não é retirado para caber no teto; as pesquisas atuais só mudam se o sistema achar outra opção completa.</p>
+              <fieldset class="sem-borda"><legend class="campo__rotulo">Onde procurar</legend>
+                <label class="escolha"><input type="radio" name="modo{{ i }}" value="todas" checked>
+                  <span class="escolha__texto">Em todas as lojas <small>Pode achar as mesmas lojas, se continuarem as mais baratas.</small></span></label>
+                <label class="escolha"><input type="radio" name="modo{{ i }}" value="outras" {% if not fs or not fs[0].plataforma %}disabled{% endif %}>
+                  <span class="escolha__texto">Só em lojas diferentes das atuais <small>{% if fs and fs[0].plataforma %}Deixa de fora: {% for f in fs %}{{ f.plataforma or f.nome }}{{ ', ' if not loop.last }}{% endfor %}.{% else %}O item ainda não tem lojas.{% endif %}</small></span></label>
+              </fieldset>
+              <div><button class="btn btn--secundario" name="depois" value="repesquisar-{{ i }}" data-aguarde="Salvando e iniciando…">{{ icone('busca') }}Salvar e pesquisar só este item</button></div>
+            </div></details>
+          {% set bk = banco.get(pedido_do_subitem(s)) %}
+          {% if bk and bk.opcoes|length > 1 %}
+          <details class="detalhe detalhe--leve"><summary>Trocar por outra opção já pesquisada ({{ bk.opcoes|length }})</summary>
+            <div class="detalhe__corpo"><p class="texto-apoio">Opções da pesquisa de {{ bk.pesquisado_em|data_br(false) }}.</p><ul class="lista-simples">
+              {% for o in bk.opcoes %}<li class="linha linha--entre"><span>{{ o.ofertas[0].titulo or o.ofertas[0].nome }}
+                <span class="texto-apoio">· {% for x in o.ofertas %}{{ LOJAS[x.loja].nome if x.loja in LOJAS else x.loja }} {{ x.preco|brl }}{{ ', ' if not loop.last }}{% endfor %}
+                · {{ 'mesmo código de barras nas 3' if o.confirmacao == 'EAN nas 3 lojas' else ('marcas diferentes' if o.misto else 'confirmado pela descrição') }}{% if o.nivel %} · troca nível {{ o.nivel }}{% endif %}</span></span>
+                <button form="trocar{{ i }}_{{ loop.index0 }}" class="btn btn--secundario">Usar esta opção</button></li>{% endfor %}
+            </ul></div></details>
+          {% endif %}
+          {% if s.justificativa %}<details class="detalhe detalhe--leve"><summary>Por que este produto e estas lojas</summary><div class="detalhe__corpo texto-apoio">{{ s.justificativa }}</div></details>{% endif %}
+          <details class="detalhe detalhe--leve"><summary>Opções avançadas</summary>
+            <div class="detalhe__corpo formulario">
+              {{ campo('sfam' ~ i, 'Tipo do produto (para trocas)', valor=s.familia or '',
+                       dica='Usado quando o item precisa ser trocado por outro parecido. Em branco, o sistema usa: ' ~ (familia_padrao(s.descricao_original or s.descricao) or 'o tipo deduzido da descrição') ~ '.') }}
+              {{ campo('spal' ~ i, 'Palavras para ler carrinho em PDF', valor=(s.palavras or palavras_padrao(s.descricao))|join(', '),
+                       dica='Só para o envio manual de carrinho impresso: palavras que identificam este item no PDF, separadas por vírgula.') }}
+            </div></details>
+          <label class="escolha"><input type="checkbox" name="sdel{{ i }}" value="1" data-marca-exclusao>
+            <span class="escolha__texto">Excluir este item ao salvar</span></label>
+        </div>
+      </div>
+    </details>
+    {% endfor %}
+    </div>{% endif %}
+
+    {{ linhas_novas(linhas=1 if r.subitens else 3) }}
+  </section>
+
+  {# ---------------------------------------------------------------- 3. dados da rubrica #}
+  <section class="cartao" aria-labelledby="t-dados">
+    <h2 id="t-dados" class="cartao__titulo">3. Dados da rubrica</h2>
+    {{ dados_rubrica(r, tipo, NOME_TIPO) }}
+    <div class="formulario" style="margin-top: var(--esp-4)">
+      {{ campo('teto_mensal', 'Teto mensal da rubrica', valor=r.teto_mensal|moeda, mascara='moeda', opcional=true,
+               ajuda_texto='Se preenchido, a soma mensal da rubrica fica abaixo dele e o mais perto possível. O sistema só tira itens se não couber, e acrescenta itens extras se sobrar mais que ' ~ (p.config.folga_teto * 100)|round(1) ~ '%.') }}
+    </div>
+    <div class="campo" style="margin-top: var(--esp-4)">
+      <label class="campo__rotulo" for="c-extras">Itens extras <span class="campo__opcional">(opcional)</span>
+        {{ ajuda('Itens extras', 'Itens que o sistema pode acrescentar à rubrica quando sobra muito do teto mensal, ou usar como troca quando um item não existe em 3 lojas.') }}</label>
+      <textarea class="campo__controle" id="c-extras" name="extras" rows="3" aria-describedby="c-extras-dica">{{ r.extras|join('\n') }}</textarea>
+      <p class="campo__dica" id="c-extras-dica">Um item por linha. Ex.: Esponja dupla face; Pano de chão.</p>
+    </div>
+  </section>
+
+  {# ---------------------------------------------------------------- fornecedores padrão da rubrica #}
+  <details class="detalhe">
+    <summary>Fornecedores padrão da rubrica (opcional)</summary>
+    <div class="detalhe__corpo">
+      <p class="texto-apoio">Valem para os itens que não têm fornecedores próprios (modo "as mesmas 3 lojas para a rubrica inteira" ou carrinho impresso em PDF).
+        Na pesquisa automática, cada item ganha os seus fornecedores e estes campos não são usados.</p>
+      <div class="grade grade--3">
+        {% for f in r.fontes %}{% set k = loop.index0 %}
+        <div class="pesquisa" role="group" aria-label="Fornecedor padrão {{ k + 1 }}">
+          <div class="pesquisa__titulo"><span>Fornecedor {{ k + 1 }}</span></div>
+          {{ campo('fnome' ~ k, 'Loja ou fornecedor', valor=f.nome) }}
+          {{ campo('fcnpj' ~ k, 'CNPJ', valor=f.cnpj, mascara='cnpj', exemplo='00.000.000/0000-00', extra='data-preenche="c-fnome' ~ k ~ '"') }}
+          {{ campo('fdata' ~ k, 'Data da pesquisa', valor=f.data_pesquisa or '', tipo='date', extra='data-nao-futura') }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+
+  <input type="hidden" name="n_sub" value="{{ r.subitens|length }}">
+  {{ barra_salvar('Materiais e serviços') }}
+</form>
+
+{# ------------------------------------------------------------------ caminho manual: carrinho impresso #}
+<details class="detalhe secao">
+  <summary>Enviar carrinho impresso em PDF (uma loja para a rubrica toda)</summary>
+  <div class="detalhe__corpo">
+    <ol class="texto-apoio">
+      <li>Monte o carrinho na loja com as quantidades dos itens acima.</li>
+      <li>Imprima a página em PDF (Ctrl+P → Salvar como PDF).</li>
+      <li>Escolha o arquivo no fornecedor correspondente e clique em "Ler PDF". O sistema lê os preços, confere as contas e guarda o arquivo.</li>
+    </ol>
+    <div class="grade grade--3">
+    {% for f in r.fontes %}{% set k = loop.index0 %}
+      <form class="pesquisa" method="post" action="/p/{{ pid }}/mat/{{ r.item }}/carrinho/{{ k }}" enctype="multipart/form-data">
+        <div class="pesquisa__titulo"><span>Fornecedor {{ k + 1 }}: {{ f.nome or 'não informado' }}</span></div>
+        <div class="texto-apoio">{{ f.cnpj|cnpj or 'sem CNPJ' }} · {{ f.data_pesquisa|data_br(false) if f.data_pesquisa else 'sem data' }}{% if f.evidencia.arquivo %} · PDF guardado{% endif %}</div>
+        <div class="campo"><label class="campo__rotulo" for="c-carr{{ k }}">Carrinho em PDF</label>
+          <input type="file" id="c-carr{{ k }}" name="arquivo" accept="application/pdf,.pdf" required></div>
+        <div><button class="btn btn--secundario" data-aguarde="Lendo o PDF…">{{ icone('enviar') }}Ler PDF</button></div>
+      </form>
+    {% endfor %}
+    </div>
+  </div>
+</details>
+
+{% for s in r.subitens %}{% set i = loop.index0 %}{% set bk = banco.get(pedido_do_subitem(s)) %}{% if bk %}{% for o in bk.opcoes %}
+<form id="trocar{{ i }}_{{ loop.index0 }}" method="post" action="/p/{{ pid }}/mat/{{ r.item }}/trocar" data-confirmar="Trocar o produto deste item?"
+      data-confirmar-texto="O sistema gera os comprovantes da opção escolhida (pode levar alguns minutos) e grava uma nova versão. A versão atual continua no histórico." data-confirmar-botao="Trocar produto">
+  <input type="hidden" name="desc" value="{{ pedido_do_subitem(s) }}"><input type="hidden" name="opcao" value="{{ loop.index0 }}"></form>
+{% endfor %}{% endif %}{% endfor %}
+{{ formularios_pdf(r) }}
+
+{{ excluir_rubrica(r) }}
+{% endblock %}

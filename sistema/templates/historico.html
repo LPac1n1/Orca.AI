@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, migalhas %}
+{% from "_projeto_topo.html" import projeto_topo with context %}
+{% block titulo %}Histórico — {{ p.nome }}{% endblock %}
+{% block migalhas %}{{ migalhas([('Projetos', '/'), (p.nome, '/p/%d' % pid)], 'Histórico') }}{% endblock %}
+{% block corpo %}
+{% set NOME_EVENTO = {'VERSAO_SALVA': 'Versão salva', 'PROJETO_CRIADO': 'Projeto criado', 'EVIDENCIA_GUARDADA': 'Comprovante guardado', 'CNPJ_CONSULTADOS': 'CNPJs consultados',
+                      'EXPORTADO': 'Excel exportado', 'PROJETO_REMOVIDO': 'Projeto removido da lista', 'PROJETO_RESTAURADO': 'Projeto restaurado'} %}
+{{ projeto_topo('historico') }}
+<header class="cabecalho">
+  <h1>Histórico do projeto</h1>
+  <p class="cabecalho__intro">Cada alteração cria uma <b>nova versão</b>; as anteriores nunca são alteradas nem apagadas. Se algo saiu errado, restaure a versão
+    de antes: a restauração também vira uma versão nova, então nada se perde.</p>
+</header>
+
+<section aria-labelledby="t-versoes">
+  <div class="secao__titulo"><h2 id="t-versoes">Versões</h2><span class="contador">{{ versoes|length }}</span></div>
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col" class="n">Versão</th><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">O que mudou</th><th scope="col"><span class="so-leitor">Restaurar</span></th></tr></thead>
+      <tbody>
+      {% for v in versoes %}
+      <tr><th scope="row" class="n" data-rotulo="Versão">{{ v.numero }}</th><td data-rotulo="Quando">{{ v.criado_em|data_br }}</td><td data-rotulo="Quem">{{ v.autor }}</td>
+        <td data-rotulo="O que mudou">{{ v.motivo }}</td>
+        <td class="acoes">{% if v.numero == versao %}{{ selo('info', 'Versão atual') }}{% elif not removido_em %}
+          <form method="post" action="/p/{{ pid }}/restaurar/{{ v.numero }}" data-confirmar="Restaurar a versão {{ v.numero }}?"
+                data-confirmar-texto="O projeto volta a ficar como estava em {{ v.criado_em|data_br }}. A versão atual ({{ versao }}) continua guardada no histórico."
+                data-confirmar-botao="Restaurar versão {{ v.numero }}">
+            <button class="btn btn--secundario">{{ icone('desfazer') }}Restaurar<span class="so-leitor"> a versão {{ v.numero }}</span></button></form>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="secao" aria-labelledby="t-eventos">
+  <div class="secao__titulo"><h2 id="t-eventos">Registro de eventos</h2><span class="contador">{{ eventos|length }}</span></div>
+  <p class="secao__intro">Tudo o que aconteceu no projeto, do mais recente para o mais antigo (até 300 registros): gravações, comprovantes guardados, consultas e exportações.</p>
+  {% if eventos %}
+  <div class="tabela-rolagem">
+    <table class="tabela tabela--cartoes">
+      <thead><tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">O que aconteceu</th><th scope="col">Detalhe técnico</th></tr></thead>
+      <tbody>
+      {% for e in eventos %}
+      <tr><td data-rotulo="Quando">{{ e.quando|data_br }}</td><td data-rotulo="Quem">{{ e.autor }}</td>
+        <td data-rotulo="O que aconteceu">{{ NOME_EVENTO.get(e.tipo, e.tipo) }}</td><td data-rotulo="Detalhe técnico"><span class="codigo">{{ e.detalhe[:400] }}</span></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="vazio"><p class="vazio__titulo">Nenhum evento registrado.</p></div>{% endif %}
+</section>
+{% endblock %}
