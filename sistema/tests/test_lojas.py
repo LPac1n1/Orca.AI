@@ -108,3 +108,18 @@ def test_caixa_pedida_e_unidade_achada_vira_ponto_para_revisar(tmp_path, monkeyp
     assert len(achado) == 1 and achado[0][0] == 'atencao' and 'o pedido é de caixa, mas a pesquisa achou a unidade avulsa' in achado[0][1] and 'Caixa com 50 unidades' in achado[0][1]
     assert s10(projeto(caixas)) == [] and s10(projeto([None, None, None])) == []                                              # com a caixa (ou ainda sem pesquisa): nada
     assert s10(projeto(avulsas, nivel=1, original='Caixa Caneta Esferográfica Azul')) == []                                   # troca declarada já é apontada pela S02
+
+
+def test_valor_no_plano_depois_que_o_carrinho_muda_o_preco():
+    """Teste real de 05/10/2026: a busca dizia R$ 5,09 e o carrinho da loja, R$ 5,29. O valor proposto (a média dos preços da busca, R$ 5,66)
+    ficou no plano — nem o menor dos 3 preços finais, nem a média deles. Agora ele volta a ser um dos dois."""
+    from orcamento.servico import valor_depois_do_comprovante as v
+    from orcamento.regras import media, valores_do_plano
+    assert media([509, 559, 629]) == 566 and valores_do_plano([529, 559, 629]) == [529, 572]
+    assert v(566, [529, 559, 629]) == 572              # era a média da busca: passa a ser a média dos preços comprovados
+    assert v(509, [529, 559, 629]) == 529              # era o menor da busca, e o menor subiu: passa a ser o novo menor
+    assert v(332, [289, 339, 369]) == 332              # a média caiu para o valor proposto: fica
+    assert v(360, [289, 339, 369]) == 332              # nunca acima da média
+    assert v(None, [289, 339, 369]) == 332 and v(289, [289, 339, 369]) == 289
+    assert v(300, [289, 339, 369]) == 332              # valor do meio do caminho: vai para a média
+    assert v(300, [289, 339, 369], menor_ou_media=False) == 300 and v(566, [529, 559, 629], menor_ou_media=False) == 566   # órgão que aceita qualquer valor até a média

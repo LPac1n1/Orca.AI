@@ -10,7 +10,7 @@ import re
 from . import db, ia
 from .modelo import Fonte, Evidencia, Subitem, PesquisaSalarial, RubricaMaterial, RubricaRH, pedido_do_subitem, descricao_completa
 from .produtos import cesta, lojas as L, teto, identidade as ID, texto as T
-from .regras import media, cnpj_formatar
+from .regras import media, cnpj_formatar, valores_do_plano
 
 
 def _rubrica(p, item):
@@ -849,6 +849,18 @@ def _lojas_utilizaveis(opcao, bloqueadas, comp):
     return boas if len(boas) == 3 else None
 
 
+def valor_depois_do_comprovante(proposto, precos, menor_ou_media=True):
+    """O valor do item no plano depois que os comprovantes confirmam os preços. O valor da proposta foi calculado com os preços da BUSCA; o
+    comprovante (o carrinho da loja) pode mostrar outro preço, e aí a média muda. O valor nunca passa da média; e, quando o plano só aceita o
+    menor dos 3 preços ou a média (teste real de 05/10/2026: ficava um valor que não era nenhum dos dois), ele volta a ser um deles:
+    o menor, se a proposta estava abaixo dele; senão, a média."""
+    m = media(precos)
+    v = min(proposto or m, m)
+    if menor_ou_media and v not in valores_do_plano(precos):
+        v = min(precos) if v < min(precos) else m
+    return v
+
+
 async def aplicar_proposta(pid, item, proposta, ctx):
     from playwright.async_api import async_playwright
     from .produtos import evidencia as EV
@@ -1041,8 +1053,7 @@ async def aplicar_proposta(pid, item, proposta, ctx):
             if d == l['desc']:
                 just.append(f"{L.LOJAS[a]['nome']} substituída por {L.LOJAS[b]['nome']} (mesmo produto): {motivo}")
         s.justificativa = '; '.join(just)
-        m = media(s.precos)
-        s.valor_plano = min(l.get('valor') or m, m)
+        s.valor_plano = valor_depois_do_comprovante(l.get('valor'), s.precos, p.config.valores_defensaveis)
         tratados[l['desc']] = s
     pesquisados = {l['desc'] for l in proposta['linhas']}
     for d, s0 in chaves:   # ordem original; os que não foram pesquisados ficam como estavam

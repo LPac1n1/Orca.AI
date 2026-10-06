@@ -153,7 +153,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 234 ao todo. Num clone limpo, 232 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 235 ao todo. Num clone limpo, 233 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -200,7 +200,7 @@ O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.m
   - "Evolution" é uma linha da Bic, não uma marca: a marca do item passa a ser a do fabricante.
   - **IA sugere itens e quantidades**: na rubrica de produtos, descreva a atividade e a IA propõe os itens e a quantidade por mês, com a conta de cada um. Você marca o que aceita; os preços continuam vindo só da pesquisa.
   - **Planilhas em PDF**: o Plano, os cronogramas e o Comparativo saem também em PDF (botão "Planilhas em PDF" e dentro do pacote), gerados a partir da própria planilha — o PDF nunca diz outra coisa — e sem precisar do Excel.
-  - **Teste real de ponta a ponta** (projeto de teste, numa cópia dos dados): vagas com faixa pretendida e produtos nas lojas novas. Dele saiu a regra **S10**: quando o pedido é de uma caixa e a pesquisa só acha a unidade avulsa, o item vai para revisão em vez de ficar "em ordem".
+  - **Teste real de ponta a ponta** (projeto de teste, numa cópia dos dados): vagas com faixa pretendida e produtos nas lojas novas. Dele saíram duas correções: a regra **S10** (quando o pedido é de uma caixa e a pesquisa só acha a unidade avulsa, o item vai para revisão em vez de ficar "em ordem") e o valor no plano recalculado quando o carrinho da loja mostra um preço diferente do da busca.
   - **6 lojas novas** (Mambo, Giga Atacado, Casa & Video, Telhanorte, Drogal e Farmácias Pague Menos), escolhidas entre 89 sites sondados. Em sites com marketplace, só entra o que a própria loja vende.
 - **05/10/2026**
   - Faixa salarial pretendida por cargo: vagas de menor salário que alcançam a faixa e horas ajustadas a ela; o "Fechar no teto" reparte a diferença por igual entre os cargos.

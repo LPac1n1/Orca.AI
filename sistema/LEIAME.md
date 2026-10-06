@@ -32,10 +32,16 @@ Com as buscas novas, a faixa pretendida e as lojas novas no lugar, foi feito um 
 | "Biscoito Cream Cracker" | Bauducco em Tenda, **Giga Atacado** e Extra |
 | "Papel Sulfite A4 500 Folhas" | Chamex em Livrarias Curitiba, Lepok e Gimba |
 | "Caixa Caneta Esferográfica Azul" | **Problema achado:** não havia a caixa do mesmo produto em 3 lojas, e o sistema orçou a caneta avulsa (R$ 8 a R$ 11), deixando o item "em ordem" |
+| "Detergente 500mL" | Detergente Limpol 500mL, mesmo código de barras em **Giga Atacado**, Atacadão e Coop |
+| "Saco de Lixo 50L" | Embalixo 50L em Oba, Pão de Açúcar e **Mambo** |
+
+Resultado: as 3 vagas e os 7 itens pesquisados em 40 minutos, nenhuma pendência, todos os comprovantes guardados.
 
 As lojas novas responderam sem falhas (Mambo, Giga, Casa & Video e Drogal entraram nas buscas; a Giga ficou entre as 3 mais baratas em 3 itens). Uma loja antiga (Afonso Ruotolo) limitou os acessos e saiu sozinha da pesquisa, como previsto.
 
 **Correção (regra S10, `identidade.embalagem_nao_atendida`).** Quando o pedido começa por uma embalagem com várias unidades (caixa, pacote, kit, fardo, cartela, estojo) e algum dos 3 anúncios é da unidade avulsa, a verificação aponta o item **para revisar**, dizendo o que fazer: informar quantas unidades a caixa tem ("Caixa com 50 unidades") e pesquisar de novo, ou trocar a descrição e a quantidade para a unidade. A justificativa do item também passa a registrar "como pedido, mas sem: caixa (não existe assim em 3 lojas)". Não vale para produto vendido por peso ou volume ("Caixa de leite 1L" é a embalagem normal dele) nem quando a "caixa" é o próprio produto ("Caixa de som").
+
+**Segunda correção: o valor no plano depois do comprovante (`servico.valor_depois_do_comprovante`).** A busca de uma loja dizia R$ 5,09 e o carrinho dela, R$ 5,29 (vale o carrinho, que é o que o PDF prova). O valor proposto — a média dos preços da busca, R$ 5,66 — ficou no plano, e não era nem o menor dos 3 preços finais (R$ 5,29) nem a média deles (R$ 5,72); a verificação apontava (S01), mas o certo é não nascer errado. Agora, quando o comprovante muda um preço, o valor volta a ser um dos dois: o menor, se a proposta estava abaixo dele; senão, a média (e nunca passa da média). Em órgão que aceita qualquer valor até a média, nada muda.
 
 ### IA sugere itens e quantidades (05/10/2026)
 
@@ -243,7 +249,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 234 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 235 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;
