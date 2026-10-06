@@ -298,3 +298,16 @@ Peças comuns das telas de rubrica ficam em `templates/_rubrica.html` (cartão d
 | Projeto → Configuração | Cartão "Refazer as pesquisas do zero", antes de "Remover projeto" |
 | Apagar as pesquisas (`zerar.html`, `/p/{id}/zerar-pesquisas`) | Topo do projeto; 4 indicadores (pesquisas automáticas, itens que voltam ao pedido, marcas apagadas, feitas à mão); cartão "O que sai", com abre-e-fecha de cargos, itens, itens que voltam ao que foi pedido ("de → para") e quantidades; cartão "O que fica"; cartão "Confirmar" com as opções (marcas que a pesquisa preencheu e vagas confirmadas: marcadas; feito à mão: desmarcada) e os botões "Apagar e pesquisar tudo de novo", "Só apagar" e "Cancelar". O envio pede confirmação na janela de perigo. Com tarefa em andamento, aviso e botões desligados |
 | Ajuda | Dúvida "Quero refazer todas as pesquisas do zero. Como faço?" |
+
+## 12. Quadro de decisão do item (06/10/2026)
+
+| Tela | O que tem |
+|---|---|
+| Rubrica de produtos → item | Quando a última pesquisa não achou o item pedido igual em 3 lojas: cartão "O sistema não achou … igual em 3 lojas" (`id="decidir{i}"`), com "Nada foi substituído", a lista "1. Substituir por uma destas opções" (selo do tipo de opção, as 3 lojas com link e preço, o que a IA achou, botão "Substituir por esta opção"), o abre-e-fecha "Ver também produtos de outro tipo, da categoria da rubrica (N)" e "2. Não substituir", com o botão "Salvar o que mudei e pesquisar este item de novo". Enquanto o quadro aparece, "Trocar por outra opção já pesquisada" fica oculto (as opções são as mesmas) |
+| Rubrica de produtos → item sem nenhuma opção | O mesmo cartão (`id="decidir{i}"`), sem a lista de opções: "Nada foi substituído, e a pesquisa também não tem opção de substituição para mostrar", o parágrafo "O mais perto do pedido — o mesmo produto, mas em só 2 lojas: … Falta a 3ª loja" (quando há) e o botão "Salvar o que mudei e pesquisar este item de novo" |
+| Quadro de decisão → tipos de opção | Selos: "Mesma marca e descrição; códigos de barras diferentes", "O mesmo produto em 2 lojas; a 3ª não cita um detalhe", "Como pedido, mas sem: …", "Parecido: outro tamanho ou variante", "Relacionado: mesmo tipo de produto". Nas duas primeiras, a linha "IA acha que é / NÃO é o mesmo produto" ou "A IA não conferiu esta opção" |
+| Rubrica de produtos → item substituído | Aviso "Este item está substituído: você pediu X; o que está orçado é Y" e botão "Desfazer a substituição" |
+| Rubrica de produtos (alto da lista) | Aviso "N item(ns) desta rubrica estão substituídos" e botão "Desfazer as N substituições" |
+| Proposta da pesquisa | Linha com o selo "Aguarda a sua decisão" (há opções) ou "Não achado em 3 lojas" (não há); o motivo diz "o mais perto do pedido" quando o produto existe em 2 lojas; o texto do fim diz que o sistema nunca substitui sozinho |
+| Tarefa "Pesquisar tudo" | No resumo de cada rubrica, "N não achado(s) como pedido(s): aguardam a sua decisão (nada foi substituído)"; um aviso lista os itens |
+| Tarefa "Nova pesquisa" de um item | Aviso "NADA foi substituído. Há N opção(ões) de substituição na tela do item" e volta direto ao quadro (`#decidir{i}`) |

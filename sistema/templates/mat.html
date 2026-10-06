@@ -95,6 +95,11 @@
       <p>Escreva os itens no quadro "Adicionar itens", logo abaixo (quantos quiser), e salve.</p></div>
     {% endif %}
 
+    {% set n_subst = r.subitens|selectattr('descricao_original')|list|length %}
+    {% if n_subst %}<div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo"><b>{{ n_subst }} item(ns) desta rubrica estão substituídos</b>
+      por outro produto (pesquisas antigas faziam isso sozinhas; hoje o sistema pergunta antes). Abra cada um para conferir, ou desfaça todas de uma vez: os itens
+      voltam a ser o que foi pedido, sem pesquisas.
+      <div style="margin-top: var(--esp-2)"><button class="btn btn--secundario" form="desfazer-todas">{{ icone('desfazer') }}Desfazer as {{ n_subst }} substituições</button></div></div></div>{% endif %}
     {% if r.subitens %}{{ itens_barra('lista-itens', r.subitens|length) }}
     <div class="itens itens--produtos" id="lista-itens">
     {{ itens_cabecalho() }}
@@ -116,8 +121,68 @@
                    dica=('Média dos 3 preços: ' ~ (md|brl)) if md is not none else 'A média aparece com os 3 preços.',
                    ajuda_texto='Valor unitário que vai para o Plano de Aplicação. Não pode passar da média. Em branco, o "Fechar no teto" escolhe: o menor dos 3 preços ou a média.') }}
         </div>
-        {% if s.descricao_original and pedido_do_subitem(s) != descricao_completa(s) %}<p class="texto-apoio"><b>Pedido original:</b> {{ pedido_do_subitem(s) }}.
-          O sistema trocou pelo produto acima (a descrição, a marca e a especificação são as do produto orçado). Se você mudar um desses campos, o que escrever passa a ser o novo pedido.</p>{% endif %}
+        {% set bk = banco.get(pedido_do_subitem(s)) %}
+        {% set espera = aguarda_decisao(s, bk.opcoes if bk else []) %}
+        {% set perto = perto_do_pedido(s) %}
+        {% if s.descricao_original and pedido_do_subitem(s) != descricao_completa(s) %}<div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo">
+          <b>Este item está substituído.</b> Você pediu <b>{{ pedido_do_subitem(s) }}</b>; o que está orçado é <b>{{ descricao_completa(s) }}</b>.
+          Se não é o que você quer, desfaça: o item volta a ser o que foi pedido, sem pesquisas.
+          <div style="margin-top: var(--esp-2)"><button class="btn btn--secundario" form="desfazer{{ i }}">{{ icone('desfazer') }}Desfazer a substituição</button></div></div></div>{% endif %}
+        {% if espera %}
+        <div class="cartao cartao--plano" id="decidir{{ i }}" style="border-color: var(--cor-alerta, currentColor)">
+          <h4 class="cartao__titulo">{{ icone('alerta') }}O sistema não achou "{{ pedido_do_subitem(s) }}" igual em 3 lojas</h4>
+          <p><b>Nada foi substituído.</b> Na pesquisa de {{ bk.pesquisado_em|data_br(false) }}, o sistema não encontrou o mesmo produto, como foi pedido, em 3 lojas de
+            empresas diferentes, com estoque e entrega no CEP do projeto. Você decide:</p>
+          {% if perto %}<p><b>O mais perto do pedido</b> — o mesmo produto, mas em só 2 lojas: {{ perto }}. Falta a 3ª loja: se você achar esse produto em outra
+            loja, preencha as pesquisas à mão, em "Detalhes e comprovante".</p>{% endif %}
+          {% set ns = namespace(outras=0, perto=0) %}
+          {% for o in bk.opcoes %}{% if not atende_o_pedido(o) and o.nivel != 3 %}{% set ns.perto = ns.perto + 1 %}{% endif %}{% endfor %}
+          <p class="campo__rotulo">1. {{ 'Usar uma destas opções' if ns.perto else 'Substituir' }}</p>
+          {% if not ns.perto %}<p class="texto-apoio">A pesquisa não achou nenhum produto parecido com o pedido em 3 lojas. Só há produtos de outro tipo, da categoria da rubrica (abaixo).</p>{% endif %}
+          <ul class="lista-simples">
+          {% for o in bk.opcoes %}{% if not atende_o_pedido(o) and o.nivel != 3 %}
+            <li class="linha linha--entre"><span>
+              {{ selo('alerta', 'Mesma marca e descrição; códigos de barras diferentes' if o.codigos_diferentes else 'O mesmo produto em 2 lojas; a 3ª não cita um detalhe' if o.detalhe_nao_citado else ('Como pedido, mas sem: ' ~ (o.perdidos|join(', '))) if not o.nivel else
+                                ('Parecido: outro tamanho ou variante' if o.nivel == 1 else 'Relacionado: mesmo tipo de produto'), quebra=true) }}
+              {% for x in o.ofertas %}<div><span class="texto-apoio">{{ LOJAS[x.loja].nome if x.loja in LOJAS else x.loja }}:</span>
+                {% if x.url %}<a href="{{ x.url }}" target="_blank" rel="noopener noreferrer">{{ (x.titulo or x.nome)[:80] }}<span class="so-leitor"> (abre em outra aba)</span></a>{% else %}{{ (x.titulo or x.nome)[:80] }}{% endif %}
+                — <b>{{ x.preco|brl }}</b></div>{% endfor %}
+              {% if o.nivel and o.perdidos %}<div class="texto-apoio">Sem: {{ o.perdidos|join(', ') }}.</div>{% endif %}
+              {% if o.codigos_diferentes %}<div class="texto-apoio">As 3 lojas anunciam a mesma marca com a mesma descrição, mas os códigos de barras não são iguais: podem ser linhas diferentes do fabricante. Abra os links e confira.</div>{% endif %}
+              {% if o.detalhe_nao_citado %}<div class="texto-apoio">Duas lojas têm o mesmo produto. A terceira anuncia um produto da mesma marca que não contradiz nada dos outros dois, mas com menos (ou mais) detalhes na descrição. Abra os links e confira se é o mesmo.</div>{% endif %}
+              {% if o.ia %}<div class="texto-apoio">IA {{ 'acha que é o mesmo produto' if o.ia.mesmo_produto else 'acha que NÃO é o mesmo produto' }}: {{ o.ia.motivo }}</div>
+              {% elif o.codigos_diferentes or o.detalhe_nao_citado %}<div class="texto-apoio">A IA não conferiu esta opção (desligada ou sem resposta).</div>{% endif %}</span>
+              <button form="trocar{{ i }}_{{ loop.index0 }}" class="btn btn--secundario">{{ 'Substituir por esta opção' if o.nivel else 'Usar esta opção' }}</button></li>
+          {% elif not atende_o_pedido(o) %}{% set ns.outras = ns.outras + 1 %}{% endif %}{% endfor %}
+          </ul>
+          {% if ns.outras %}
+          <details class="detalhe detalhe--leve"><summary>Ver também produtos de outro tipo, da categoria da rubrica ({{ ns.outras }})</summary>
+            <div class="detalhe__corpo"><p class="texto-apoio">Não são o que foi pedido: só servem se você quiser trocar o item por outro produto da rubrica.</p><ul class="lista-simples">
+            {% for o in bk.opcoes %}{% if o.nivel == 3 %}
+              <li class="linha linha--entre"><span><b>{{ o.substituto }}</b>
+                <span class="texto-apoio">· {% for x in o.ofertas %}{{ LOJAS[x.loja].nome if x.loja in LOJAS else x.loja }} {{ x.preco|brl }}{{ ', ' if not loop.last }}{% endfor %}</span>
+                <div class="texto-apoio">{{ (o.ofertas[0].titulo or o.ofertas[0].nome)[:90] }}</div></span>
+                <button form="trocar{{ i }}_{{ loop.index0 }}" class="btn btn--texto">Trocar por este</button></li>
+            {% endif %}{% endfor %}</ul></div></details>
+          {% endif %}
+          <p class="campo__rotulo" style="margin-top: var(--esp-3)">2. Não substituir</p>
+          <p class="texto-apoio">Mude a <b>descrição</b>, a <b>marca</b> ou a <b>especificação</b> acima (por exemplo: tire a marca, troque o tamanho ou escreva o nome do produto de outro jeito) e pesquise de novo:
+            o que você escrever é salvo e vira o novo pedido. Ou preencha as 3 pesquisas à mão, em "Detalhes e comprovante".</p>
+          <div><button class="btn btn--primario" name="depois" value="repesquisar-{{ i }}" data-aguarde="Salvando e iniciando…">{{ icone('busca') }}Salvar o que mudei e pesquisar este item de novo</button></div>
+        </div>
+        {% elif nao_achado(s) %}
+        <div class="cartao cartao--plano" id="decidir{{ i }}" style="border-color: var(--cor-alerta, currentColor)">
+          <h4 class="cartao__titulo">{{ icone('alerta') }}O sistema não achou "{{ pedido_do_subitem(s) }}" igual em 3 lojas</h4>
+          <p><b>Nada foi substituído</b>, e a pesquisa também não tem opção de substituição para mostrar. O sistema só aceita o mesmo produto, como foi pedido, em 3 lojas
+            de empresas diferentes, com estoque e entrega no CEP do projeto.</p>
+          {% if perto %}<p><b>O mais perto do pedido</b> — o mesmo produto, mas em só 2 lojas: {{ perto }}. Falta a 3ª loja: se você achar esse produto em outra
+            loja, preencha as pesquisas à mão, em "Detalhes e comprovante".</p>{% endif %}
+          <p class="texto-apoio">Mude a <b>descrição</b>, a <b>marca</b> ou a <b>especificação</b> acima (por exemplo: tire a marca, escreva a marca do produto que
+            existe em mais lojas, troque o tamanho ou escreva o nome de outro jeito) e pesquise de novo: o que você escrever é salvo e vira o novo pedido.
+            Ou preencha as 3 pesquisas à mão, em "Detalhes e comprovante".</p>
+          <div><button class="btn btn--primario" name="depois" value="repesquisar-{{ i }}" data-aguarde="Salvando e iniciando…">{{ icone('busca') }}Salvar o que mudei e pesquisar este item de novo</button></div>
+        </div>
+        {% endif %}
         {% if produtos_diferentes(s) %}<div class="aviso aviso--erro" role="status">{{ icone('erro') }}<div class="aviso__corpo"><b>As 3 pesquisas não são do mesmo produto</b> (marca, cor, variante ou tipo de embalagem diferente).
           O produto tem de ser exatamente o mesmo nas 3 lojas. Use "Pesquisar de novo só este item" (abaixo): o sistema agora só aceita o mesmo produto.
           Se quiser uma marca específica, escreva em "Marca" antes.</div></div>{% endif %}
@@ -142,13 +207,12 @@
               </fieldset>
               <div><button class="btn btn--secundario" name="depois" value="repesquisar-{{ i }}" data-aguarde="Salvando e iniciando…">{{ icone('busca') }}Salvar e pesquisar só este item</button></div>
             </div></details>
-          {% set bk = banco.get(pedido_do_subitem(s)) %}
-          {% if bk and bk.opcoes|length > 1 %}
+          {% if bk and bk.opcoes|length > 1 and not espera %}
           <details class="detalhe detalhe--leve"><summary>Trocar por outra opção já pesquisada ({{ bk.opcoes|length }})</summary>
             <div class="detalhe__corpo"><p class="texto-apoio">Opções da pesquisa de {{ bk.pesquisado_em|data_br(false) }}.</p><ul class="lista-simples">
               {% for o in bk.opcoes %}<li class="linha linha--entre"><span>{{ o.ofertas[0].titulo or o.ofertas[0].nome }}
                 <span class="texto-apoio">· {% for x in o.ofertas %}{{ LOJAS[x.loja].nome if x.loja in LOJAS else x.loja }} {{ x.preco|brl }}{{ ', ' if not loop.last }}{% endfor %}
-                · {{ 'mesmo código de barras nas 3' if o.confirmacao == 'EAN nas 3 lojas' else ('marcas diferentes' if o.misto else 'confirmado pela descrição') }}{% if o.nivel %} · troca nível {{ o.nivel }}{% endif %}</span></span>
+                · {{ 'mesmo código de barras nas 3' if o.confirmacao == 'EAN nas 3 lojas' else ('marcas diferentes' if o.misto else ('códigos de barras diferentes' if o.codigos_diferentes else ('a 3ª loja não cita um detalhe' if o.detalhe_nao_citado else 'confirmado pela descrição'))) }}{% if o.nivel %} · <b>substituição</b> ({{ 'parecido' if o.nivel == 1 else ('relacionado' if o.nivel == 2 else 'outro produto da categoria') }}){% endif %}</span></span>
                 <button form="trocar{{ i }}_{{ loop.index0 }}" class="btn btn--secundario">Usar esta opção</button></li>{% endfor %}
             </ul></div></details>
           {% endif %}
@@ -238,6 +302,14 @@
       data-confirmar-texto="O sistema gera os comprovantes da opção escolhida (pode levar alguns minutos) e grava uma nova versão. A versão atual continua no histórico." data-confirmar-botao="Trocar produto">
   <input type="hidden" name="desc" value="{{ pedido_do_subitem(s) }}"><input type="hidden" name="opcao" value="{{ loop.index0 }}"></form>
 {% endfor %}{% endif %}{% endfor %}
+<form id="desfazer-todas" method="post" action="/p/{{ pid }}/mat/{{ r.item }}/desfazer-substituicao" data-confirmar="Desfazer todas as substituições desta rubrica?"
+      data-confirmar-texto="Os itens substituídos voltam a ser o que foi pedido, sem pesquisas. A versão atual continua no histórico." data-confirmar-botao="Desfazer todas">
+  <input type="hidden" name="desc" value="*"></form>
+{% for s in r.subitens %}{% if s.descricao_original %}
+<form id="desfazer{{ loop.index0 }}" method="post" action="/p/{{ pid }}/mat/{{ r.item }}/desfazer-substituicao" data-confirmar="Desfazer a substituição?"
+      data-confirmar-texto="O item volta a ser &quot;{{ pedido_do_subitem(s) }}&quot;, sem pesquisas. A versão atual continua no histórico." data-confirmar-botao="Desfazer">
+  <input type="hidden" name="desc" value="{{ pedido_do_subitem(s) }}"></form>
+{% endif %}{% endfor %}
 {{ formularios_pdf(r) }}
 
 {{ excluir_rubrica(r) }}

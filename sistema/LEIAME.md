@@ -2,6 +2,37 @@
 
 Monta e confere a **Grade Comparativa** e o **Plano de Aplicação** de projetos sociais para o órgão que vai analisá-los. Já vem com as regras estabelecidas pela Secretaria da Justiça e Cidadania de SP (SEJC) (o levantamento está em [../FASE0_SEJC.md](../FASE0_SEJC.md)); as de qualquer outro órgão são cadastradas pela tela "Órgãos". As decisões da OSC e os testes que justificam cada regra estão em [../FASE1B_RESULTADOS.md](../FASE1B_RESULTADOS.md).
 
+## O sistema nunca substitui um item sozinho (06/10/2026) — testes em `tests/test_decidir.py`
+
+**O relato.** "Fiz o pedido de Folha Sulfite 500 Folhas e ele substituiu por giz de cera. Tenho certeza que existem muitas folhas sulfites iguais em muitas lojas." E: "ao fazer a pesquisa total o sistema substituiu um item de papelaria por outro grampeador, então ficaram dois itens de grampeador. O sistema nunca pode substituir um item na pesquisa completa de tudo." E o pedido: ao pesquisar um item de novo, **mostrar as opções de substituição e perguntar**; se a pessoa não quiser, deixar mudar o pedido para tentar de novo.
+
+**O que estava acontecendo** (reproduzido ao vivo, com as mesmas lojas e o CEP do projeto):
+- A busca ACHAVA a folha sulfite: 22 anúncios válidos em 7 lojas. A classificação dos anúncios estava certa.
+- Mas o sistema só aceita o MESMO produto nas 3 lojas, e "mesmo produto" queria dizer o mesmo código de barras. Naquele dia, cada código só existia em 2 lojas com estoque e entrega no CEP: Chamex (Livrarias Curitiba e Gimba), Report Premium (Livrarias Curitiba e Sam's Club), Report (Americanas e Atacadão). A terceira loja do Chamex era a Lepok, que passou a pedir verificação humana e saiu da pesquisa; nas outras, o Chamex estava sem estoque ou sem entrega no CEP.
+- Sem um trio, a pesquisa descia os degraus de troca até o último — "um produto da categoria da rubrica" — e gravava: giz de cera no lugar de folha sulfite. Na pesquisa completa, dois itens caíram no mesmo grampeador.
+- A IA ainda respondia que "Folha Sulfite 500 Folhas" era uma embalagem com várias unidades (500 folhas é a medida do pacote), e toda resma passava a constar como "sem: várias unidades".
+
+**O que mudou**
+
+| Antes | Agora |
+|---|---|
+| Sem o mesmo produto em 3 lojas, a pesquisa trocava sozinha: parecido → relacionado → qualquer produto da categoria | **Nada é substituído.** Só é gravado o item achado COMO FOI PEDIDO (`cesta.atende_o_pedido`): o mesmo produto nas 3 lojas, sem perder nada do pedido. O resto fica guardado como opção (`servico.pesquisar_rubrica` → `decidir`) |
+| Na pesquisa completa, as trocas entravam direto no plano | A pesquisa completa nunca substitui: o resumo e um aviso dizem quais itens "aguardam a sua decisão" |
+| "Pesquisar de novo só este item" gravava a troca sem mostrar | Volta à tela do item, no **quadro de decisão**: as opções (do mais perto do pedido para o mais longe), com as lojas, os preços, os links e o que a IA achou — e os botões "Substituir por esta opção" e "Salvar o que mudei e pesquisar este item de novo" |
+| Grupos por código de barras: "Report" (2 lojas) e "Report Premium" (2 lojas) nunca se juntavam | Opção nova: **mesma marca e mesma descrição em 3 lojas, com códigos de barras diferentes** (as regras de descrição já separam gramatura, cor, tamanho e variante). Não é substituição — é o que foi pedido. Com a confirmação da IA de que os 3 anúncios são o mesmo produto, entra sozinha e vira ponto **para revisar** (S03); sem a confirmação, é a primeira opção oferecida |
+| Comprovante da opção escolhida falhava → o sistema tentava "outra opção" do item | A opção que a OSC escolheu é aquela: se o comprovante falhar, o sistema avisa. E, na pesquisa, o que entra no lugar de uma opção sem comprovante tem de ser também o item como pedido |
+| Produto de outro tipo (categoria da rubrica) era gravado como troca | Continua sendo procurado, mas só aparece no fim do quadro, recolhido: "Ver também produtos de outro tipo" |
+| A IA decidia "embalagem com várias unidades" para qualquer pedido | Só quando o pedido começa pela embalagem ("Caixa Caneta…") |
+| O mesmo produto em 2 lojas e, na 3ª, um anúncio com outra redação ("Pilot BPS Grip 1.0" × "Pilot BPS Grip Ponta Média 1.0mm") nunca fechava 3 lojas: a regra de descrição recusa o anúncio que cita um detalhe que o outro não cita | Opção nova: **o mesmo produto em 2 lojas + a 3ª loja com anúncio menos (ou mais) detalhado** (`cesta._com_a_terceira_loja`, `identidade.quase_o_mesmo`): mesma marca, nada do que os anúncios citam é diferente (cor, variante, embalagem, unidades, medidas, modelo, número da ponta) e as palavras próprias de um estão todas no outro. Com a confirmação da IA, entra sozinha e vira ponto para revisar (S03); sem a IA, é opção para decidir; reprovada pela IA, sai |
+| Item sem nenhuma opção ficava com o motivo de OUTRA coisa: "1 opção reprovada pela IA — capacidade de folhas diferente (40 × 25 folhas)", que era a recusa de um grampeador da categoria | O motivo é do item: `servico.NAO_ACHADO` ("não achado igual em 3 lojas… Nada foi substituído"). Só conta como recusa da IA o trio do próprio item (nível 0). A tela do item mostra o cartão com o que fazer e o botão de pesquisar de novo |
+| Quem via "não achado" não sabia o que a pesquisa tinha encontrado | **"O mais perto do pedido"**: os produtos, como pedidos, que existem em só 2 lojas (`cesta._quase` → `quase` na proposta e na justificativa, até 3, os mais baratos), com as lojas e os preços. Serve para completar a 3ª pesquisa à mão ou para mudar o pedido |
+
+**Substituições antigas.** Itens que as pesquisas anteriores trocaram sozinhas aparecem com o aviso "Este item está substituído: você pediu X; o que está orçado é Y" e o botão **Desfazer a substituição**; no alto da rubrica, "Desfazer as N substituições" (`/p/{id}/mat/{item}/desfazer-substituicao`). O item volta a ser o que foi pedido, sem pesquisas.
+
+**O que o quadro de decisão oferece, nesta ordem:** mesma marca e descrição com códigos diferentes (quando a IA não confirmou) · como pedido, mas sem um detalhe ("sem: caixa") · parecido (outro tamanho ou variante) · relacionado (mesmo tipo de produto) · e, recolhidos, os produtos de outro tipo. Na verificação, o item pendente diz o que fazer em vez de só "faltam preços".
+
+**Limite que continua.** O sistema só considera loja que entrega no CEP do projeto e não pede verificação humana. Em dia de poucas lojas disponíveis, um item comum pode não fechar 3 lojas com o mesmo produto: ele fica para decidir, não é mais trocado.
+
 ## Apagar as pesquisas e refazer do zero (06/10/2026) — `orcamento/zerar.py`, testes em `tests/test_zerar.py`
 
 **O pedido.** "Quero poder apagar todas as pesquisas já feitas dentro de um projeto, de uma vez. Objetivo: que toda a pesquisa seja refeita, com os mesmos itens, do zero. Sem pegar pesquisas já realizadas."
@@ -276,7 +307,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 241 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 252 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;

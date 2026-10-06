@@ -136,6 +136,12 @@ def inteiro(v, padrao):
     return int(d) if d else padrao
 
 
+def cesta_atende(o):
+    """Para as telas: a opção guardada é o item como foi pedido (o mesmo produto nas 3 lojas)? Opções antigas não têm a marca gravada."""
+    from orcamento.produtos import cesta
+    return cesta.atende_o_pedido(o)
+
+
 def guia_do_projeto(p, res):
     """Os passos do orçamento com a situação de cada um (visão geral do projeto): o que já está pronto e o que fazer agora."""
     rh = [r for r in p.rubricas if isinstance(r, RubricaRH)]
@@ -556,7 +562,7 @@ def pesquisar_tudo(pid: int):
             elif r.subitens:
                 servicos.append(r.item)
         passos = max(1, len(cargos) + 2 * len(mats) + len(sistemas_)); n = 0
-        resumo_ = {}
+        resumo_, a_decidir = {}, []
         for cargo, itens_c in cargos.items():
             if all(servico.rh_pronto(por_item[i]) for i in itens_c):
                 resumo_[f'vagas {cargo}'] = 'já pesquisado (3 vagas válidas): não refeito'; n += 1; continue
@@ -579,7 +585,12 @@ def pesquisar_tudo(pid: int):
             prop = await servico.pesquisar_rubrica(pid, item, _Sub(ctx, n, passos), somente=pend if len(pend) < len(rub.subitens) else None); n += 1
             ctx.progresso(100 * n / passos, f'Comprovantes: item {item}')
             ap = await servico.aplicar_proposta(pid, item, prop, _Sub(ctx, n, passos)); n += 1
+            decidir = [l['desc'] for l in prop['linhas'] if l.get('decidir')]
+            nada = [l['desc'] for l in prop['linhas'] if l.get('sem_opcao')]
+            a_decidir += [(item, d) for d in decidir + nada]
             resumo_[f'item {item}'] = (f"{sum(1 for l in prop['linhas'] if l['acao'] != 'RETIRADO')} de {len(pend)} pesquisados (versão {ap['versao']})"
+                                       + (f'; {len(decidir)} não achado(s) como pedido(s): aguardam a sua decisão (nada foi substituído)' if decidir else '')
+                                       + (f'; {len(nada)} não achado(s) em 3 lojas, sem opção de substituição (nada foi substituído)' if nada else '')
                                        + (f'; {len(rub.subitens) - len(pend)} já prontos, mantidos' if len(pend) < len(rub.subitens) else ''))
         for item in sistemas_:
             rub = next(x for x in db.carregar(pid)[0].rubricas if x.item == item)
@@ -591,6 +602,10 @@ def pesquisar_tudo(pid: int):
         for item in servicos:
             resumo_[f'item {item}'] = 'serviço: fica com os 3 fornecedores do serviço (sem pesquisa automática)'
         consultar_cnpjs_que_faltam(db.carregar(pid)[0], ctx)
+        if a_decidir:   # a pesquisa completa NUNCA substitui um item (decisão da OSC, 06/10/2026): o que não foi achado como pedido fica para ela decidir
+            ctx.aviso(f'{len(a_decidir)} item(ns) não foram achados iguais em 3 lojas. NADA foi substituído: abra cada um e escolha uma opção de substituição '
+                      '(quando houver), mude o pedido e pesquise de novo, ou preencha à mão — ' + '; '.join(f'item {i}: {d}' for i, d in a_decidir[:12])
+                      + ('…' if len(a_decidir) > 12 else '') + '.')
         return dict(resumo=resumo_, ir_para=f'/p/{pid}')
     tid = tarefas.iniciar('tudo', 'Pesquisar tudo (vagas e produtos)', rodar, pid)
     return RedirectResponse(f'/tarefa/{tid}', status_code=303)
@@ -1032,7 +1047,8 @@ def mat_form(request: Request, pid: int, item: int, leitura: str = '', novo: str
         r.subitens = [Subitem(descricao=r.descricao, qtd=1)]
     return tpl.TemplateResponse(request, TELA_DO_TIPO.get(tipo, 'mat.html'),
                                 dict(contexto(p, pid, v), r=r, tipo=tipo, palavras_padrao=palavras_padrao, leitura=leitura, novo=novo,
-                                     banco=db.produtos_do_banco(pid, item), sistemas=sistemas_mod, **(extra or {})))
+                                     banco=db.produtos_do_banco(pid, item), sistemas=sistemas_mod, atende_o_pedido=cesta_atende,
+                                     aguarda_decisao=servico.aguarda_decisao, nao_achado=servico.nao_achado, perto_do_pedido=servico.perto_do_pedido, **(extra or {})))
 
 
 @app.post('/p/{pid}/mat/{item}/sugerir', response_class=HTMLResponse)
@@ -1217,6 +1233,32 @@ async def mat_salvar(request: Request, pid: int, item: int):
     return voltar_ao_projeto(pid, f'Item {item} ({r.descricao}): {msg}', f'item{item}')
 
 
+def _rubrica_de(p, item):
+    return next(x for x in p.rubricas if x.item == item)
+
+
+@app.post('/p/{pid}/mat/{item}/desfazer-substituicao')
+async def mat_desfazer_substituicao(request: Request, pid: int, item: int):
+    """A OSC não quer a substituição que está num item (ou em todos os da rubrica): ele volta a ser o que foi pedido, sem pesquisas."""
+    f = await request.form()
+    p, _ = abrir(pid)
+    r = next((x for x in p.rubricas if x.item == item and not isinstance(x, RubricaRH)), None)
+    if r is None:
+        return voltar_ao_projeto(pid, f'O item {item} não é uma rubrica de materiais deste projeto.', 'materiais')
+    alvo = f.get('desc')
+    feitos = []
+    for s in r.subitens:
+        if s.descricao_original and (alvo == '*' or pedido_do_subitem(s) == alvo):
+            era = servico.desfazer_substituicao(s)
+            feitos.append(f'{era} → {descricao_completa(s)}')
+    if not feitos:
+        return RedirectResponse(f'/p/{pid}/mat/{item}?leitura={quote("Não havia substituição para desfazer.")}', status_code=303)
+    db.salvar(pid, p, motivo=f'item {item}: {len(feitos)} substituição(ões) desfeita(s) pela OSC ({"; ".join(feitos)[:200]})')
+    msg = (f'{len(feitos)} substituição(ões) desfeita(s): o item voltou a ser o que foi pedido, sem pesquisas. '
+           'Agora mude o pedido se quiser e use "Pesquisar de novo só este item", ou preencha à mão.')
+    return RedirectResponse(f'/p/{pid}/mat/{item}?leitura={quote(msg)}#t-itens', status_code=303)
+
+
 def iniciar_pesquisa_da_rubrica(pid, item, r, depois, f, por_indice):
     """Depois de salvar: pesquisa a rubrica toda, ou só um item ("Pesquisar de novo só este item", nas mesmas lojas ou em outras)."""
     if depois == 'pesquisar':
@@ -1239,6 +1281,20 @@ def iniciar_pesquisa_da_rubrica(pid, item, r, depois, f, por_indice):
     async def rodar(ctx):
         prop = await servico.pesquisar_rubrica(pid, item, _Sub(ctx, 0, 2), somente=[pedido], sem_lojas=sem, respeitar_teto=False)
         linha = next((l for l in prop['linhas'] if l['desc'] == pedido), None)
+        if linha and (linha.get('decidir') or linha.get('sem_opcao')):   # não achou o item pedido: nada é substituído; a OSC decide na tela do item
+            perto = (servico.PERTO + servico.texto_do_quase(linha['quase']) + servico.FALTA_A_TERCEIRA) if linha.get('quase') else ''
+            ctx.aviso(f'"{pedido}": o item pedido não foi achado igual em 3 lojas' + (' diferentes das atuais' if sem else '') + '. NADA foi substituído. '
+                      + (f'Há {linha["decidir"]} opção(ões) de substituição na tela do item: escolha uma, ou mude a descrição, a marca ou a especificação '
+                         'e pesquise de novo.' if linha.get('decidir') else
+                         'Também não há opção de substituição: mude a descrição, a marca ou a especificação e pesquise de novo, ou preencha as 3 pesquisas à mão.')
+                      + perto)
+            p2, _ = db.carregar(pid)
+            s2 = next((x for x in _rubrica_de(p2, item).subitens if pedido_do_subitem(x) == pedido), None)
+            if s2 is not None and not servico.subitem_pronto(s2):   # item ainda sem pesquisa: fica dito no próprio item por que está pendente
+                s2.justificativa = linha['motivo']
+                db.salvar(pid, p2, autor='sistema (pesquisa automática)', motivo=f'item {item}: "{pedido}" não achado igual em 3 lojas; nada foi substituído', tarefa=ctx.id)
+            ctx.progresso(100, 'Concluído')
+            return dict(ir_para=f'/p/{pid}/mat/{item}#decidir{ancora}')
         if not linha or linha['acao'] == 'RETIRADO' or not linha.get('opcao_dados'):
             ctx.aviso(f'"{pedido}": nenhuma nova opção com o mesmo produto em 3 lojas' + (' diferentes das atuais' if sem else '')
                       + (f' ({linha["motivo"]})' if linha and linha.get('motivo') else '') + '. As pesquisas do item ficaram como estavam. '

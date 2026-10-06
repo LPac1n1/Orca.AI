@@ -509,6 +509,44 @@ def identidade_nome(a, b, desc):
     return 'Y' if len(da & db) / min(len(da), len(db)) >= 0.5 else 'R'
 
 
+def _numeros_de_medida(nome):
+    """Números com casa decimal e comprimentos citados no anúncio (ponta 0.7 / 1.0mm): '1,0' = '1.0' = '1mm'."""
+    out = {float(x.replace(',', '.')) for x in re.findall(r'(?<![\d/.,])\d+[.,]\d+(?![\d/.,])', sa(nome))}
+    for v in medidas(nome).get('comp', ()):
+        try:
+            out.add(float(v))
+        except ValueError:
+            pass
+    return out
+
+
+def quase_o_mesmo(a, b, desc):
+    """Dois anúncios que PODEM ser o mesmo produto: nada do que os dois citam é diferente (marca, cor, variante, embalagem, unidades,
+    medidas, formato, modelo, tamanho, número da ponta) e as palavras próprias de um estão todas no outro — um só é menos detalhado
+    ("Pilot BPS Grip 1.0" × "Pilot BPS Grip Ponta Média 1.0mm"). Não basta para afirmar que é o mesmo produto: quem usa isto pede a
+    confirmação da IA e, sem ela, deixa a decisão para a OSC."""
+    na, nb = a.get('titulo') or a['nome'], b.get('titulo') or b['nome']
+    if conflito(a, b) or (unidades_emb(na) or 1) != (unidades_emb(nb) or 1):
+        return False
+    qa, qb = medidas(na), medidas(nb)
+    if any(qa[k] != qb[k] for k in set(qa) & set(qb)):
+        return False
+    for f in (lambda n: set(FORMATO.findall(sa(n))), modelos, tamanhos):
+        xa, xb = f(na), f(nb)
+        if xa and xb and xa != xb:
+            return False
+    xa, xb = _numeros_de_medida(na), _numeros_de_medida(nb)
+    if xa and xb and not (xa & xb):
+        return False
+    ta = set(re.findall(r'[a-z]{2,}', sa(na))); tb = set(re.findall(r'[a-z]{2,}', sa(nb)))
+    pedido = set(re.findall(r'[a-z]{2,}', sa(desc)))
+    if ((ta ^ tb) & CORES) - PADRAO - pedido:   # cor que só um cita (papel "Rosa" × papel sem cor): pode ser outro produto
+        return False
+    base = pedido | set(re.findall(r'[a-z]+', marca_de(a) or marca_de(b) or '')) | GENERICAS | CORES
+    da, db = ta - base, tb - base
+    return da <= db or db <= da
+
+
 def identidade(a, b, desc):
     """'G' mesmo EAN (e mesmas unidades) · 'Y' mesmo produto pela descrição · 'R' diferente."""
     if a.get('ean') and b.get('ean'):

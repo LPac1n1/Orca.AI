@@ -213,6 +213,9 @@ def verificar(p: Projeto, cnpj_status: dict | None = None, hoje: dt.date | None 
                                     + (f' (pedido: {s.descricao_original})' if s.descricao_original else '') + (f': {s.justificativa}' if s.justificativa else '')))
                 if s.confirmacao == 'descrição':
                     A.append(Alerta('S03', 'info', rs, 'mesmo produto confirmado pela descrição (ao menos uma loja não publica o código de barras)'))
+                elif (s.confirmacao or '').startswith('descrição'):   # opção que a OSC escolheu: mesma marca e descrição, códigos de barras diferentes
+                    A.append(Alerta('S03', 'atencao', rs, 'as 3 pesquisas são da mesma marca e têm a mesma descrição, mas os códigos de barras não são iguais '
+                                    '(podem ser linhas diferentes do fabricante): confira se é o produto que você quer'))
                 if not s.nivel and any(s.produtos or []):   # pediu a caixa e a pesquisa achou a unidade (teste real de 05/10/2026: caneta avulsa por "caixa de canetas")
                     from .produtos.identidade import embalagem_nao_atendida
                     emb = embalagem_nao_atendida(s.descricao_original or s.descricao, s.produtos)
@@ -229,7 +232,13 @@ def verificar(p: Projeto, cnpj_status: dict | None = None, hoje: dt.date | None 
                     A.append(Alerta('R10', 'erro', rs, f'as pesquisas não são do mesmo produto: "{par[0]}" × "{par[1]}" (marca, cor, variante ou tipo de embalagem '
                                     'diferente). Use "Pesquisar de novo só este item"'))
                 if None in s.precos or len(s.precos) != 3:
-                    A.append(Alerta('R10', 'erro', rs, 'faltam preços: o subitem precisa existir nas 3 fontes')); continue
+                    espera = (s.justificativa or '').startswith('aguardando a sua decisão')
+                    nada = (s.justificativa or '').startswith('não achado igual em 3 lojas')
+                    A.append(Alerta('R10', 'erro', rs, 'o item pedido não foi achado igual em 3 lojas e o sistema não substituiu nada: abra o item e escolha uma das '
+                                    'opções de substituição, mude o pedido e pesquise de novo, ou preencha as 3 pesquisas à mão' if espera else
+                                    'o item pedido não foi achado igual em 3 lojas e o sistema não substituiu nada: abra o item, mude o pedido (a descrição, a '
+                                    'marca ou a especificação) e pesquise de novo, ou preencha as 3 pesquisas à mão' if nada else
+                                    'faltam preços: o subitem precisa existir nas 3 fontes')); continue
                 m = media_subitem(s)
                 if s.valor_plano is None:
                     A.append(Alerta('R04', 'atencao', rs, 'valor do plano ainda não definido'))

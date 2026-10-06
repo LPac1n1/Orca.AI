@@ -15,7 +15,7 @@ Já vem com as regras da Secretaria da Justiça e Cidadania do Estado de São Pa
 | | |
 |---|---|
 | **Mão de obra** | Procura vagas do cargo em sites de emprego, lê o salário que a página mostra, descobre e confere o CNPJ de quem contrata e guarda a página da vaga em PDF. Aceita uma **faixa salarial pretendida** por cargo e ajusta as horas para o valor chegar nela. |
-| **Produtos** | Acha o **mesmo produto** (marca, cor, tipo e embalagem) em 3 lojas de empresas diferentes, confere estoque e preço no CEP do projeto e guarda um PDF por pesquisa, só com aquele item. Quando o produto não existe em 3 lojas, propõe uma troca e explica o motivo. |
+| **Produtos** | Acha o **mesmo produto** (marca, cor, tipo e embalagem) em 3 lojas de empresas diferentes, confere estoque e preço no CEP do projeto e guarda um PDF por pesquisa, só com aquele item. Quando o item pedido não existe igual em 3 lojas, **não substitui nada**: mostra as opções mais próximas e pergunta. |
 | **Sistemas e serviços** | Sistemas: compara 3 fornecedores pelas ferramentas de referência (não pelo nome nem pelo menor preço). Serviços: recebe as 3 propostas em PDF e confere valor e CNPJ. |
 | **CNPJ** | Confere a situação de cada empresa na base pública da Receita Federal e importa o Comprovante de Inscrição e de Situação Cadastral que você emite. |
 | **Verificação** | Aponta, item por item, o que bloqueia o envio e o que merece revisão, com o código da regra. |
@@ -36,6 +36,7 @@ Já vem com as regras da Secretaria da Justiça e Cidadania do Estado de São Pa
 
 ## O que o sistema nunca faz
 
+- **Não substitui um item por conta própria.** Se o que foi pedido não existe igual em 3 lojas, o item fica como está e o sistema mostra as opções (do mais parecido para o menos) para você escolher, mudar o pedido ou preencher à mão.
 - **Não inventa** preço, produto, vaga, CNPJ nem endereço: tudo o que entra no orçamento veio de uma página ou de um documento, e o PDF fica guardado com código de verificação (SHA-256).
 - **Não resolve nem contorna CAPTCHA** e não disfarça a automação. Loja que pede verificação humana sai da pesquisa.
 - **Não guarda senhas nem chaves**. O login em sites, quando necessário, é feito por você numa janela do próprio site.
@@ -155,7 +156,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 241 ao todo. Num clone limpo, 239 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 252 ao todo. Num clone limpo, 250 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -172,7 +173,7 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 ## Limites conhecidos
 
 - O comprovante oficial de CNPJ depende de você: o site da Receita pede uma verificação humana para cada empresa.
-- Item que não existe igual em 3 lojas, nem como troca aceitável, fica com pendência para a sua decisão.
+- Item que não existe igual em 3 lojas (mesmo produto, com estoque e entrega no CEP do projeto) fica com pendência, com as opções de substituição para a sua decisão. Isso depende das lojas disponíveis no dia: loja que pede verificação humana sai da pesquisa por 30 dias.
 - Cargo de título raro pode levar dias até o banco de vagas juntar 3 vagas válidas; o sistema avisa e continua procurando.
 - Sistemas vendidos só sob consulta precisam da proposta do fornecedor, anexada em PDF.
 - Na Catho, a página só mostra as informações da empresa com login; o sistema abre a janela e você entra com a sua conta.
@@ -196,6 +197,11 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.md](sistema/LEIAME.md).
 
 - **06/10/2026**
+  - **O sistema nunca substitui um item sozinho.** Antes, quando o produto pedido não existia igual em 3 lojas, a pesquisa trocava por outro (até por um produto de outro tipo: folha sulfite virou giz de cera, e dois itens viraram o mesmo grampeador). Agora só é gravado o item achado como foi pedido; o resto vira opção para você decidir na tela do item — substituir, mudar o pedido e pesquisar de novo, ou preencher à mão. Vale para a pesquisa completa e para a pesquisa de um item.
+  - **Opção nova, mais próxima do pedido**: a mesma marca e a mesma descrição em 3 lojas quando só o código de barras muda de uma loja para outra (ex.: "Papel Sulfite Report A4 75g 500 folhas"). Com a confirmação da IA de que é o mesmo produto, entra sozinha e fica marcada para revisão; sem ela, é a primeira opção oferecida.
+  - **Mais produtos achados em 3 lojas**: quando o mesmo produto está em 2 lojas e a terceira o anuncia com menos (ou mais) detalhes — "Pilot BPS Grip 1.0" numa, "Pilot BPS Grip Ponta Média 1.0mm" na outra —, o sistema agora junta os três, desde que nada do que os anúncios dizem seja diferente. Só entra sozinho com a confirmação da IA; sem ela, vira opção para você decidir.
+  - **Item não achado: o motivo certo e o que existe.** O item que não fecha 3 lojas passa a dizer o que foi achado em só 2 ("o mais perto do pedido", com as lojas e os preços), para você completar a terceira pesquisa à mão ou mudar o pedido. Antes, alguns itens ficavam com um motivo que não era deles (a recusa, pela IA, de um produto de outro tipo).
+  - Botão para **desfazer substituições** antigas (um item ou todos os da rubrica).
   - **Apagar as pesquisas e refazer do zero**: um botão no projeto apaga todas as vagas e os preços já pesquisados e deixa os itens como foram pedidos (produto trocado volta ao pedido original; a marca que a pesquisa preencheu sai). A pesquisa nova não reaproveita nada: as opções guardadas, as vagas guardadas daqueles cargos e as buscas do dia são esvaziadas. A versão anterior fica no histórico.
 - **05/10/2026 — versão 0.6**
   - **Órgãos com regras próprias**: o sistema deixa de ser só da SEJC. Cada órgão é um cadastro com as regras que valem, as regras próprias (7 tipos), a forma de fazer o orçamento e as planilhas do pacote; a IA propõe as regras a partir do edital.

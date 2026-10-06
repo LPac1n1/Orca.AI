@@ -24,6 +24,25 @@ LIMITE_BUSCA, LIMITE_PAGINA, K_EAN, K_PONTE, N_OPCOES = 75, 60, 8, 6, 5
 # intervalo mínimo (s) entre acessos à MESMA loja: páginas abertas no navegador disparam o anti-robô se vierem em rajada
 INTERVALO = dict(render=4.0, tenda=0.7, gimba=1.0, nuvemshop=2.5, vtex=0.3, gpa=0.3)
 MAX_CATEGORIA = 12   # produtos da categoria procurados quando um item não existe igual em 3 lojas
+CODIGOS_DIFERENTES = 'descrição; códigos de barras diferentes'   # mesma marca e descrição nas 3 lojas, mas os códigos de barras não são iguais
+DETALHE_NAO_CITADO = 'descrição; um anúncio não cita um detalhe'   # o mesmo produto em 2 lojas e, na 3ª, um anúncio menos detalhado da mesma marca
+N_QUASE = 3   # produtos achados em só 2 lojas que a pesquisa mostra quando o item não fecha 3 (para a OSC saber o que existe)
+
+
+def atende_o_pedido(o):
+    """A opção É o item pedido, o MESMO produto nas 3 lojas, sem perder nada do que foi pedido — a única que a pesquisa grava sozinha.
+    Troca (parecido, relacionado, produto da categoria), marcas diferentes e "como pedido, mas sem a caixa" são opções para a OSC decidir
+    (decisão de 06/10/2026: o sistema nunca substitui um item sem perguntar).
+    Mesma marca e mesma descrição com códigos de barras diferentes ("Papel Sulfite Report A4 75g 500 folhas" em 3 lojas, uma delas da linha
+    Premium): não é substituição — é o que foi pedido —, mas só vale sozinha quando a IA confirma que os 3 anúncios são o mesmo produto;
+    sem essa confirmação, fica para a OSC decidir. Gravada, entra na verificação como ponto para revisar.
+    O mesmo vale para o produto que está em 2 lojas e que a 3ª anuncia com menos detalhes ("Pilot BPS Grip 1.0" × "Pilot BPS Grip Ponta
+    Média 1.0mm"): só com a confirmação da IA."""
+    if not o or o.get('nivel') or o.get('misto') or o.get('perdidos'):
+        return False
+    if o.get('codigos_diferentes') or o.get('detalhe_nao_citado'):
+        return bool((o.get('ia') or {}).get('mesmo_produto'))
+    return True
 
 
 def _sem_espaco(u):
@@ -92,8 +111,9 @@ class Motor:
             nomes = [n for n in e['sinonimos'] if sem_marca(n) and novo(n) and not any(ID.compativel(o, n, 0) for o in outros)]   # nunca o nome de OUTRO item da rubrica
             if ID.definir_sinonimos(d, e['produto'], nomes):
                 self.entendido[d]['nomes'] = nomes
-            ID.definir_varias_unidades(d, e['varias_unidades'])
-            self.entendido[d]['varias_unidades'] = e['varias_unidades']
+            if ID.embalagem_lider(d) in ID.VARIAS_UNIDADES:   # só quando o pedido começa pela embalagem ("Caixa de canetas"); "500 folhas" é medida, não unidades
+                ID.definir_varias_unidades(d, e['varias_unidades'])
+                self.entendido[d]['varias_unidades'] = e['varias_unidades']
             for q in e['buscas']:
                 q = L.consulta(q)
                 if q and sem_marca(q) and ID.sa(q) not in [ID.sa(x) for x in self.buscas[d]] and len(self.buscas[d]) < 3:
@@ -452,8 +472,9 @@ class Motor:
         media = sum(x['preco'] for x in o['ofertas']) / 3
         misto = 1 if o.get('misto') else 0   # o MESMO produto vem antes do produto igual de outra marca
         if o['nivel'] == 3 and valor_ref:
-            return (3, misto, 0, abs(media - valor_ref))
-        return (o['nivel'], misto, o['distancia'], media)
+            return (3, misto, 0, 0, abs(media - valor_ref))
+        incerto = 2 if o.get('detalhe_nao_citado') else 1 if o.get('codigos_diferentes') else 0   # o que as regras afirmam vem antes do que depende da IA
+        return (o['nivel'], misto, incerto, o['distancia'], media)
 
     def _opcoes_por_item(self, grupos):
         """Para cada item, as melhores opções (mesmo produto em 3 lojas de empresas diferentes)."""
@@ -473,6 +494,24 @@ class Motor:
                             o = self._opcao(it, g, 0, tuple(tres), res, misto=True)
                             o['distancia'] += 0 if cor_sempre else 0.5
                             cands.append(o)
+            # MESMA marca e mesma descrição em 3 lojas, mas com códigos de barras DIFERENTES (linhas do fabricante: "Report" e "Report Premium").
+            # Vem depois do mesmo código de barras; só é gravada sozinha se a IA confirmar que é o mesmo produto (atende_o_pedido) — 06/10/2026
+            exatas = {tuple(sorted((x['loja'], x['url']) for x in o['ofertas'])) for o in cands}
+            reais = {(x['loja'], x.get('url')): x for x in self.ofertas[(it['desc'], 0)]}
+            for g in ID.agrupar([dict(x, ean=None) for x in self.ofertas[(it['desc'], 0)]], it['desc']):
+                g = dict(g, por_loja={l: reais.get((l, x.get('url')), x) for l, x in g['por_loja'].items()})   # de volta com o código de barras de cada um
+                tres, res = self._ordem_lojas(g)
+                if len(tres) != 3 or tuple(sorted((l, g['por_loja'][l]['url']) for l in tres)) in exatas:
+                    continue
+                marcas = {ID.marca_de(g['por_loja'][l]) for l in tres}
+                eans = {g['por_loja'][l]['ean'].lstrip('0') for l in tres if g['por_loja'][l].get('ean')}
+                if len(marcas) != 1 or None in marcas or len(eans) < 2:
+                    continue
+                o = self._opcao(it, g, 0, tuple(tres), res)
+                o['codigos_diferentes'] = True
+                o['confirmacao'] = CODIGOS_DIFERENTES
+                cands.append(o)
+            cands += self._com_a_terceira_loja(it, grupos, {tuple(sorted((x['loja'], x['url']) for x in o['ofertas'])) for o in cands})
             cat = []   # último degrau: produto da categoria da rubrica (fica sempre como reserva, para o caso de a IA reprovar as opções acima)
             for t, gs in self.grupos_categoria.items():
                 for g in gs:
@@ -490,6 +529,60 @@ class Motor:
                 return uniq[:n]
             # produto que já é de outro item da rubrica (fora desta pesquisa) não é opção para este
             out[it['desc']] = [o for o in unicas(cands, N_OPCOES) + unicas(cat, 8, por_termo=True) if not (chaves_da_opcao(o) & self.usados)]
+        return out
+
+    def _com_a_terceira_loja(self, it, grupos, ja):
+        """O MESMO produto em 2 lojas (de empresas diferentes) e, numa terceira, um anúncio da mesma marca que não contradiz nada dos outros
+        dois — só é menos detalhado, ou mais ("Pilot BPS Grip 1.0" × "Pilot BPS Grip Ponta Média 1.0mm"). As regras de descrição recusam esse
+        anúncio por cautela; aqui ele vira uma opção À PARTE, que só é gravada sozinha se a IA confirmar que os 3 são o mesmo produto
+        (atende_o_pedido). Sem a IA, fica para a OSC decidir; reprovada pela IA, sai (06/10/2026)."""
+        out = []
+        for g in grupos[(it['desc'], 0)]:
+            duas, _ = self._ordem_lojas(g)
+            if len(duas) != 2:
+                continue
+            membros = list(g['por_loja'].values())
+            marcas = {ID.marca_de(x) for x in membros} - {None}
+            if len(marcas) != 1:
+                continue
+            marca, raizes, melhor = next(iter(marcas)), {L.raiz(l) for l in g['por_loja']}, None
+            for x in sorted(self.ofertas[(it['desc'], 0)], key=lambda x: x['preco']):   # a mais barata, numa loja de outra empresa
+                if L.raiz(x['loja']) in raizes or ID.marca_de(x) != marca:
+                    continue
+                if all(ID.quase_o_mesmo(x, m, it['desc']) for m in membros):
+                    melhor = x
+                    break
+            if melhor is None:
+                continue
+            g3 = dict(g, por_loja={**{l: g['por_loja'][l] for l in duas}, melhor['loja']: melhor}, amarelo=True)
+            tres = tuple(sorted(g3['por_loja'], key=lambda l: g3['por_loja'][l]['preco']))
+            if tuple(sorted((l, g3['por_loja'][l]['url']) for l in tres)) in ja:
+                continue
+            o = self._opcao(it, g3, 0, tres)
+            o['detalhe_nao_citado'] = True
+            o['confirmacao'] = DETALHE_NAO_CITADO
+            out.append(o)
+        return out
+
+    def _quase(self, grupos, opcoes):
+        """Para o item que não fechou 3 lojas: os produtos, como foram pedidos, que existem em só 2 lojas de empresas diferentes (os mais
+        baratos). Não são opção — falta uma loja —, mas a OSC fica sabendo o que existe: pode completar a 3ª pesquisa à mão ou mudar o pedido."""
+        out = {}
+        for it in self.itens:
+            if any(not o.get('nivel') and not o.get('misto') for o in opcoes.get(it['desc'], [])):
+                continue   # há opção com o item como foi pedido
+            achados = []
+            for g in grupos[(it['desc'], 0)]:
+                duas, _ = self._ordem_lojas(g)
+                if len(duas) == 2:
+                    ofs = [g['por_loja'][l] for l in duas]
+                    if ofs[1]['preco'] > 3 * ofs[0]['preco']:   # um custa mais que o triplo do outro: não devem ser o mesmo produto (lápis × kit de lápis)
+                        continue
+                    achados.append(dict(produto=max((x.get('titulo') or x['nome'] for x in ofs), key=len),
+                                        ofertas=[dict(loja=x['loja'], nome=x.get('titulo') or x['nome'], preco=x['preco'], url=x.get('url'), ean=x.get('ean')) for x in ofs]))
+            achados.sort(key=lambda q: sum(x['preco'] for x in q['ofertas']))
+            if achados:
+                out[it['desc']] = achados[:N_QUASE]
         return out
 
     def escolher(self, opcoes, itens):
@@ -559,9 +652,10 @@ class Motor:
                         return escolha
                     continue
                 o['ia'] = dict(mesmo_produto=r[0], motivo=r[1])
-                if not r[0]:
+                if not r[0] and not o.get('codigos_diferentes'):
                     opcoes[d] = [x for x in opcoes[d] if x is not o]; mudou = True
-                    self.rejeitadas_ia[d].append(dict(produtos=[x.get('titulo') or x['nome'] for x in o['ofertas']], motivo=r[1]))
+                    self.rejeitadas_ia[d].append(dict(produtos=[x.get('titulo') or x['nome'] for x in o['ofertas']], motivo=r[1], nivel=o['nivel'],
+                                                      substituto=o.get('substituto')))
             if not mudou:
                 break
             escolha = self.escolher(opcoes, self.itens)
@@ -666,6 +760,7 @@ class Motor:
                            + '; '.join(f'{k} ({v})' for k, v in incompletas.items()))
         self._prog(100, 'Concluído')
         return dict(modo=self.modo, trio=list(trio) if trio else None, itens=self.itens, escolha=escolha, opcoes=opcoes, entendido=self.entendido,
+                    quase=self._quase(grupos, opcoes),
                     lojas=self.lojas, lojas_incompletas=incompletas, rejeitadas_ia=dict(self.rejeitadas_ia), buscas=sum(self.buscas_loja.values()), falhas=sum(self.falhas_loja.values()))
 
 

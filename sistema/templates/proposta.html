@@ -63,7 +63,9 @@
       <td class="n" data-rotulo="Média">{{ l.media|brl if l.media else '—' }}</td>
       <td class="n" data-rotulo="Valor no plano"><b>{{ l.valor|brl if l.valor else '—' }}</b></td>
       <td data-rotulo="Situação">
-        {% if l.acao == 'RETIRADO' %}{{ selo('erro', 'Retirado para caber no teto' if l.motivo.startswith('retirado') else ('Recusado pela IA' if l.reprovadas_ia else 'Não encontrado')) }}
+        {% if l.decidir %}{{ selo('alerta', 'Aguarda a sua decisão', quebra=true) }}
+        {% elif l.sem_opcao %}{{ selo('erro', 'Não achado em 3 lojas', quebra=true) }}
+        {% elif l.acao == 'RETIRADO' %}{{ selo('erro', 'Retirado para caber no teto' if l.motivo.startswith('retirado') else ('Recusado pela IA' if l.reprovadas_ia else 'Não encontrado')) }}
         {% elif l.acao == 'ACRESCENTADO' %}{{ selo('info', 'Acrescentado') }}
         {% elif o.confirmacao == 'EAN nas 3 lojas' %}{{ selo('ok', 'Mesmo código de barras nas 3 lojas') }}
         {% elif o.misto %}{{ selo('alerta', 'Mesma especificação, marcas diferentes', quebra=true) }}
@@ -77,7 +79,8 @@
 <div class="cartao secao">
   <p>Ao aplicar, o sistema monta o carrinho ou abre a página de cada produto, guarda o comprovante em PDF de cada preço e grava uma nova versão. Pode levar
     vários minutos; o andamento aparece na tela.</p>
-  <p class="texto-apoio">Itens "não encontrado" continuam na rubrica, com pendência, para a sua decisão. A versão atual continua no histórico.</p>
+  <p class="texto-apoio">O sistema nunca substitui um item sozinho. Itens "aguarda a sua decisão" e "não encontrado" continuam na rubrica como foram pedidos:
+    depois de aplicar, abra cada um para escolher uma opção de substituição, mudar o pedido ou preencher à mão. A versão atual continua no histórico.</p>
   <form method="post" action="/p/{{ pid }}/mat/{{ r.item }}/proposta/{{ t.id }}/aplicar" class="linha">
     <button class="btn btn--primario" data-aguarde="Iniciando…">{{ icone('certo') }}Aplicar a proposta e gerar os comprovantes</button>
     <a class="btn btn--secundario" href="/p/{{ pid }}/mat/{{ r.item }}">Voltar sem aplicar</a>

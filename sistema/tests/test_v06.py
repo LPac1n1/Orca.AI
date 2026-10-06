@@ -124,7 +124,7 @@ def test_item_trocado_antes_e_acertado_e_a_marca_entra_na_tela(cliente):
     db.salvar(pid, p)
     pag = cliente.get(f'/p/{pid}/mat/1').text
     assert 'name="smarca1" type="text" value="Pullman"' in pag and 'name="sesp1" type="text" value="500g"' in pag
-    assert 'name="sdesc1" type="text" value="Pão de Forma"' in pag and 'Pedido original:</b> Pão de Forma 480g' in pag
+    assert 'name="sdesc1" type="text" value="Pão de Forma"' in pag and 'Você pediu <b>Pão de Forma 480g</b>' in pag and 'Desfazer a substituição' in pag
     from test_interface import _campos
     cliente.post(f'/p/{pid}/mat/1', data=_campos(pag))                         # salvar sem mexer: grava o acerto e mantém o pedido original
     s = db.carregar(pid)[0].rubricas[0].subitens[1]

@@ -109,7 +109,7 @@ def produtos_em_conflito(s):
     """Dois produtos gravados nas pesquisas do item que NÃO são o mesmo produto (marca, cor, variante ou tipo de embalagem diferentes: café a
     vácuo × em pouch, bloco refil × bloco comum), ou None. Só os itens confirmados pela descrição (com o mesmo código de barras nas 3 lojas
     não há dúvida; em rubrica de sistema os 3 são diferentes de propósito)."""
-    if s.confirmacao != 'descrição':
+    if not (s.confirmacao or '').startswith('descrição'):
         return None
     import itertools
     nomes = [x for x in (s.produtos or []) if x]
@@ -533,6 +533,46 @@ def rh_pronto(r):
     return True
 
 
+AGUARDA_DECISAO = 'aguardando a sua decisão'   # como começa a justificativa do item que a pesquisa não achou igual e não substituiu
+NAO_ACHADO = 'não achado igual em 3 lojas'    # idem, quando a pesquisa também não tem nenhuma opção de substituição para mostrar
+PERTO, FALTA_A_TERCEIRA = ' O mais perto do pedido: ', ' — falta a 3ª loja.'   # o produto que existe, como pedido, em só 2 lojas
+
+
+def aguarda_decisao(s, opcoes):
+    """O item está à espera de a OSC decidir? A última pesquisa dele não achou o item pedido igual em 3 lojas (as opções guardadas são todas
+    de substituição) e ele continua sem as 3 pesquisas. Item já substituído (pela pesquisa antiga ou por escolha da OSC) não está à espera:
+    a tela dele mostra o que está orçado no lugar do pedido e o botão de desfazer."""
+    opcoes = opcoes or []
+    return bool(opcoes) and not any(cesta.atende_o_pedido(o) for o in opcoes) and not subitem_pronto(s)
+
+
+def nao_achado(s):
+    """A última pesquisa do item não achou o item pedido igual em 3 lojas, nem opção de substituição, e ele continua sem as 3 pesquisas."""
+    return (s.justificativa or '').startswith(NAO_ACHADO) and not subitem_pronto(s)
+
+
+def perto_do_pedido(s):
+    """O trecho da justificativa que diz o que existe, como foi pedido, em só 2 lojas ('' quando a pesquisa não achou nada assim)."""
+    j = s.justificativa or ''
+    return j.split(PERTO, 1)[1].split(FALTA_A_TERCEIRA)[0] if PERTO in j and not subitem_pronto(s) else ''
+
+
+def texto_do_quase(quase):
+    """'"Papel Sulfite X A4 500 folhas" em 2 lojas (Loja A R$ 28,22 e Loja B R$ 32,90)': o que existe, como foi pedido, em só 2 lojas."""
+    def preco(c):
+        return f'R$ {c / 100:,.2f}'.replace(',', '#').replace('.', ',').replace('#', '.')
+    return '; '.join(f'"{q["produto"][:90]}" em 2 lojas (' + ' e '.join(f'{L.LOJAS[x["loja"]]["nome"] if x["loja"] in L.LOJAS else x["loja"]} {preco(x["preco"])}'
+                                                                        for x in q['ofertas']) + ')' for q in quase or [])
+
+
+def desfazer_substituicao(s):
+    """A OSC não quer a substituição: o item volta a ser o que ela pediu, sem pesquisas (para pesquisar de novo, mudar o pedido ou preencher à mão)."""
+    era = descricao_completa(s)
+    voltar_ao_pedido(s)
+    s.justificativa = f'substituição desfeita pela OSC (estava: {era}): o item voltou ao pedido original, sem pesquisas'
+    return era
+
+
 async def pesquisar_rubrica(pid, item, ctx, somente=None, sem_lojas=(), respeitar_teto=True):
     """somente: pedidos dos subitens a pesquisar (os outros ficam como estão; o teto desconta o valor deles).
     sem_lojas: lojas que não entram nesta pesquisa (nova pesquisa de um item "em outras lojas").
@@ -566,17 +606,23 @@ async def pesquisar_rubrica(pid, item, ctx, somente=None, sem_lojas=(), respeita
         if o:
             for x in o['ofertas']:
                 usados[(x['loja'], x['url'])] = d
-    opc_itens = []
+    opc_itens, todas = [], {}
     for it in itens:
         ops = [o for o in res['opcoes'].get(it['desc'], []) if all(usados.get((x['loja'], x['url']), it['desc']) == it['desc'] for x in o['ofertas'])]
+        ops.sort(key=lambda o: (not cesta.atende_o_pedido(o), o.get('nivel') or 0))   # o item como foi pedido primeiro; depois, do mais perto do pedido para o mais longe
         esc = res['escolha'].get(it['desc'])
-        if esc and esc in ops:  # a escolha do motor vem primeiro
+        if esc and esc in ops and cesta.atende_o_pedido(esc):  # a escolha do motor vem primeiro
             ops.remove(esc); ops.insert(0, esc)
-        opc_itens.append(dict(desc=it['desc'], qtd=it['qtd'], opcoes=[dict(o, precos=_precos(o)) for o in ops]))
-    opc_extras = [dict(desc=d, qtd=1, opcoes=[dict(o, precos=_precos(o)) for o in (ext['opcoes'].get(d) or [])[:2]])
+        todas[it['desc']] = [dict(o, precos=_precos(o), atende=cesta.atende_o_pedido(o)) for o in ops]
+        # O SISTEMA NUNCA SUBSTITUI SOZINHO (decisão da OSC, 06/10/2026): só entra na proposta o item achado COMO FOI PEDIDO, o mesmo produto
+        # nas 3 lojas. O resto (parecido, relacionado, da categoria, códigos de barras diferentes) fica guardado como opção para ela decidir.
+        opc_itens.append(dict(desc=it['desc'], qtd=it['qtd'], opcoes=[o for o in todas[it['desc']] if o['atende']]))
+    opc_extras = [dict(desc=d, qtd=1, opcoes=[dict(o, precos=_precos(o)) for o in (ext['opcoes'].get(d) or [])[:2] if cesta.atende_o_pedido(o)])
                   for d in (r.extras if ext else [])]
-    for it in opc_itens:   # banco de produtos: as opções válidas de cada item ficam guardadas para a OSC trocar o produto escolhido
-        db.produtos_guardar(pid, item, it['desc'], it['opcoes'])
+    for d, ops in todas.items():   # banco de produtos: TODAS as opções ficam guardadas — as do pedido, para trocar de produto; as outras, para decidir
+        db.produtos_guardar(pid, item, d, ops)
+    if any(ops and not any(o['atende'] for o in ops) for ops in todas.values()):
+        opc_extras = []   # há item à espera de decisão: a "sobra" do teto é só aparente, então nenhum item extra é acrescentado agora
     teto_r = r.teto_mensal if respeitar_teto else None
     if teto_r and somente is not None:   # os subitens que não foram pesquisados continuam com o valor deles
         teto_r = max(0, teto_r - sum((s.valor_plano or 0) * s.qtd for s in r.subitens if s not in subs))
@@ -586,10 +632,22 @@ async def pesquisar_rubrica(pid, item, ctx, somente=None, sem_lojas=(), respeita
         fonte = opc_itens if l['acao'] != 'ACRESCENTADO' else opc_extras
         it = next(x for x in fonte if x['desc'] == l['desc'])
         o = it['opcoes'][l['opcao']] if l.get('opcao') is not None and it['opcoes'] else None
-        rej = res.get('rejeitadas_ia', {}).get(l['desc']) if l['acao'] == 'RETIRADO' and not it['opcoes'] else None
-        if rej:   # achou o produto em 3 lojas, mas a IA disse que os anúncios não são o mesmo produto
-            l = dict(l, motivo=f'{len(rej)} opção(ões) em 3 lojas reprovada(s) pela IA como produtos diferentes — ' + rej[0]['motivo'],
-                     reprovadas_ia=rej)
+        sem = l['acao'] == 'RETIRADO' and not it['opcoes'] and l['acao'] != 'ACRESCENTADO' and fonte is opc_itens   # o item não foi achado como pedido
+        # só conta o que a IA recusou DO ITEM PEDIDO: o trio de um produto da categoria (uma troca) recusado não explica nada sobre o item
+        rej = [x for x in res.get('rejeitadas_ia', {}).get(l['desc'], []) if not x.get('nivel')] if sem else []
+        subst = [x for x in todas.get(l['desc'], []) if not x['atende']] if sem else []
+        quase = (res.get('quase') or {}).get(l['desc'], []) if sem else []
+        perto = f'{PERTO}{texto_do_quase(quase)}{FALTA_A_TERCEIRA}' if quase else ''
+        if subst:   # o item pedido não foi achado igual em 3 lojas: NADA é substituído; as opções ficam para a OSC decidir na tela do item
+            l = dict(l, decidir=len(subst), reprovadas_ia=rej, quase=quase,
+                     motivo=f'{AGUARDA_DECISAO}: o item pedido não foi achado igual em 3 lojas. Nada foi substituído; há {len(subst)} '
+                            f'opção(ões) de substituição para você escolher na tela do item.{perto}')
+        elif sem:   # nem o item, nem opção de substituição: a OSC muda o pedido e pesquisa de novo, ou preenche à mão
+            l = dict(l, sem_opcao=True, reprovadas_ia=rej, quase=quase,
+                     motivo=f'{NAO_ACHADO}: o sistema não encontrou o mesmo produto, como foi pedido, em 3 lojas de empresas diferentes, com estoque '
+                            f'e entrega no CEP do projeto. Nada foi substituído.{perto}'
+                            + (f' {len(rej)} conjunto(s) de 3 anúncios foram descartados porque a IA viu produtos diferentes ({rej[0]["motivo"]}).' if rej else '')
+                            + ' Mude a descrição, a marca ou a especificação e pesquise de novo, ou preencha as 3 pesquisas à mão.')
         alternativas = [x for x in it['opcoes'] if x is not o][:3] if l['acao'] == 'mantido' else []
         linhas.append(dict(l, opcao_dados=o, alternativas=alternativas))
     ctx.progresso(100, 'Proposta pronta')
@@ -938,7 +996,7 @@ async def aplicar_proposta(pid, item, proposta, ctx):
                 if not any(comp.get((x['loja'], x['url']), {}).get('problema') for x in l['opcao_dados']['ofertas']):
                     continue
                 for alt in l.get('alternativas') or []:
-                    if alt['nivel'] > l['opcao_dados']['nivel']:   # não piora o item (ex.: 800 g no lugar de 1,6 kg) só por falta de comprovante
+                    if alt['nivel'] > l['opcao_dados']['nivel'] or not cesta.atende_o_pedido(alt):   # nunca uma substituição (nem 800 g no lugar de 1,6 kg) por falta de comprovante
                         continue
                     ofs = _lojas_utilizaveis(alt, bloqueadas, comp)
                     em_outros = {(y['loja'], y['url']) for o in linhas if o is not l for y in o['opcao_dados']['ofertas']}
@@ -1036,6 +1094,12 @@ async def aplicar_proposta(pid, item, proposta, ctx):
             just.insert(0, f"troca por item {'parecido' if o['nivel'] == 1 else 'relacionado'}" + (f" (perdeu: {', '.join(o['perdidos'])})" if o['perdidos'] else ''))
         elif not o['nivel'] and o.get('perdidos'):
             just.insert(0, f"como pedido, mas sem: {', '.join(o['perdidos'])} (não existe assim em 3 lojas)")
+        if o.get('codigos_diferentes'):
+            just.insert(0, 'mesma marca e mesma descrição nas 3 lojas, com códigos de barras diferentes (podem ser linhas diferentes do fabricante)')
+        if o.get('detalhe_nao_citado'):
+            just.insert(0, 'o mesmo produto em 2 lojas e, na terceira, um anúncio da mesma marca com menos (ou mais) detalhes na descrição')
+        if o.get('escolhida_pela_osc') and not cesta.atende_o_pedido(o):
+            just.insert(0, f'opção escolhida pela OSC em {dt.date.today():%d/%m/%Y} (o item pedido não foi achado igual em 3 lojas; o sistema não substitui sozinho)')
         if o.get('trio_ia'):
             just.append('os 3 produtos equivalentes foram escolhidos pela IA entre os anúncios das lojas e validados pelo sistema (3 empresas diferentes)')
         if o.get('ia'):
@@ -1309,10 +1373,9 @@ async def trocar_produto(pid, item, desc, idx, ctx):
     s = next((x for x in _rubrica(p, item).subitens if pedido_do_subitem(x) == desc), None)
     if s is None:
         raise ValueError(f'o subitem "{desc}" não está mais na rubrica')
-    o = banco['opcoes'][idx]
-    linha = dict(acao='mantido', desc=desc, qtd=s.qtd, opcao=idx, valor=None, opcao_dados=o,
-                 alternativas=[x for j, x in enumerate(banco['opcoes']) if j != idx][:3])
-    return await aplicar_proposta(pid, item, dict(linhas=[linha], modo='troca manual', teto=None), ctx)
+    o = dict(banco['opcoes'][idx], escolhida_pela_osc=True)
+    linha = dict(acao='mantido', desc=desc, qtd=s.qtd, opcao=idx, valor=None, opcao_dados=o, alternativas=[])
+    return await aplicar_proposta(pid, item, dict(linhas=[linha], modo='escolha da OSC', teto=None), ctx)
 
 
 def similares_do_cargo(r):
