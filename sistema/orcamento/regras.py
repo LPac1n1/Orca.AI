@@ -30,6 +30,7 @@ REGRAS = {
     'S07': ('O comprovante da vaga deve ser a página do próprio anúncio (não a lista de vagas do site)', 'regra do sistema'),
     'S08': ('Dois itens da mesma rubrica não podem ser o mesmo produto', 'regra do sistema'),
     'S09': ('O valor mensal do cargo segue a faixa salarial pretendida, ajustando as horas (até a jornada inteira do mês)', 'configuração da rubrica'),
+    'S10': ('Pedido de uma embalagem com várias unidades (caixa, pacote, kit) atendido com a embalagem, não com a unidade avulsa', 'regra do sistema'),
     'D09': ('Teto mensal da rubrica definido pela OSC', 'configuração da rubrica'),
 }
 

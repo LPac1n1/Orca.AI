@@ -1022,6 +1022,8 @@ async def aplicar_proposta(pid, item, proposta, ctx):
                            f"nem parecido, nem da mesma família")
         elif o['nivel'] and not o.get('trio_ia'):
             just.insert(0, f"troca por item {'parecido' if o['nivel'] == 1 else 'relacionado'}" + (f" (perdeu: {', '.join(o['perdidos'])})" if o['perdidos'] else ''))
+        elif not o['nivel'] and o.get('perdidos'):
+            just.insert(0, f"como pedido, mas sem: {', '.join(o['perdidos'])} (não existe assim em 3 lojas)")
         if o.get('trio_ia'):
             just.append('os 3 produtos equivalentes foram escolhidos pela IA entre os anúncios das lojas e validados pelo sistema (3 empresas diferentes)')
         if o.get('ia'):

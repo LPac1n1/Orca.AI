@@ -78,3 +78,33 @@ def test_balao_de_cep_e_ocultado_antes_do_pdf():
     except Exception as e:   # computador sem o navegador do sistema instalado
         pytest.skip(f'navegador indisponível: {type(e).__name__}')
     assert visiveis == [False, True, True]
+
+
+def test_caixa_pedida_e_unidade_achada_vira_ponto_para_revisar(tmp_path, monkeypatch):
+    """Teste real de 05/10/2026: "Caixa Caneta Esferográfica Azul" foi orçada com uma caneta avulsa (não havia a caixa do mesmo produto em 3
+    lojas) e o item ficou "em ordem". Agora a verificação aponta (S10, para revisar) enquanto as pesquisas forem da unidade."""
+    from orcamento.calculo import verificar
+    from orcamento.modelo import Projeto, RubricaMaterial, Subitem, Fonte, Evidencia
+    from orcamento.produtos import identidade as ID
+    from orcamento.regras import REGRAS
+    avulsas = ['Caneta Esferográfica BPS Grip 1.0 Azul Pilot', 'Caneta Esferográfica Pilot BPS Grip 1.0', 'Caneta Esferográfica Azul Grip']
+    caixas = ['Caneta Esferográfica Cristal Azul Caixa com 50 Bic', 'Caneta Bic Cristal Azul cx c/50', 'Caneta Cristal Azul Bic Dura+ Caixa com 50 Unidades']
+    assert ID.embalagem_nao_atendida('Caixa Caneta Esferográfica Azul', avulsas) == 'caixa' and ID.embalagem_nao_atendida('Caixa Caneta Esferográfica Azul', caixas) is None
+    assert ID.embalagem_nao_atendida('Caixa Caneta Esferográfica Azul', caixas[:2] + avulsas[:1]) == 'caixa'                 # basta um anúncio da unidade
+    assert ID.embalagem_nao_atendida('Pacote de Lápis de Cor', ['Lápis de Cor 12 Cores Kit Escolar', 'Lápis de Cor Estojo 12', 'Kit Lápis de Cor']) is None
+    assert ID.embalagem_nao_atendida('Caneta Esferográfica Azul', avulsas) is None                                             # não pediu embalagem
+    assert ID.embalagem_nao_atendida('Caixa de Leite Integral', ['Leite Integral 1L', 'Leite UHT Integral 1L', 'Leite Integral Tetra Pak 1L']) is None   # por volume: é a embalagem normal
+    assert ID.embalagem_nao_atendida('Caixa de Som', ['Caixa de Som JBL', 'Caixa de Som Bluetooth', 'Caixa de Som']) is None   # a "caixa" é o próprio produto
+    assert ID.embalagem_nao_atendida('Caixa Caneta Esferográfica Azul', []) is None and 'S10' in REGRAS
+
+    def projeto(produtos, nivel=0, original=None):
+        f = lambda k: Fonte(nome=f'LOJA {k}', cnpj=('11.222.333/0001-81', '11.444.777/0001-61', '45.997.418/0001-53')[k], data_pesquisa='2026-10-05',
+                            evidencia=Evidencia(arquivo='x.pdf', origem='pdf', sha256='a' * 64))
+        s = Subitem(descricao='Caixa Caneta Esferográfica Azul' if not original else 'Caneta Esferográfica', qtd=1, precos=[805, 950, 1121], valor_plano=805, produtos=produtos,
+                    fontes=[f(0), f(1), f(2)], nivel=nivel, descricao_original=original, confirmacao='descrição')
+        return Projeto(nome='T', teto=100000, rubricas=[RubricaMaterial(item=1, descricao='Material de Escritório', meses=10, subitens=[s])])
+    s10 = lambda p: [(a.gravidade, a.mensagem) for a in verificar(p) if a.regra == 'S10']
+    achado = s10(projeto(avulsas))
+    assert len(achado) == 1 and achado[0][0] == 'atencao' and 'o pedido é de caixa, mas a pesquisa achou a unidade avulsa' in achado[0][1] and 'Caixa com 50 unidades' in achado[0][1]
+    assert s10(projeto(caixas)) == [] and s10(projeto([None, None, None])) == []                                              # com a caixa (ou ainda sem pesquisa): nada
+    assert s10(projeto(avulsas, nivel=1, original='Caixa Caneta Esferográfica Azul')) == []                                   # troca declarada já é apontada pela S02

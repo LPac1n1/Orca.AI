@@ -172,6 +172,24 @@ def quer_varias_unidades(desc):
     return None if embalagem_lider(desc) in VARIAS_UNIDADES else False
 
 
+_EMB_VARIAS = re.compile(r'\b(caixa|cx|pacote|pct|kit|fardo|estojo|blister|cartela|display)\b')
+
+
+def embalagem_nao_atendida(desc, titulos):
+    """O pedido é de uma embalagem com VÁRIAS unidades ("Caixa Caneta Esferográfica Azul") e algum dos anúncios é da unidade avulsa? Devolve a
+    embalagem pedida ('caixa') ou None. Produto vendido por peso ou volume não conta ("Caixa de leite 1L" é a embalagem normal dele), nem o
+    pedido que já diz quantas unidades quer e foi atendido."""
+    lid, quer = embalagem_lider(desc), quer_varias_unidades(desc)
+    titulos = [t for t in titulos or [] if t]
+    if quer is False or not titulos or not (lid or quer):
+        return None
+    if quer is None and any(medida(t) for t in titulos):
+        return None
+    if all((unidades_emb(t) or 1) > 1 or _EMB_VARIAS.search(sa(t)) for t in titulos):
+        return None
+    return lid or 'várias unidades'
+
+
 def _sinonimos(d):
     chave = next((k for k in SINONIMOS if k in d), None)
     if chave:

@@ -20,6 +20,23 @@ Monta e confere a **Grade Comparativa** e o **Plano de Aplicação** de projetos
 | **Altura das linhas na impressão** | Conferindo a impressão pelo Excel, nomes compridos de empresa saíam cortados no Comparativo e descrições de duas linhas ficavam apertadas no Plano. A altura passou a ser calculada como o Excel quebra o texto (nas palavras; maiúsculas ocupam mais): `pacote._linhas_quebradas`, medida contra a impressão real |
 | **"Evolution" não é marca** | É uma linha de lápis da Bic. Saiu da lista de marcas e entrou em `texto.LINHAS_DE_MARCA` (linha → fabricante): a pesquisa nova já acha "Bic", e o item gravado com "Evolution" é acertado sozinho quando o projeto abre, desde que os 3 anúncios digam o fabricante (`texto.fabricante_da_linha`) |
 
+### Teste real de ponta a ponta (05/10/2026) e a regra S10
+
+Com as buscas novas, a faixa pretendida e as lojas novas no lugar, foi feito um "Pesquisar tudo" de verdade num projeto de teste, **numa cópia dos dados** (os dados em uso não foram tocados): 1 cargo com faixa e 7 itens escritos de jeitos diferentes, em 3 rubricas. Levou cerca de 35 minutos.
+
+| O que foi pedido | O que o sistema fez |
+|---|---|
+| Recepcionista, faixa de R$ 1.500,00 | 3 vagas de empresas diferentes, com CNPJ ativo (R$ 1.957,00, R$ 2.000,00 e R$ 2.000,00; média R$ 1.985,67); horas ajustadas para 166 h → R$ 1.498,98 |
+| "Sardinha Enlatada" | Entendeu "em lata": Sardinha Coqueiro em Tenda, Atacadão e **Giga Atacado** |
+| "Café 500g" | Café 3 Corações 500g, mesmo código de barras em Atacadão, Sam's Club e **Giga Atacado** |
+| "Biscoito Cream Cracker" | Bauducco em Tenda, **Giga Atacado** e Extra |
+| "Papel Sulfite A4 500 Folhas" | Chamex em Livrarias Curitiba, Lepok e Gimba |
+| "Caixa Caneta Esferográfica Azul" | **Problema achado:** não havia a caixa do mesmo produto em 3 lojas, e o sistema orçou a caneta avulsa (R$ 8 a R$ 11), deixando o item "em ordem" |
+
+As lojas novas responderam sem falhas (Mambo, Giga, Casa & Video e Drogal entraram nas buscas; a Giga ficou entre as 3 mais baratas em 3 itens). Uma loja antiga (Afonso Ruotolo) limitou os acessos e saiu sozinha da pesquisa, como previsto.
+
+**Correção (regra S10, `identidade.embalagem_nao_atendida`).** Quando o pedido começa por uma embalagem com várias unidades (caixa, pacote, kit, fardo, cartela, estojo) e algum dos 3 anúncios é da unidade avulsa, a verificação aponta o item **para revisar**, dizendo o que fazer: informar quantas unidades a caixa tem ("Caixa com 50 unidades") e pesquisar de novo, ou trocar a descrição e a quantidade para a unidade. A justificativa do item também passa a registrar "como pedido, mas sem: caixa (não existe assim em 3 lojas)". Não vale para produto vendido por peso ou volume ("Caixa de leite 1L" é a embalagem normal dele) nem quando a "caixa" é o próprio produto ("Caixa de som").
+
 ### IA sugere itens e quantidades (05/10/2026)
 
 Na tela da rubrica de produtos, o abre-e-fecha **"Não sabe por onde começar? Peça à IA uma lista de itens e quantidades"**: a pessoa descreve a atividade ("Lanche para 30 adolescentes, em 2 encontros por semana") e a IA devolve os itens que faltam, com a quantidade por mês e a conta que leva a ela (`ia.sugerir_itens`, rota `/p/{id}/mat/{item}/sugerir`).
@@ -226,7 +243,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 233 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 234 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;

@@ -108,7 +108,7 @@ class Alerta:
 
 # a gravidade mais forte que cada regra do catálogo gera na verificação (as que não estão aqui valem na pesquisa e no cálculo, sem gerar ponto)
 GRAVIDADE_PADRAO = {'D09': 'atencao', 'R01': 'erro', 'R02': 'erro', 'R03': 'atencao', 'R04': 'atencao', 'R05': 'erro', 'R06': 'erro', 'R07': 'erro', 'R08': 'erro',
-                    'R09': 'erro', 'R10': 'erro', 'R11': 'erro', 'R16': 'erro', 'S01': 'atencao', 'S02': 'info', 'S03': 'info', 'S04': 'atencao', 'S05': 'erro',
+                    'R09': 'erro', 'R10': 'erro', 'R11': 'erro', 'R16': 'erro', 'S01': 'atencao', 'S02': 'info', 'S03': 'info', 'S04': 'atencao', 'S05': 'erro', 'S10': 'atencao',
                     'S06': 'atencao', 'S07': 'erro', 'S08': 'erro', 'S09': 'atencao'}
 
 
@@ -212,6 +212,14 @@ def verificar(p: Projeto, cnpj_status: dict | None = None, hoje: dt.date | None 
                                     + (f' (pedido: {s.descricao_original})' if s.descricao_original else '') + (f': {s.justificativa}' if s.justificativa else '')))
                 if s.confirmacao == 'descrição':
                     A.append(Alerta('S03', 'info', rs, 'mesmo produto confirmado pela descrição (ao menos uma loja não publica o código de barras)'))
+                if not s.nivel and any(s.produtos or []):   # pediu a caixa e a pesquisa achou a unidade (teste real de 05/10/2026: caneta avulsa por "caixa de canetas")
+                    from .produtos.identidade import embalagem_nao_atendida
+                    emb = embalagem_nao_atendida(s.descricao_original or s.descricao, s.produtos)
+                    if emb:
+                        exemplo = next((x for x in s.produtos if x), '')
+                        A.append(Alerta('S10', 'atencao', rs, f'o pedido é de {emb}, mas a pesquisa achou a unidade avulsa ("{exemplo[:70]}"): não havia a {emb} do mesmo '
+                                        f'produto em 3 lojas. Diga quantas unidades a {emb} tem (ex.: "{emb.capitalize()} com 50 unidades") e pesquise o item de novo, '
+                                        f'ou troque a descrição e a quantidade para a unidade'))
                 if 'marcas diferentes' in (s.confirmacao or ''):
                     A.append(Alerta('R10', 'erro', rs, 'as 3 pesquisas são de produtos de marcas diferentes: o produto tem de ser exatamente o mesmo nas 3 '
                                     'lojas (marca, cor, tipo e embalagem). Use "Pesquisar de novo só este item"'))
