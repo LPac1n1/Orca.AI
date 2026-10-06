@@ -666,6 +666,32 @@ def migrar_banco(pid, mudancas):
                 c.execute('UPDATE OR REPLACE produto_banco SET descricao=? WHERE projeto_id=? AND item=? AND descricao=?', (depois, pid, item, antes))
 
 
+def sugestoes_conferidas(r, bruto, limite=20):
+    """As sugestões de itens da IA que o sistema aceita mostrar: nome simples e sem marca (a marca que vier é tirada), quantidade inteira de 1 a
+    999, sem repetir o que a rubrica já tem nem umas às outras. A IA não sugere preço — e, se sugerir, ele é ignorado: preço só vem de pesquisa."""
+    visto = {ID.sa(descricao_completa(s)) for s in r.subitens} | {ID.sa(s.descricao) for s in r.subitens}
+    out = []
+    for x in bruto or []:
+        if not isinstance(x, dict):
+            continue
+        desc = re.sub(r'\s+', ' ', str(x.get('descricao') or '')).strip(' .;,')
+        esp = re.sub(r'\s+', ' ', str(x.get('especificacao') or '')).strip(' .;,')
+        q = x.get('quantidade')
+        if (isinstance(q, float) and q.is_integer()) or (isinstance(q, str) and q.strip().isdigit()):
+            q = int(q)
+        if not desc or len(desc) > 80 or len(esp) > 60 or not isinstance(q, int) or isinstance(q, bool) or not 1 <= q <= 999:
+            continue
+        desc, _, esp = T.arrumar_item(desc, None, esp)   # marca sugerida não entra: a marca é a que a pesquisa achar nas 3 lojas
+        chave = ID.sa(f'{desc} {esp or ""}'.strip())
+        if not desc or chave in visto or ID.sa(desc) in visto:
+            continue
+        visto |= {chave, ID.sa(desc)}
+        out.append(dict(descricao=T._titulo(desc.split()), especificacao=esp or '', quantidade=q, motivo=re.sub(r'\s+', ' ', str(x.get('motivo') or '')).strip()[:240]))
+        if len(out) >= limite:
+            break
+    return out
+
+
 def arrumar_descricoes(p):
     """Itens gravados antes de 03/10/2026 com a descrição do anúncio ("Manteiga de Primeira Qualidade com Sal Aviação Pote") ou com a unidade
     escrita errado ("1l"): a descrição passa a ser o nome simples do produto, sem marca; a marca vai para o campo Marca; a medida, para a

@@ -22,12 +22,12 @@ Já vem com as regras da Secretaria da Justiça e Cidadania do Estado de São Pa
 | **Órgãos e regras** | Cada órgão (secretaria, ministério, fundo, emenda) é um cadastro: quais regras valem e com que peso, as regras próprias dele ("só empresas do estado", "material permanente não pode", "mão de obra até 60% do total"), como o valor do plano é escolhido e quais planilhas vão no pacote. O projeto segue as regras do órgão dele. |
 | **Fechar no teto** | Encontra a combinação de horas e valores que fecha o plano exatamente no teto do projeto, sem sair das regras. |
 | **Histórico** | Cada alteração vira uma versão nova; nada é apagado e qualquer versão pode ser restaurada. |
-| **Pacote para envio** | Um `.zip` com a planilha formatada e com fórmulas (Plano de Aplicação, Cronograma físico-financeiro, Etapas e Fases, Cronograma de desembolso e Comparativo de Preço) e o PDF de cada pesquisa, separado por rubrica e item, na ordem do plano, cada um já com o comprovante de CNPJ da empresa. |
+| **Pacote para envio** | Um `.zip` com a planilha formatada e com fórmulas (Plano de Aplicação, Cronograma físico-financeiro, Etapas e Fases, Cronograma de desembolso e Comparativo de Preço), as mesmas planilhas em PDF e o PDF de cada pesquisa, separado por rubrica e item, na ordem do plano, cada um já com o comprovante de CNPJ da empresa. |
 
 ## Como é o uso
 
 1. **Crie o projeto**: nome, teto (o valor que o orçamento precisa fechar), CEP de entrega e o órgão que vai analisar. Órgão novo? Cadastre em **Órgãos** e ajuste as regras dele.
-2. **Cadastre o plano**: os cargos (com horas ou faixa salarial pretendida) e as rubricas de materiais, sistemas e serviços, com os itens de cada uma. Dá para colar uma lista inteira do Excel.
+2. **Cadastre o plano**: os cargos (com horas ou faixa salarial pretendida) e as rubricas de materiais, sistemas e serviços, com os itens de cada uma. Dá para colar uma lista inteira do Excel — ou descrever a atividade ("lanche para 30 adolescentes, 2 encontros por semana") e deixar a IA sugerir os itens e as quantidades, que você confere antes de aceitar.
 3. **Clique em "Pesquisar tudo automaticamente"**: o sistema busca vagas e preços, confere os CNPJs e guarda os comprovantes. Uma barra mostra o andamento; o que já está pesquisado não é refeito.
 4. **Confira**: cada item é uma linha com os 3 preços, a média, o valor no plano e a situação. Dá para refazer uma pesquisa só, trocar de loja ou de vaga e marcar pontos como revisados.
 5. **Emita os comprovantes de CNPJ** na Receita (o site pede uma verificação humana) e salve na pasta `Orça.AI`, em Documentos: o sistema mostra o que já foi baixado e importa.
@@ -38,7 +38,7 @@ Já vem com as regras da Secretaria da Justiça e Cidadania do Estado de São Pa
 - **Não inventa** preço, produto, vaga, CNPJ nem endereço: tudo o que entra no orçamento veio de uma página ou de um documento, e o PDF fica guardado com código de verificação (SHA-256).
 - **Não resolve nem contorna CAPTCHA** e não disfarça a automação. Loja que pede verificação humana sai da pesquisa.
 - **Não guarda senhas nem chaves**. O login em sites, quando necessário, é feito por você numa janela do próprio site.
-- **Não manda seus dados para fora**: projetos, vagas e comprovantes ficam só no seu computador. A exceção é a IA gratuita, opcional: ela recebe nomes de produtos anunciados e de cargos e, só quando você pede, os itens do plano (para conferir uma regra escrita em texto; sem o nome da organização nem o do projeto) ou o trecho do edital que você colou (para propor regras).
+- **Não manda seus dados para fora**: projetos, vagas e comprovantes ficam só no seu computador. A exceção é a IA gratuita, opcional: ela recebe nomes de produtos anunciados e de cargos e, só quando você pede, os itens do plano (para conferir uma regra escrita em texto; sem o nome da organização nem o do projeto), o trecho do edital que você colou (para propor regras) ou a descrição da atividade que você escreveu (para sugerir itens).
 - **Não custa nada**: usa só ferramentas e fontes gratuitas.
 
 O sistema monta e confere; revisar o resultado e enviar continua sendo responsabilidade da organização.
@@ -55,7 +55,7 @@ Na primeira abertura, a base pública de CNPJ da Receita é baixada em segundo p
 
 ### IA gratuita (opcional)
 
-Com uma chave gratuita do Google Gemini, o sistema usa a IA como **apoio**: para confirmar que dois anúncios são o mesmo produto, entender pedidos escritos de outro jeito ("Caixa Caneta Esferográfica Azul", "Sardinha Enlatada"), escolher o plano de um sistema pelas ferramentas, sugerir títulos de cargo com a mesma função, **propor as regras de um órgão a partir do texto do edital** (nada é gravado antes de você aceitar) e conferir o plano contra uma regra escrita em texto livre (o resultado entra sempre como ponto para revisar). As regras é que decidem; a resposta da IA é sempre conferida e fica registrada. Sem a chave, tudo funciona, com mais itens deixados para a sua conferência.
+Com uma chave gratuita do Google Gemini, o sistema usa a IA como **apoio**: para confirmar que dois anúncios são o mesmo produto, entender pedidos escritos de outro jeito ("Caixa Caneta Esferográfica Azul", "Sardinha Enlatada"), escolher o plano de um sistema pelas ferramentas, sugerir títulos de cargo com a mesma função, **sugerir os itens e as quantidades de uma rubrica** a partir da descrição da atividade (nunca o preço: preço só vem de pesquisa), **propor as regras de um órgão a partir do texto do edital** (nada é gravado antes de você aceitar) e conferir o plano contra uma regra escrita em texto livre (o resultado entra sempre como ponto para revisar). As regras é que decidem; a resposta da IA é sempre conferida e fica registrada. Sem a chave, tudo funciona, com mais itens deixados para a sua conferência.
 
 O passo a passo está em [GEMINI_PASSO_A_PASSO.md](GEMINI_PASSO_A_PASSO.md). A chave fica só na variável de ambiente `GEMINI_API_KEY` do seu Windows: nunca é escrita em arquivo nem mostrada na tela.
 
@@ -72,9 +72,11 @@ O `.gitignore` deixa de fora os dados dos projetos e qualquer documento da organ
 ## De onde vêm as pesquisas
 
 - **Vagas:** InfoJobs, Catho, Vagas.com, BNE e LinkedIn (páginas públicas).
-- **Produtos (18 lojas):** Atacadão, Sam's Club, Tenda Atacado, Carrefour, Pão de Açúcar, Extra Mercado, Coop, Oba Hortifruti, Americanas, Drogaria São Paulo, Drogarias Pacheco, Kalunga, Gimba, Lepok, Papelex, Livrarias Curitiba, Bazar Horizonte e Afonso Ruotolo.
+- **Produtos (24 lojas):** Atacadão, Sam's Club, Tenda Atacado, Giga Atacado, Carrefour, Pão de Açúcar, Extra Mercado, Mambo, Coop, Oba Hortifruti, Americanas, Casa & Video, Telhanorte, Drogaria São Paulo, Drogarias Pacheco, Drogal, Farmácias Pague Menos, Kalunga, Gimba, Lepok, Papelex, Livrarias Curitiba, Bazar Horizonte e Afonso Ruotolo.
 - **Sistemas:** páginas de preços de fornecedores de sistemas de gestão para o terceiro setor.
 - **CNPJ:** dados abertos da Receita Federal e o comprovante oficial emitido por você.
+
+Uma loja só entra na lista quando passa em quatro conferências feitas de verdade: a busca do site é aberta, ela entrega em São Paulo, publica o CNPJ no próprio site (conferido como ativo na base da Receita) e a página do produto abre sem verificação humana. Em sites com marketplace, só vale o que a **própria loja** vende — a oferta de outro vendedor é de outra empresa, com outro CNPJ.
 
 Lojas e sites mudam com frequência: quando uma fonte deixa de responder ou passa a pedir verificação humana, ela sai da pesquisa e as outras cobrem.
 
@@ -121,6 +123,7 @@ Remover um órgão só o tira da lista: os projetos ligados a ele continuam com 
 │   │   ├── cnpj*.py, comprovante_receita.py   CNPJ e comprovante oficial
 │   │   ├── ia.py                apoio da IA gratuita (opcional)
 │   │   ├── exportar.py, pacote.py  Excel de conferência e pacote para a Secretaria
+│   │   ├── pacote_pdf.py        as planilhas do pacote em PDF (cada aba convertida célula a célula)
 │   │   └── servico.py, tarefas.py  o que cada botão faz; tarefas com progresso
 │   ├── templates/               telas (Jinja2), estilo e JavaScript, sem bibliotecas externas
 │   ├── tests/                   testes automáticos
@@ -150,7 +153,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 226 ao todo. Num clone limpo, 224 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 233 ao todo. Num clone limpo, 231 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -195,6 +198,9 @@ O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.m
   - **Planilha completa**: além do Plano de Aplicação e do Comparativo de Preço, saem o Cronograma físico-financeiro, as Etapas e Fases e o Cronograma de desembolso, puxando os valores do Plano por fórmula. Cada cargo e rubrica pode dizer em que mês começa.
   - Linhas da planilha com a altura certa para o texto (nomes compridos de empresa não saem mais cortados na impressão).
   - "Evolution" é uma linha da Bic, não uma marca: a marca do item passa a ser a do fabricante.
+  - **IA sugere itens e quantidades**: na rubrica de produtos, descreva a atividade e a IA propõe os itens e a quantidade por mês, com a conta de cada um. Você marca o que aceita; os preços continuam vindo só da pesquisa.
+  - **Planilhas em PDF**: o Plano, os cronogramas e o Comparativo saem também em PDF (botão "Planilhas em PDF" e dentro do pacote), gerados a partir da própria planilha — o PDF nunca diz outra coisa — e sem precisar do Excel.
+  - **6 lojas novas** (Mambo, Giga Atacado, Casa & Video, Telhanorte, Drogal e Farmácias Pague Menos), escolhidas entre 89 sites sondados. Em sites com marketplace, só entra o que a própria loja vende.
 - **05/10/2026**
   - Faixa salarial pretendida por cargo: vagas de menor salário que alcançam a faixa e horas ajustadas a ela; o "Fechar no teto" reparte a diferença por igual entre os cargos.
   - Pacote para a Secretaria (`.zip`) com as planilhas e os PDFs por rubrica, cada um com o comprovante de CNPJ; as planilhas já saem com os valores calculados.

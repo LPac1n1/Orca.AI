@@ -20,6 +20,52 @@ Monta e confere a **Grade Comparativa** e o **Plano de Aplicação** de projetos
 | **Altura das linhas na impressão** | Conferindo a impressão pelo Excel, nomes compridos de empresa saíam cortados no Comparativo e descrições de duas linhas ficavam apertadas no Plano. A altura passou a ser calculada como o Excel quebra o texto (nas palavras; maiúsculas ocupam mais): `pacote._linhas_quebradas`, medida contra a impressão real |
 | **"Evolution" não é marca** | É uma linha de lápis da Bic. Saiu da lista de marcas e entrou em `texto.LINHAS_DE_MARCA` (linha → fabricante): a pesquisa nova já acha "Bic", e o item gravado com "Evolution" é acertado sozinho quando o projeto abre, desde que os 3 anúncios digam o fabricante (`texto.fabricante_da_linha`) |
 
+### IA sugere itens e quantidades (05/10/2026)
+
+Na tela da rubrica de produtos, o abre-e-fecha **"Não sabe por onde começar? Peça à IA uma lista de itens e quantidades"**: a pessoa descreve a atividade ("Lanche para 30 adolescentes, em 2 encontros por semana") e a IA devolve os itens que faltam, com a quantidade por mês e a conta que leva a ela (`ia.sugerir_itens`, rota `/p/{id}/mat/{item}/sugerir`).
+
+- **Nada é gravado antes de a pessoa aceitar.** A sugestão aparece numa tabela com caixas de marcar e a quantidade editável; "Acrescentar os marcados à rubrica" grava (uma versão nova, com o motivo no histórico).
+- **A IA nunca define preço.** Ela sugere só o item e a quantidade; se mandar preço, ele é ignorado. Os itens entram sem preço e são pesquisados nas lojas como qualquer outro.
+- O sistema confere o que a IA mandou (`servico.sugestoes_conferidas`): nome simples e sem marca (a marca sugerida é tirada — a marca é a que a pesquisa achar nas 3 lojas), unidade com as letras certas, quantidade inteira de 1 a 999, sem repetir o que a rubrica já tem. O que volta da tela é conferido de novo antes de gravar.
+- A IA recebe só o texto que a pessoa escreveu, o nome da rubrica e os nomes dos itens que já estão nela.
+- Sem a chave da IA, o quadro fica desligado e a tela diz para cadastrar os itens em "Adicionar itens".
+
+### Planilhas em PDF (05/10/2026) — `orcamento/pacote_pdf.py`
+
+O Plano de Aplicação, os cronogramas, as Etapas e Fases e o Comparativo de Preço saem também em PDF: botão **"Planilhas em PDF"** no topo do projeto (`/p/{id}/planilhas-pdf`) e arquivo `Plano de Aplicação e Comparativo de Preço.pdf` dentro do pacote.
+
+- **O PDF não é montado à parte.** Cada aba da MESMA planilha que o sistema grava é convertida célula a célula — valores, mesclagens, fontes, bordas, fundos, larguras, formato de moeda —, com a orientação, as margens e a escala de impressão da aba (`pacote_pdf.html_da_aba`, `paginas_html`), e o navegador do sistema (o mesmo que guarda os comprovantes) imprime. Assim o PDF e a planilha nunca dizem coisas diferentes, e não é preciso ter o Excel instalado.
+- Onde a planilha tem fórmula, o PDF mostra o valor que o sistema calculou (os mesmos gravados na planilha). Só entra a área de impressão de cada aba (a coluna de conferência do cronograma fica fora).
+- No Comparativo, o cabeçalho se repete em cada página; uma rubrica longa continua na página seguinte, mas nenhuma linha é cortada no meio; se a tabela não couber na largura, a escala diminui (colunas nunca são cortadas).
+- Leva alguns segundos (abre o navegador). Se o navegador do sistema não abrir, o pacote sai sem o PDF e o LEIA-ME avisa.
+- Comparado com a impressão do Excel da mesma planilha (05/10/2026): mesmo conteúdo, mesmos valores e mesma aparência. A fonte "Aptos Narrow" do Plano é trocada por uma estreita parecida quando o computador não a tem, e o Comparativo pode ocupar uma página a mais que no Excel (as linhas nunca são cortadas no meio).
+
+### Lojas novas (05/10/2026) — testes em `tests/test_lojas.py`
+
+A OSC pediu "todas as lojas virtuais sem bloqueio possíveis" (no lugar de serviços pagos ou manuais para as lojas que bloqueiam, descartados de vez). Foram sondados **89 sites** de supermercados, atacados, farmácias, papelarias e lojas de casa. Uma loja só entra quando passa, de verdade, em quatro conferências:
+
+1. a busca pública do site responde (sem login, sem chave);
+2. a simulação de carrinho mostra estoque e **entrega** num CEP de São Paulo;
+3. o **CNPJ está publicado no próprio site** e está ativo na base da Receita (nenhum CNPJ é procurado por nome nem deduzido);
+4. a página do produto e o carrinho abrem no navegador do sistema **sem verificação humana**, e o PDF sai com o produto e o preço.
+
+| Entraram (6) | CNPJ (rodapé do site + base da Receita) | Setores |
+|---|---|---|
+| Mambo | 71.676.316/0001-46 — Supermercados Mambo Ltda. | alimentação, limpeza |
+| Giga Atacado | 09.182.947/0001-35 — Cencosud Brasil Atacado Ltda. | alimentação, limpeza, papelaria |
+| Casa & Video | 11.114.284/0001-63 — Casa e Video Brasil S.A. | limpeza, papelaria |
+| Telhanorte | 03.840.986/0056-70 — Telhanorte Distribuição Ltda. | limpeza |
+| Drogal | 54.375.647/0066-72 — Drogal Farmacêutica Ltda. | limpeza, papelaria |
+| Farmácias Pague Menos | 06.626.253/0001-51 — Empreendimentos Pague Menos S/A | limpeza |
+
+**Ficaram de fora:** as que não entregam em São Paulo (Savegnago, Covabra, Super Muffato, Zona Sul, Super Nosso, Bistek, Giassi, Zaffari, Lojas Rede, Drogaria Venancio); as que pedem verificação humana ou bloqueiam (Le Biscuit, Leitura, Camicado, Loja do Mecânico, Obramax — a busca responde, mas a página pede verificação —, Carrefour.com.br, Onofre); as sem sortimento útil (Tok&Stok, Swift, Cobasi, Polishop); a Extrafarma (é a mesma empresa e o mesmo catálogo da Pague Menos); a Grafitti Artes (não publica o CNPJ no site: sem CNPJ, não entra); e as que não têm a busca aberta (Dia, St Marche, Nagumo, Assaí, Roldão, Droga Raia, Drogasil, Ultrafarma, Leroy Merlin, Havan e outras).
+
+**Só o que a própria loja vende.** Americanas, Casa & Video e Pague Menos também vendem produtos de outros vendedores (marketplace). Essa oferta é de OUTRA empresa: a pesquisa sairia com o CNPJ errado. `lojas.vtex` passou a aceitar só o vendedor "1" (a loja dona do site, em todas as lojas da plataforma). Conferido no projeto em uso: nenhuma pesquisa do plano vinha de outro vendedor.
+
+**Link público do produto.** A Casa & Video devolve o link no endereço interno da plataforma, que abre uma página vazia; o link passa a ser sempre o do domínio da loja (`lojas._link_vtex`).
+
+**Balão "Informe seu CEP".** Na Casa & Video, um balão preso ao cabeçalho cobria o nome do produto no PDF. A limpeza da página antes do comprovante passou a ocultá-lo (nada é clicado; o bloco com o preço e o campo de frete da página ficam).
+
 **O que ficou para depois** (decisões da OSC em 05/10/2026): usuários com permissões (só quando o acesso ao sistema for ampliado); enviar o modelo de planilha/documento de cada órgão (hoje há um modelo, com ou sem os cronogramas). **Descartado de vez:** serviços pagos ou manuais para lojas que bloqueiam a automação — a ideia é automatizar, e essas lojas só acrescentariam trabalho manual.
 
 ## Ajustes de 05/10/2026 — testes em `tests/test_v07.py`
@@ -180,7 +226,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 226 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 233 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;

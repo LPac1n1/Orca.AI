@@ -13,6 +13,21 @@ def _pasta_dos_comprovantes(tmp_path, monkeypatch):
     pasta.mkdir(parents=True)
     monkeypatch.setenv('ORCAMENTO_COMPROVANTES', str(pasta))
 
+@pytest.fixture(autouse=True)
+def _pdf_das_planilhas_sem_navegador(request, monkeypatch):
+    """O PDF das planilhas é impresso pelo navegador do sistema (vários segundos, e nem todo computador de teste o tem). Nos testes, um PDF de
+    uma página no lugar — menos no teste marcado com `navegador`, que confere a impressão de verdade."""
+    if 'navegador' in request.keywords:
+        return
+    import pymupdf
+    from orcamento import pacote_pdf
+
+    def falso(wb):
+        d = pymupdf.open(); d.new_page().insert_text((40, 60), 'PLANILHAS: ' + ', '.join(wb.sheetnames))
+        return d.tobytes()
+    monkeypatch.setattr(pacote_pdf, 'pdf_da_planilha', falso)
+
+
 PT8 = os.path.join(os.path.dirname(__file__), '..', '..', 'fase0', 'sejc', 'pt8_dados.json')
 
 

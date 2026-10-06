@@ -1,7 +1,8 @@
 """Lojas virtuais usadas na pesquisa de preços (CEP de referência do projeto) e os adaptadores de busca de cada uma.
 
-- VTEX (Atacadão, Sam's Club, Oba, drogarias, Americanas, Livrarias Curitiba): API pública de catálogo (nome, marca, EAN, sku);
+- VTEX (Atacadão, Sam's Club, Oba, drogarias, Americanas, Livrarias Curitiba, Mambo, Giga...): API pública de catálogo (nome, marca, EAN, sku);
   estoque e preço REAIS para o CEP vêm da simulação de carrinho da própria loja (o catálogo sozinho engana: ex. Atacadão).
+  Só vale o produto VENDIDO PELA PRÓPRIA LOJA: oferta de outro vendedor do marketplace é de outra empresa, com outro CNPJ.
 - Tenda: dados da página (inclui o título completo que abre a descrição; o nome da busca vem cortado). O estoque é por FILIAL:
   a filial que atende o CEP vem da API pública de opções de entrega, e o produto só vale se tiver estoque nela.
 - Carrefour, Kalunga, Lepok: página de busca renderizada; EAN lido na página do produto (Lepok no HTML; os outros renderizados).
@@ -46,6 +47,15 @@ LOJAS = {
                               busca=lambda q: f'https://www.lepok.com.br/busca/{quote(q)}', link=r'lepok\.com\.br/produto/', ean='html'),
     'gimba':             dict(nome='Gimba', plataforma='gimba', dominio='www.gimba.com.br', setores={'papelaria', 'limpeza', 'alimentacao'}, carrinho=False),
     'afonsoruotolo':     dict(nome='Afonso Ruotolo', plataforma='nuvemshop', dominio='www.afonsoruotolo.com.br', setores={'papelaria'}, carrinho=False),
+    # incluídas em 05/10/2026 (pedido da OSC: todas as lojas sem bloqueio possíveis). De 89 sites sondados, estas têm a busca aberta, entregam em
+    # São Paulo, publicam o CNPJ no próprio site e abrem no navegador sem verificação humana. Ficaram de fora: as que não entregam em SP, as que
+    # pedem verificação humana (Le Biscuit, Leitura, Camicado, Obramax, Loja do Mecânico) e as que não publicam o CNPJ no site (Grafitti Artes).
+    'mambo':             dict(nome='Mambo', plataforma='vtex', dominio='www.mambo.com.br', setores={'alimentacao', 'limpeza'}, carrinho=True),
+    'giga':              dict(nome='Giga Atacado', plataforma='vtex', dominio='www.giga.com.vc', setores={'alimentacao', 'limpeza', 'papelaria'}, carrinho=True),
+    'casaevideo':        dict(nome='Casa & Video', plataforma='vtex', dominio='www.casaevideo.com.br', setores={'limpeza', 'papelaria'}, carrinho=True),
+    'telhanorte':        dict(nome='Telhanorte', plataforma='vtex', dominio='www.telhanorte.com.br', setores={'limpeza'}, carrinho=True),
+    'drogal':            dict(nome='Drogal', plataforma='vtex', dominio='www.drogal.com.br', setores={'limpeza', 'papelaria'}, carrinho=True),
+    'paguemenos':        dict(nome='Farmácias Pague Menos', plataforma='vtex', dominio='www.paguemenos.com.br', setores={'limpeza'}, carrinho=True),
 }
 
 # CNPJ de cada loja: do rodapé do site ou de grade já aceita pela SEJC, conferido como ATIVO na base oficial da Receita (27/09/2026).
@@ -69,6 +79,13 @@ CNPJ_LOJAS = {
     'coop': ('57.508.426/0001-78', 'COOP - COOPERATIVA DE CONSUMO', 'rodapé do site + base da Receita'),
     'papelex': ('13.987.222/0001-91', 'MGX COMERCIO DE PAPEIS LTDA', 'rodapé do site + base da Receita (nome fantasia PAPELEX)'),
     'bazarhorizonte': ('44.913.721/0001-68', 'ARTESANA BAZAR E ARMARINHO LTDA', 'CNPJ do rodapé do site; razão social conforme a base da Receita (o rodapé diz "Bazar e Papelaria Horizonte Ltda")'),
+    # 05/10/2026: CNPJ lido no rodapé de cada site e conferido como ATIVO na base da Receita
+    'mambo': ('71.676.316/0001-46', 'SUPERMERCADOS MAMBO LTDA.', 'rodapé do site + base da Receita'),
+    'giga': ('09.182.947/0001-35', 'CENCOSUD BRASIL ATACADO LTDA.', 'CNPJ do rodapé do site; razão social conforme a base da Receita (o rodapé diz "Cencosud Atacado Comercial Ltda.")'),
+    'casaevideo': ('11.114.284/0001-63', 'CASA E VIDEO BRASIL S.A. - EM RECUPERACAO JUDICIAL', 'rodapé do site + base da Receita'),
+    'telhanorte': ('03.840.986/0056-70', 'TELHANORTE DISTRIBUICAO LTDA', 'CNPJ do rodapé do site; razão social conforme a base da Receita'),
+    'drogal': ('54.375.647/0066-72', 'DROGAL FARMACEUTICA LTDA', 'rodapé do site + base da Receita'),
+    'paguemenos': ('06.626.253/0001-51', 'EMPREENDIMENTOS PAGUE MENOS S/A', 'rodapé do site + base da Receita'),
 }
 
 
@@ -154,6 +171,15 @@ def consulta(q):
     return re.sub(r'\s+', ' ', re.sub(r"[^\w\s\-.,/%']", ' ', q or '')).strip()
 
 
+def _link_vtex(dom, p):
+    """Endereço público do produto. Algumas lojas devolvem o link no endereço interno da plataforma (ex.: Casa & Video →
+    casaevideonewio.vtexcommercestable.com.br), que abre uma página vazia: vale sempre o domínio da loja."""
+    link = p.get('link') or ''
+    if p.get('linkText') and not link.startswith(f'https://{dom}/'):
+        return f'https://{dom}/{p["linkText"]}/p'
+    return link or None
+
+
 async def vtex(c, loja, q=None, ean=None):
     """Catálogo VTEX (nome, marca, EAN, sku, vendedor com estoque). Preço/estoque definitivos: simular()."""
     dom = LOJAS[loja]['dominio']
@@ -168,13 +194,16 @@ async def vtex(c, loja, q=None, ean=None):
         for it in p.get('items', [])[:3]:
             if ean and (it.get('ean') or '').lstrip('0') != ean.lstrip('0'):
                 continue
-            if not it.get('sellers'):
+            # só o que a PRÓPRIA loja vende: em sites com marketplace (Americanas, Casa & Video, Pague Menos), a oferta de outro vendedor é de
+            # outra empresa — o CNPJ da pesquisa não seria o dela. Na VTEX, a loja dona do site é o vendedor "1".
+            proprios = [v for v in it.get('sellers') or [] if str(v.get('sellerId')) == str(LOJAS[loja].get('vendedor', '1'))]
+            if not proprios:
                 continue
-            s = max(it['sellers'], key=lambda v: (v['commertialOffer'].get('AvailableQuantity', 0) > 0, v.get('sellerDefault', False)))
+            s = proprios[0]
             co = s['commertialOffer']
             out.append(dict(nome=p['productName'] if len(p['items']) == 1 else f"{p['productName']} {it.get('name', '')}".strip(), marca=p.get('brand'),
                             ean=it.get('ean'), sku=it['itemId'], seller=s['sellerId'], vendedor=s.get('sellerName'),
-                            preco=round(co.get('Price', 0) * 100), disp=True, simular=True, url=p.get('link')))
+                            preco=round(co.get('Price', 0) * 100), disp=True, simular=True, url=_link_vtex(dom, p)))
             if not ean:
                 break
     return out

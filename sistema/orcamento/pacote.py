@@ -414,6 +414,14 @@ def planilhas(p: Projeto, caminho, orgao=None):
     """As abas da planilha de pré-cálculos, na mesma ordem e formatação: Plano de Aplicação, Cronograma físico-financeiro, Etapa e Fases,
     Cronograma de desembolso e Comparativo de Preço. O órgão do projeto diz o nome do concedente, se os cronogramas entram (modelo 'simples':
     só o Plano e o Comparativo) e como é o desembolso. Cada fórmula leva junto o valor calculado."""
+    wb = montar_planilha(p, orgao)
+    wb.save(caminho)
+    _gravar_valores(caminho, wb)
+    return caminho
+
+
+def montar_planilha(p: Projeto, orgao=None):
+    """A planilha em memória (as abas e, em wb._calculados, o valor de cada fórmula)."""
     if orgao is None:
         from . import orgaos
         orgao = orgaos.do_projeto(p)
@@ -422,9 +430,13 @@ def planilhas(p: Projeto, caminho, orgao=None):
     if orgao.modelo_planilha != 'simples':
         cronograma_fisico(wb, p); etapas(wb, p); cronograma_desembolso(wb, p, orgao.parametros.desembolso)
     comparativo(wb, p)
-    wb.save(caminho)
-    _gravar_valores(caminho, wb)
-    return caminho
+    return wb
+
+
+def planilhas_pdf(p: Projeto, orgao=None):
+    """As mesmas abas, em PDF (bytes): cada aba da planilha é convertida célula a célula e impressa pelo navegador do sistema (pacote_pdf)."""
+    from . import pacote_pdf
+    return pacote_pdf.pdf_da_planilha(montar_planilha(p, orgao))
 
 
 # ------------------------------------------------------------------ PDFs por rubrica, com o comprovante de CNPJ junto
@@ -474,8 +486,14 @@ def montar(p: Projeto, pid, caminho_zip):
     orgao = orgaos.do_projeto(p)
     simples = orgao.modelo_planilha == 'simples'
     planilhas(p, tmp, orgao)
+    try:   # as mesmas planilhas em PDF; sem o navegador do sistema, o pacote sai sem ele e o LEIA-ME avisa
+        pdf_planilhas = planilhas_pdf(p, orgao)
+    except Exception as e:
+        pdf_planilhas, sem_pdf_planilhas = None, type(e).__name__
     with zipfile.ZipFile(caminho_zip, 'w', zipfile.ZIP_DEFLATED) as z:
         z.write(tmp, f'{raiz}/Plano de Aplicação e Comparativo de Preço.xlsx')
+        if pdf_planilhas:
+            z.writestr(f'{raiz}/Plano de Aplicação e Comparativo de Preço.pdf', pdf_planilhas)
         usados = set()
         for x in pesquisas_do_projeto(p):
             ab = db.caminho_absoluto(x['pdf']) if x['pdf'] else None
@@ -505,6 +523,8 @@ def montar(p: Projeto, pid, caminho_zip):
                 '- "Plano de Aplicação e Comparativo de Preço.xlsx": ' + ('o Plano de Aplicação e o Comparativo de Preço' if simples else
                                                                           'o Plano de Aplicação, o Cronograma físico-financeiro, as Etapas e Fases, o Cronograma de desembolso e o Comparativo de Preço')
                 + ' (médias e totais são fórmulas).',
+                ('- "Plano de Aplicação e Comparativo de Preço.pdf": as mesmas planilhas, prontas para imprimir ou anexar.' if pdf_planilhas else
+                 f'- O PDF das planilhas não pôde ser gerado agora ({sem_pdf_planilhas}); use a planilha .xlsx ou baixe "Planilhas em PDF" na tela do projeto.'),
                 f'- Pasta "Orçamentos": {n} PDF(s), separados por rubrica e por item, na ordem do plano. Cada PDF é a página da vaga ou do produto',
                 f'  (ou a proposta) e, no fim do mesmo arquivo, o Comprovante de Inscrição e de Situação Cadastral da empresa ({com} de {n} já com o comprovante).', '']
         if sem_pdf or sem_cnpj:
@@ -519,4 +539,4 @@ def montar(p: Projeto, pid, caminho_zip):
         os.remove(tmp)
     except OSError:
         pass
-    return dict(arquivos=n, com_cnpj=com, sem_pdf=sem_pdf, sem_cnpj=sem_cnpj)
+    return dict(arquivos=n, com_cnpj=com, sem_pdf=sem_pdf, sem_cnpj=sem_cnpj, pdf_planilhas=bool(pdf_planilhas))

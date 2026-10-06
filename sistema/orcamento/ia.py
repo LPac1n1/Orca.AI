@@ -386,6 +386,27 @@ def propor_regras(texto, tipos, catalogo, projeto_id=None):
     return dict(proprias=[x for x in (r.get('proprias') or []) if isinstance(x, dict)][:25], desligar=[x for x in (r.get('desligar') or []) if isinstance(x, dict)][:25])
 
 
+SUGERIR_ITENS = (
+    'Você ajuda uma organização social a montar o orçamento de um projeto. Em "rubrica" está o nome de um grupo de despesas (ex.: Alimentação, '
+    'Limpeza, Material de Escritório); em "para_que" a organização descreve a atividade (quantas pessoas, com que frequência); em "ja_tem" estão os '
+    'itens que a rubrica já tem. Sugira os itens que FALTAM para essa atividade: produtos de consumo comuns, fáceis de achar em supermercados, '
+    'papelarias e lojas de limpeza do Brasil, com a QUANTIDADE POR MÊS de cada um. Para cada item: "descricao" (nome simples do produto, SEM marca: '
+    '"Café", "Papel Sulfite A4"), "especificacao" (o tamanho ou a embalagem de venda mais comum: "500g", "1L", "500 Folhas"; pode ficar vazia), '
+    '"quantidade" (número inteiro de embalagens por mês) e "motivo" (uma frase com a conta que leva à quantidade, a partir do que a organização '
+    'descreveu). Não repita o que já está em "ja_tem". Não sugira preço. Não sugira equipamento, móvel nem outro material permanente. Não sugira '
+    'serviço. Se a descrição não der base para a conta, sugira quantidades modestas e diga isso no motivo. '
+    'Responda com UM objeto JSON: {"itens": [{"descricao": "...", "especificacao": "...", "quantidade": 1, "motivo": "..."}]}')
+
+
+def sugerir_itens(rubrica, para_que, ja_tem, projeto_id=None):
+    """Itens e quantidades por mês sugeridos pela IA para uma rubrica de produtos, a partir do que a OSC descreveu. Devolve a lista ainda SEM
+    conferir (quem confere é servico.sugestoes_conferidas, e quem decide é a pessoa). None se a IA não estiver disponível. Nunca sugere preço."""
+    r = perguntar('sugerir_itens', SUGERIR_ITENS, {'rubrica': rubrica, 'para_que': (para_que or '')[:1500], 'ja_tem': list(ja_tem)[:60]}, projeto_id, forte=True)
+    if not isinstance(r, dict) or not isinstance(r.get('itens'), list):
+        return None
+    return [x for x in r['itens'] if isinstance(x, dict)][:30]
+
+
 def melhor_substituto(pedido, candidatos, projeto_id=None):
     r = perguntar('substituto', SUBSTITUTO, {'pedido': pedido, 'candidatos': candidatos}, projeto_id)
     if isinstance(r, dict) and 'escolha' in r:

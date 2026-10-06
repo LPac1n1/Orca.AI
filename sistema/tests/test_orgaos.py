@@ -281,3 +281,126 @@ def test_altura_das_linhas_do_comparativo_acompanha_o_texto():
                             ('CENTRO TERAPEUTICO INTEGRADO MULTIDISCIPLINAR EM SAUDE LTDA - CNPJ: 11.444.777/0001-61', 7), ('Auxiliar Administrativo (recibo ou MEI) - 101h mensal', 4),
                             ('ASSOCIACAO BENEFICENTE JARDINS DE SOL - ABEJAS - CNPJ: 11.222.333/0001-81', 5), ('', 1), ('Café', 1), ('A' * 40, 3)):
         assert linhas(texto) == no_excel, texto
+
+
+def test_planilhas_em_pdf_saem_da_mesma_planilha(cliente):
+    """05/10/2026: o Plano, os cronogramas e o Comparativo também em PDF. O PDF não é montado à parte: cada aba da planilha é convertida célula a
+    célula (valores, mesclagens, fontes, bordas, larguras, moeda, orientação), então nunca diz outra coisa. Fórmula vira o valor calculado."""
+    import io, zipfile
+    from orcamento import db, pacote, pacote_pdf
+    pid = _projeto(cliente)
+    p = _plano(pid)
+    wb = pacote.montar_planilha(p)
+    pags = {x['titulo']: x for x in pacote_pdf.paginas_html(wb)}
+    assert list(pags) == wb.sheetnames and [x['paisagem'] for x in pags.values()] == [False, True, True, False, True]
+    assert pags['Comparativo de Preço']['escala'] == 0.74 and pags['Plano de Aplicação']['escala'] == 1.0 and pags['Cronograma fisico-financeiro']['escala'] == 1.0   # a escala da planilha; o que não couber na página é reduzido
+    plano = pags['Plano de Aplicação']['html']
+    for trecho in ('PLANO DE APLICAÇÃO', 'Concedente<br> (SJC)', 'Psicólogo (recibo ou MEI) - 100h mensal', 'Café 500g (2 unidades x R$10,00)', '<span>R$</span><span>52.280,00</span>',
+                   'colspan="6"', 'rowspan="3"', "font-family:'Aptos Narrow'", 'border-left:2px solid #000', 'background:#000000', 'color:#FF0000'):
+        assert trecho in plano, trecho
+    assert '=SUM' not in plano and '=ROUND' not in plano                                                        # nenhuma fórmula aparece: só o valor
+    crono = pags['Cronograma fisico-financeiro']['html']
+    assert 'Psicólogo (recibo ou MEI) - 100h mensal' in crono and '<span>R$</span><span>3.020,00</span>' in crono and '14º MÊS' in crono and "'Plano de Aplicação'!" not in crono
+    assert '-R$' not in crono                                                                                    # idem: o "teto − total" não é impresso
+    comp = pags['Comparativo de Preço']['html']
+    assert comp.count('<thead>') == 1 and comp.index('Valor Médio') < comp.index('</thead>') < comp.index('Psicólogo')   # o cabeçalho repete em cada página
+    assert 'ALFA - CNPJ: 11.222.333/0001-81' in comp and 'class="g"' in comp
+    assert pacote_pdf.moeda(1234.5) == ('R$', '1.234,50') and pacote_pdf.moeda(0) == ('R$', '-') and pacote_pdf.moeda(-42280) == ('-R$', '42.280,00')
+    # baixar pela tela (aqui com o PDF de teste no lugar do navegador) e dentro do pacote
+    r = cliente.get(f'/p/{pid}/planilhas-pdf')
+    assert r.status_code == 200 and r.headers['content-type'] == 'application/pdf' and r.content[:5] == b'%PDF-'
+    assert 'href="/p/%d/planilhas-pdf"' % pid in cliente.get(f'/p/{pid}').text
+    z = zipfile.ZipFile(io.BytesIO(cliente.get(f'/p/{pid}/pacote').content))
+    nomes = [n.split('/', 1)[1] for n in z.namelist()]
+    assert nomes[:2] == ['Plano de Aplicação e Comparativo de Preço.xlsx', 'Plano de Aplicação e Comparativo de Preço.pdf']
+    assert '"Plano de Aplicação e Comparativo de Preço.pdf": as mesmas planilhas' in z.read([n for n in z.namelist() if n.endswith('LEIA-ME.txt')][0]).decode('utf-8')
+
+
+def test_pacote_sai_mesmo_sem_o_navegador(cliente, monkeypatch):
+    """Sem o navegador do sistema, o pacote não deixa de sair: vai sem o PDF das planilhas, e o LEIA-ME avisa."""
+    import io, zipfile
+    from orcamento import pacote_pdf
+    pid = _projeto(cliente); _plano(pid)
+
+    def falha(wb):
+        raise RuntimeError('sem navegador')
+    monkeypatch.setattr(pacote_pdf, 'pdf_da_planilha', falha)
+    z = zipfile.ZipFile(io.BytesIO(cliente.get(f'/p/{pid}/pacote').content))
+    nomes = [n.split('/', 1)[1] for n in z.namelist()]
+    assert nomes[0].endswith('.xlsx') and not any(n.endswith('Preço.pdf') for n in nomes)
+    assert 'O PDF das planilhas não pôde ser gerado agora (RuntimeError)' in z.read([n for n in z.namelist() if n.endswith('LEIA-ME.txt')][0]).decode('utf-8')
+    r = cliente.get(f'/p/{pid}/planilhas-pdf', follow_redirects=True)
+    assert 'Não foi possível gerar o PDF agora (RuntimeError)' in r.text
+
+
+@pytest.mark.navegador
+def test_pdf_das_planilhas_impresso_de_verdade(cliente):
+    """A impressão de verdade, pelo navegador do sistema: uma página por aba (o Comparativo pode ter mais), na orientação da planilha."""
+    import pymupdf
+    from orcamento import pacote
+    pid = _projeto(cliente)
+    p = _plano(pid)
+    try:
+        dados = pacote.planilhas_pdf(p)
+    except Exception as e:   # computador sem o navegador do sistema instalado
+        pytest.skip(f'navegador indisponível: {type(e).__name__}')
+    d = pymupdf.open(stream=dados, filetype='pdf')
+    textos = [' '.join(pg.get_text().split()) for pg in d]
+    assert len(d) == 5 and [pg.rect.width > pg.rect.height for pg in d] == [False, True, True, False, True]
+    assert textos[0].startswith('PLANO DE APLICAÇÃO') and 'R$ 52.280,00' in textos[0] and 'Notebook 15 polegadas (1 unidade x R$3.000,00)' in textos[0]
+    assert textos[1].startswith('CRONOGRAMA FÍSICO-FINANCEIRO') and '14º MÊS' in textos[1] and 'TOTAL AGRUPADO' in textos[1]
+    assert textos[2].startswith('ETAPAS E FASES') and '3º ao 12º mês' in textos[2] and textos[3].startswith('CRONOGRAMA DE DESEMBOLSO')
+    assert textos[4].startswith('COMPARATIVO DE PREÇOS') and 'ALFA - CNPJ: 11.222.333/0001-81' in textos[4]
+
+
+def test_ia_sugere_itens_e_quantidades_e_a_pessoa_decide(cliente, monkeypatch):
+    """05/10/2026: na rubrica de produtos, a IA sugere os itens e a quantidade por mês a partir do que a OSC descreve. Nada é gravado antes de a
+    pessoa aceitar; a IA não sugere preço (preço só vem de pesquisa), a marca sugerida é tirada e o que já está na rubrica não se repete."""
+    import json
+    from orcamento import db, ia, servico
+    from orcamento.modelo import RubricaMaterial, Subitem
+    pid = _projeto(cliente)
+    p = db.carregar(pid)[0]
+    p.rubricas = [RubricaMaterial(item=1, descricao='Alimentação', meses=10, regra='mercado', subitens=[Subitem(descricao='Café', especificacao='500g', qtd=2)])]
+    db.salvar(pid, p)
+    v0 = db.carregar(pid)[1]
+    pag = cliente.get(f'/p/{pid}/mat/1').text
+    assert 'Peça à IA uma lista de itens e quantidades' in pag and 'name="para_que"' in pag and 'O que a IA sugere' not in pag
+    pedidos = []
+
+    def falsa(rubrica, para_que, ja_tem, projeto_id=None):
+        pedidos.append((rubrica, para_que, ja_tem))
+        return [dict(descricao='café', especificacao='500g', quantidade=3, motivo='já existe'),
+                dict(descricao='Leite Integral Italac', especificacao='1l', quantidade=20, motivo='30 pessoas x 8 encontros: 1 caixa para 12 copos', preco=5.39),
+                dict(descricao='Suco de Uva', especificacao='1 litro', quantidade='8', motivo='um litro para 4 pessoas'),
+                dict(descricao='Geladeira', especificacao='', quantidade=0), dict(descricao='Pão de Forma', especificacao='500g', quantidade=1200), 'texto solto']
+    monkeypatch.setattr(ia, 'disponivel', lambda: True)
+    monkeypatch.setattr(ia, 'sugerir_itens', falsa)
+    assert 'descreva a atividade com um pouco mais de detalhe' in cliente.post(f'/p/{pid}/mat/1/sugerir', data={'para_que': 'lanche'}).text and not pedidos
+    pag = cliente.post(f'/p/{pid}/mat/1/sugerir', data={'para_que': 'Lanche para 30 adolescentes, em 2 encontros por semana.'}).text
+    assert pedidos == [('Alimentação', 'Lanche para 30 adolescentes, em 2 encontros por semana.', ['Café 500g'])]            # só isso vai para a IA
+    assert 'O que a IA sugere para esta rubrica' in pag and 'Nada foi gravado' in pag and 'os preços vêm da pesquisa nas lojas' in pag
+    assert 'Leite Integral' in pag and 'Italac' not in pag and 'Suco de Uva' in pag and '30 pessoas x 8 encontros' in pag
+    for fora in ('Geladeira', 'já existe', '5,39', '5.39', '1200'):                                                           # quantidade inválida, repetido, preço: ficam de fora
+        assert fora not in pag.split('id="sugestoes"')[1].split('</section>')[0], fora
+    assert db.carregar(pid)[1] == v0                                                                                          # nada gravado: é só uma sugestão
+    dados = json.loads(re.search(r'name="dados" value="([^"]*)"', pag).group(1).replace('&#34;', '"').replace('&amp;', '&'))
+    assert [(x['descricao'], x['especificacao'], x['quantidade']) for x in dados] == [('Leite Integral', '1L', 20), ('Suco de Uva', '1L', 8)]
+    # a pessoa aceita só o leite, com outra quantidade; o que volta da tela é conferido de novo (não se aceita item adulterado)
+    adulterado = json.dumps(dados + [dict(descricao='Notebook Dell', especificacao='', quantidade=5000)], ensure_ascii=False)
+    r = cliente.post(f'/p/{pid}/mat/1/sugerir/aplicar', data={'dados': adulterado, 'sugestao': ['0', '2'], 'qtd0': '12', 'qtd2': '5000'}, follow_redirects=False)
+    assert r.status_code == 303 and '#t-itens' in r.headers['location']
+    p = db.carregar(pid)[0]
+    assert [(s.descricao, s.especificacao, s.qtd, s.valor_plano, s.precos) for s in p.rubricas[0].subitens] == \
+        [('Café', '500g', 2, None, [None, None, None]), ('Leite Integral', '1L', 12, None, [None, None, None])]                   # sem preço: vem da pesquisa
+    assert 'sugerido(s) pela IA e aceito(s) pela OSC' in db.historico(pid)[0][0]['motivo']
+    r = cliente.post(f'/p/{pid}/mat/1/sugerir/aplicar', data={'dados': json.dumps(dados, ensure_ascii=False)}, follow_redirects=True)
+    assert 'nenhuma sugestão estava marcada' in r.text and len(db.carregar(pid)[0].rubricas[0].subitens) == 2
+    # sem a IA, a tela diz o que fazer; e resposta vazia ou falha não quebram
+    monkeypatch.setattr(ia, 'sugerir_itens', lambda *a, **k: None)
+    assert 'Não foi possível consultar a IA agora' in cliente.post(f'/p/{pid}/mat/1/sugerir', data={'para_que': 'Lanche para 30 adolescentes, 2 vezes por semana'}).text
+    monkeypatch.setattr(ia, 'sugerir_itens', lambda *a, **k: [])
+    assert 'A IA não sugeriu nenhum item novo' in cliente.post(f'/p/{pid}/mat/1/sugerir', data={'para_que': 'Lanche para 30 adolescentes, 2 vezes por semana'}).text
+    monkeypatch.setattr(ia, 'disponivel', lambda: False)
+    assert 'a IA gratuita não está configurada' in cliente.post(f'/p/{pid}/mat/1/sugerir', data={'para_que': 'Lanche para 30 adolescentes, 2 vezes por semana'}).text
+    assert servico.sugestoes_conferidas(p.rubricas[0], None) == [] and servico.sugestoes_conferidas(p.rubricas[0], [dict(descricao='', quantidade=1)]) == []

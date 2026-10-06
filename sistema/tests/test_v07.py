@@ -304,8 +304,8 @@ def test_pacote_para_a_secretaria_com_planilhas_e_pdfs_juntados(cliente):
     assert r.status_code == 200 and r.headers['content-type'] == 'application/zip'
     z = zipfile.ZipFile(io.BytesIO(r.content))
     nomes = [n.split('/', 1)[1] for n in z.namelist()]
-    assert nomes[0] == 'Plano de Aplicação e Comparativo de Preço.xlsx' and nomes[-1] == 'LEIA-ME.txt'
-    assert nomes[1:-1] == ['Orçamentos/01. Psicólogo/1. ALFA LTDA.pdf', 'Orçamentos/01. Psicólogo/2. BETA S A.pdf'] + \
+    assert nomes[:2] == ['Plano de Aplicação e Comparativo de Preço.xlsx', 'Plano de Aplicação e Comparativo de Preço.pdf'] and nomes[-1] == 'LEIA-ME.txt'
+    assert nomes[2:-1] == ['Orçamentos/01. Psicólogo/1. ALFA LTDA.pdf', 'Orçamentos/01. Psicólogo/2. BETA S A.pdf'] + \
         [f'Orçamentos/02. Alimentação/{i}/{k}. Loja{k}.pdf' for i in ('01. Café Pilão 500g', '02. Leite 1L') for k in (1, 2, 3)]   # por rubrica e item, na ordem do plano
     paginas = lambda n: [pg.get_text().strip() for pg in pymupdf.open(stream=z.read([x for x in z.namelist() if x.endswith(n)][0]), filetype='pdf')]
     assert paginas('1. ALFA LTDA.pdf') == ['PAGINA DA VAGA ALFA', 'COMPROVANTE DE INSCRICAO ALFA']       # a vaga e, no mesmo PDF, o comprovante de CNPJ da empresa

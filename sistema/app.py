@@ -979,7 +979,7 @@ TELA_DO_TIPO = {'sistema': 'sistema.html', 'servico': 'servico.html'}   # produt
 
 
 @app.get('/p/{pid}/mat/{item}', response_class=HTMLResponse)
-def mat_form(request: Request, pid: int, item: int, leitura: str = '', novo: str = ''):
+def mat_form(request: Request, pid: int, item: int, leitura: str = '', novo: str = '', extra: dict = None):
     p, v = abrir(pid)
     r = next((x for x in p.rubricas if x.item == item), None)
     if r is None or isinstance(r, RubricaRH):
@@ -992,7 +992,58 @@ def mat_form(request: Request, pid: int, item: int, leitura: str = '', novo: str
         r.subitens = [Subitem(descricao=r.descricao, qtd=1)]
     return tpl.TemplateResponse(request, TELA_DO_TIPO.get(tipo, 'mat.html'),
                                 dict(contexto(p, pid, v), r=r, tipo=tipo, palavras_padrao=palavras_padrao, leitura=leitura, novo=novo,
-                                     banco=db.produtos_do_banco(pid, item), sistemas=sistemas_mod))
+                                     banco=db.produtos_do_banco(pid, item), sistemas=sistemas_mod, **(extra or {})))
+
+
+@app.post('/p/{pid}/mat/{item}/sugerir', response_class=HTMLResponse)
+def mat_sugerir(request: Request, pid: int, item: int, para_que: str = Form('')):
+    """A IA sugere itens e quantidades por mês para a rubrica, a partir do que a OSC descreveu. NADA é gravado: a tela mostra a sugestão
+    conferida, e a pessoa marca o que quer acrescentar. A IA recebe o nome da rubrica, a descrição e os nomes dos itens que já existem."""
+    from orcamento import ia
+    p, _ = abrir(pid)
+    r = next((x for x in p.rubricas if x.item == item and not isinstance(x, RubricaRH)), None)
+    if r is None:
+        return voltar_ao_projeto(pid, f'O item {item} não é uma rubrica de materiais deste projeto.', 'materiais')
+    para_que = re.sub(r'\s+', ' ', para_que).strip()
+    if len(para_que) < 15:
+        return mat_form(request, pid, item, leitura='Não deu para sugerir: descreva a atividade com um pouco mais de detalhe (quantas pessoas, com que frequência).',
+                        extra=dict(para_que=para_que))
+    if not ia.disponivel():
+        return mat_form(request, pid, item, leitura='Não deu para sugerir: a IA gratuita não está configurada neste computador. Cadastre os itens no quadro "Adicionar itens".',
+                        extra=dict(para_que=para_que))
+    bruto = ia.sugerir_itens(r.descricao, para_que, [descricao_completa(s) for s in r.subitens], pid)
+    if bruto is None:
+        return mat_form(request, pid, item, leitura='Não foi possível consultar a IA agora (limite gratuito ou falha de rede). Tente de novo em alguns minutos.',
+                        extra=dict(para_que=para_que))
+    sugestoes = servico.sugestoes_conferidas(r, bruto)
+    return mat_form(request, pid, item, extra=dict(para_que=para_que, sugestoes=sugestoes, sugestoes_json=json.dumps(sugestoes, ensure_ascii=False)))
+
+
+@app.post('/p/{pid}/mat/{item}/sugerir/aplicar')
+async def mat_sugerir_aplicar(request: Request, pid: int, item: int):
+    """Acrescenta à rubrica os itens sugeridos que a pessoa marcou (com a quantidade que ela deixou). Os preços vêm depois, da pesquisa."""
+    f = await request.form()
+    p, _ = abrir(pid)
+    r = next((x for x in p.rubricas if x.item == item and not isinstance(x, RubricaRH)), None)
+    if r is None:
+        return voltar_ao_projeto(pid, f'O item {item} não é uma rubrica de materiais deste projeto.', 'materiais')
+    try:
+        bruto = json.loads(f.get('dados') or '[]')
+    except ValueError:
+        bruto = []
+    marcados = {inteiro(x, -1) for x in f.getlist('sugestao')}
+    escolhidos = []
+    for k, x in enumerate(bruto if isinstance(bruto, list) else []):
+        if k in marcados and isinstance(x, dict):
+            escolhidos.append(dict(x, quantidade=inteiro(f.get(f'qtd{k}'), x.get('quantidade') if isinstance(x.get('quantidade'), int) else 0)))
+    novos = servico.sugestoes_conferidas(r, escolhidos)   # conferidas de novo: o que volta da tela não é aceito sem conferir
+    if not novos:
+        return RedirectResponse(f'/p/{pid}/mat/{item}?leitura={quote("Não foi acrescentado nenhum item: nenhuma sugestão estava marcada.")}', status_code=303)
+    for x in novos:
+        r.subitens.append(Subitem(descricao=x['descricao'], especificacao=x['especificacao'] or None, qtd=x['quantidade']))
+    db.salvar(pid, p, motivo=f'item {item}: {len(novos)} item(ns) sugerido(s) pela IA e aceito(s) pela OSC ({", ".join(x["descricao"] for x in novos)[:160]})')
+    msg = f'{len(novos)} item(ns) acrescentado(s). Confira as quantidades e clique em "Salvar e pesquisar os preços".'
+    return RedirectResponse(f'/p/{pid}/mat/{item}?leitura={quote(msg)}#t-itens', status_code=303)
 
 
 @app.post('/p/{pid}/mat/{item}')
@@ -1595,6 +1646,26 @@ def baixar_planilhas(pid: int):
     with db.conectar() as c:
         db.evento(c, pid, 'EXPORTADO', arquivo=nome, versao=v)
     return FileResponse(caminho, filename=nome)
+
+
+@app.get('/p/{pid}/planilhas-pdf')
+def baixar_planilhas_pdf(pid: int):
+    """As planilhas do pacote em PDF: as mesmas abas e a mesma formatação da planilha, prontas para imprimir ou anexar."""
+    from orcamento import pacote
+    p, v = abrir(pid)
+    if p is None:
+        raise HTTPException(404)
+    nome = f'{_nome_de_arquivo(p.nome)} - Plano de Aplicação e Comparativo de Preço.pdf'
+    caminho = os.path.join(tempfile.gettempdir(), f'orca_planilhas_{pid}_{v}.pdf')
+    try:
+        dados = pacote.planilhas_pdf(p)
+    except Exception as e:
+        return voltar_ao_projeto(pid, f'Não foi possível gerar o PDF agora ({type(e).__name__}): o navegador do sistema não abriu. A planilha (.xlsx) continua disponível.')
+    with open(caminho, 'wb') as fh:
+        fh.write(dados)
+    with db.conectar() as c:
+        db.evento(c, pid, 'EXPORTADO', arquivo=nome, versao=v)
+    return FileResponse(caminho, filename=nome, media_type='application/pdf')
 
 
 @app.get('/p/{pid}/pacote')

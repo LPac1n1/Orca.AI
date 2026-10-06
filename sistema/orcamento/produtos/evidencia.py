@@ -39,6 +39,10 @@ for(const el of document.querySelectorAll('body *')){
   const txt=el.innerText||'';
   // aviso de cookies fora da posição fixa: bloco curto que fala de cookies e tem botão (aceitar, gerenciar, fechar)
   if(!fixo&&txt.length<1500&&r.height<vh*0.7&&COOKIE.test(txt)&&(posto||dialogo)&&[...el.querySelectorAll('button,a,[role=button]')].some(b=>BOTAO.test(b.innerText||''))){ocultar(el);continue;}
+  // balão "informe seu CEP" preso ao cabeçalho, por cima do nome do produto (Casa & Video, 05/10/2026): bloco curto, posto por cima da
+  // página, com o campo do CEP e sem o preço do item
+  if(posto&&pos!=='sticky'&&txt.length<300&&r.width<vw*0.6&&/informe (o )?seu cep|digite (o )?seu cep/i.test(txt)&&el.querySelector('input')
+     &&!(manter&&manter.some(m=>m&&txt.includes(m)))){ocultar(el);continue;}
   // janela ou véu por cima do conteúdo em posição absoluta: tem z-index alto e é uma janela (modal, popup) ou cobre a tela quase sem texto
   const z=parseInt(cs.zIndex)||0;
   const sobre=pos==='absolute'&&z>=100&&(dialogo||(r.width>=vw*0.9&&r.height>=vh*0.9&&txt.trim().length<200));

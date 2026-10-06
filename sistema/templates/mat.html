@@ -36,6 +36,53 @@
     O que você escreveu nesta tela é salvo antes de pesquisar. Para pesquisar um item só, abra o item e use "Pesquisar de novo só este item".</div></details>
 </section>
 
+{# ------------------------------------------------------------------ sugestão de itens e quantidades pela IA (nada é gravado antes de a pessoa aceitar) #}
+{% if sugestoes is defined and sugestoes is not none %}
+<section class="cartao secao" aria-labelledby="t-sug" id="sugestoes">
+  <h2 id="t-sug" class="cartao__titulo">{{ icone('info') }}O que a IA sugere para esta rubrica</h2>
+  {% if sugestoes %}
+  <p class="texto-apoio">Nada foi gravado. Desmarque o que não servir, ajuste as quantidades e acrescente. A IA sugere só o item e a quantidade por mês:
+    <b>os preços vêm da pesquisa nas lojas</b>, como em qualquer item. Confira as contas da coluna "Por quê": a IA pode errar.</p>
+  <form method="post" action="/p/{{ pid }}/mat/{{ r.item }}/sugerir/aplicar" class="pilha">
+    <input type="hidden" name="dados" value="{{ sugestoes_json }}">
+    <div class="tabela-rolagem">
+      <table class="tabela tabela--cartoes">
+        <thead><tr><th scope="col">Acrescentar?</th><th scope="col">Item</th><th scope="col" class="n">Quantidade por mês</th><th scope="col">Por quê</th></tr></thead>
+        <tbody>{% for x in sugestoes %}
+          <tr><td data-rotulo="Acrescentar?"><label class="escolha" style="min-height: 0; padding: 0"><input type="checkbox" name="sugestao" value="{{ loop.index0 }}" checked>
+              <span class="so-leitor">Acrescentar {{ x.descricao }}</span></label></td>
+            <th scope="row" data-rotulo="Item">{{ x.descricao }}{% if x.especificacao %} <span class="texto-apoio">{{ x.especificacao }}</span>{% endif %}</th>
+            <td class="n" data-rotulo="Quantidade por mês"><input class="campo__controle" style="max-width: 6rem; text-align: right" name="qtd{{ loop.index0 }}" value="{{ x.quantidade }}"
+                type="text" inputmode="numeric" data-mascara="inteiro" data-min="1" data-max="999" autocomplete="off" aria-label="Quantidade por mês de {{ x.descricao }}"></td>
+            <td data-rotulo="Por quê" class="texto-apoio">{{ x.motivo or '—' }}</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="linha"><button class="btn btn--primario" data-aguarde="Acrescentando…">{{ icone('mais') }}Acrescentar os marcados à rubrica</button>
+      <a class="btn btn--texto" href="/p/{{ pid }}/mat/{{ r.item }}">Descartar a sugestão</a></div>
+  </form>
+  {% else %}
+  <p class="texto-apoio">A IA não sugeriu nenhum item novo que o sistema pudesse usar (ou tudo o que ela sugeriu já está na rubrica). Tente descrever a atividade de outro jeito,
+    ou cadastre os itens no quadro "Adicionar itens".</p>
+  {% endif %}
+</section>
+{% endif %}
+<details class="detalhe secao" {% if para_que is defined and para_que and (sugestoes is not defined or sugestoes is none) %}open{% endif %}>
+  <summary>Não sabe por onde começar? Peça à IA uma lista de itens e quantidades</summary>
+  <form method="post" action="/p/{{ pid }}/mat/{{ r.item }}/sugerir" class="detalhe__corpo pilha">
+    <div class="campo">
+      <label class="campo__rotulo" for="c-para-que">Para que é esta rubrica?</label>
+      <textarea class="campo__controle" id="c-para-que" name="para_que" rows="3" maxlength="1500" required aria-required="true" aria-describedby="c-para-que-dica"
+                {% if not ia_ok %}disabled{% endif %}>{{ para_que if para_que is defined else '' }}</textarea>
+      <p class="campo__dica" id="c-para-que-dica">Diga quantas pessoas e com que frequência. Ex.: Lanche para 30 adolescentes, em 2 encontros por semana.
+        A IA recebe só este texto, o nome da rubrica e os nomes dos itens que já estão nela.</p>
+    </div>
+    <div class="linha"><button class="btn btn--secundario" data-aguarde="A IA está montando a lista…" {% if not ia_ok %}disabled data-desabilitado{% endif %}>{{ icone('busca') }}Sugerir itens e quantidades</button>
+      {% if not ia_ok %}<span class="texto-apoio">Sem a chave gratuita da IA neste computador. Cadastre os itens no quadro "Adicionar itens".</span>
+      {% else %}<span class="texto-apoio">É só uma sugestão: nada entra na rubrica antes de você conferir e aceitar.</span>{% endif %}</div>
+  </form>
+</details>
+
 <form method="post" action="/p/{{ pid }}/mat/{{ r.item }}" class="pilha secao" id="f-rubrica" data-avisar-saida>
   {{ enter_salva() }}
   {# ---------------------------------------------------------------- 2. itens e preços #}
