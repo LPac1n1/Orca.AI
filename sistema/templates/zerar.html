@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo, migalhas %}
+{% from "_projeto_topo.html" import projeto_topo with context %}
+{% block titulo %}Apagar as pesquisas — {{ p.nome }}{% endblock %}
+{% block migalhas %}{{ migalhas([('Projetos', '/'), (p.nome, '/p/%d' % pid)], 'Apagar as pesquisas e refazer do zero') }}{% endblock %}
+{% block corpo %}
+{{ projeto_topo('zerar') }}
+<header class="cabecalho">
+  <h1>Apagar as pesquisas e refazer do zero</h1>
+  <p class="cabecalho__intro">Os <b>itens ficam</b> como você pediu; o que sai é o <b>resultado das pesquisas</b>. Depois, o sistema pesquisa tudo de novo,
+    sem reaproveitar nada do que já tinha achado. Confira abaixo o que vai acontecer antes de confirmar.</p>
+</header>
+
+{% if tarefas_rodando %}
+<div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo"><b>Há uma tarefa em andamento neste projeto.</b>
+  Espere terminar (ou cancele, em <a href="/tarefas">Tarefas</a>) antes de apagar as pesquisas.</div></div>
+{% endif %}
+
+{% if not previa.apagadas and not tudo.apagadas %}
+<div class="aviso aviso--info" role="status">{{ icone('info') }}<div class="aviso__corpo"><b>Este projeto ainda não tem pesquisas para apagar.</b>
+  Use "Pesquisar tudo automaticamente", na visão geral do projeto.</div></div>
+<p><a class="btn btn--secundario" href="/p/{{ pid }}">Voltar ao projeto</a></p>
+{% else %}
+
+<div class="indicadores" role="group" aria-label="O que será apagado">
+  <div class="indicador indicador--erro"><div class="indicador__rotulo">Pesquisas automáticas</div><div class="indicador__valor">{{ previa.automaticas }}</div>
+    <span class="indicador__nota">vagas, preços e cotações que o sistema achou: saem</span></div>
+  <div class="indicador"><div class="indicador__rotulo">Itens que voltam ao pedido</div><div class="indicador__valor">{{ previa.voltam|length }}</div>
+    <span class="indicador__nota">a pesquisa tinha trocado o produto</span></div>
+  <div class="indicador"><div class="indicador__rotulo">Marcas apagadas</div><div class="indicador__valor">{{ previa.marcas|length }}</div>
+    <span class="indicador__nota">foi a pesquisa que preencheu</span></div>
+  <div class="indicador {% if previa.a_mao %}indicador--alerta{% endif %}"><div class="indicador__rotulo">Feitas à mão</div><div class="indicador__valor">{{ previa.a_mao }}</div>
+    <span class="indicador__nota">ficam, a menos que você marque abaixo</span></div>
+</div>
+
+<section class="cartao secao" aria-labelledby="t-sai">
+  <h2 id="t-sai" class="cartao__titulo">{{ icone('lixeira') }}O que sai</h2>
+  <ul class="lista-simples">
+    <li><b>Nos cargos:</b> as vagas e o valor mensal. Horas, quantidade de profissionais, faixa pretendida e títulos similares aceitos ficam.</li>
+    <li><b>Nos itens:</b> as 3 lojas, os preços, o valor no plano e os comprovantes ligados ao item. Descrição, especificação e quantidade ficam.</li>
+    <li><b>Para a pesquisa nova não reaproveitar nada:</b> {{ banco_prods }} opção(ões) de produto guardada(s) deste projeto, {{ banco_vagas }} vaga(s) guardada(s)
+      destes cargos e as buscas guardadas de hoje.{% if banco_vagas %} <span class="texto-apoio">O banco de vagas é comum a todos os projetos: as vagas destes
+      cargos saem dele para todos, mas as pesquisas já gravadas em outros projetos não mudam.</span>{% endif %}</li>
+    <li><b>Pontos marcados como revisados</b> nos itens que mudam: a revisão era das pesquisas antigas.</li>
+  </ul>
+
+  {% if previa.cargos %}<details class="detalhe detalhe--leve"><summary>Cargos ({{ previa.cargos|length }})</summary><div class="detalhe__corpo">
+    <ul class="lista-simples">{% for x in previa.cargos %}<li>Item {{ x.item }} – {{ x.cargo }}: {{ x.apagadas }} vaga(s) sai(em){% if x.ficam %}; {{ x.ficam }} feita(s) à mão fica(m){% endif %}</li>{% endfor %}</ul></div></details>{% endif %}
+  {% if previa.itens %}<details class="detalhe detalhe--leve"><summary>Itens ({{ previa.itens|length }})</summary><div class="detalhe__corpo">
+    <ul class="lista-simples">{% for x in previa.itens %}<li>{{ x.nome }}: {{ x.apagadas }} pesquisa(s) sai(em){% if x.ficam %}; {{ x.ficam }} deixada(s) por você fica(m){% endif %}</li>{% endfor %}</ul></div></details>{% endif %}
+  {% if previa.voltam %}<details class="detalhe detalhe--leve" open><summary>Itens que voltam ao que foi pedido ({{ previa.voltam|length }})</summary><div class="detalhe__corpo">
+    <p class="texto-apoio">A pesquisa não achou o item igual em 3 lojas e trocou por outro. A troca é desfeita: a pesquisa nova procura de novo o que você pediu.</p>
+    <ul class="lista-simples">{% for de, para in previa.voltam %}<li>{{ de }} <span aria-hidden="true">→</span><span class="so-leitor"> volta a ser </span> <b>{{ para }}</b></li>{% endfor %}</ul></div></details>{% endif %}
+  {% if previa.quantidades %}<details class="detalhe detalhe--leve" open><summary>Quantidades que voltam à pedida ({{ previa.quantidades|length }})</summary><div class="detalhe__corpo">
+    <ul class="lista-simples">{% for d, de, para in previa.quantidades %}<li>{{ d }}: de {{ de }} para <b>{{ para }}</b> (a loja limitava a compra por cliente)</li>{% endfor %}</ul></div></details>{% endif %}
+</section>
+
+<section class="cartao secao" aria-labelledby="t-fica">
+  <h2 id="t-fica" class="cartao__titulo">{{ icone('certo') }}O que fica</h2>
+  <ul class="lista-simples">
+    <li><b>A versão de agora, inteira, no histórico.</b> Se você se arrepender, restaure a versão {{ versao }}: as pesquisas e os PDFs voltam.</li>
+    <li><b>Os comprovantes de CNPJ</b> que você emitiu na Receita ({{ p.comprovantes_cnpj|length }}): valem para a empresa, e são usados de novo se ela aparecer na pesquisa nova.</li>
+    <li>Teto, CEP, órgão, configuração e regras do projeto.</li>
+    {% if previa.a_mao %}<li><b>O que você fez à mão</b> ({{ previa.a_mao }} pesquisa(s): PDF anexado, valores digitados, propostas de serviço), a menos que marque a opção abaixo.</li>{% endif %}
+    <li>As vagas que você <b>descartou</b> continuam descartadas, para não voltarem na pesquisa nova.</li>
+  </ul>
+  {% if previa.mantidos %}<details class="detalhe detalhe--leve"><summary>Ficam como estão ({{ previa.mantidos|length }})</summary><div class="detalhe__corpo">
+    <ul class="lista-simples">{% for t in previa.mantidos %}<li>{{ t }}</li>{% endfor %}</ul></div></details>{% endif %}
+</section>
+
+<form method="post" action="/p/{{ pid }}/zerar-pesquisas" class="cartao cartao--plano cartao--perigo secao pilha" aria-labelledby="t-conf"
+      data-confirmar="Apagar as pesquisas deste projeto?"
+      data-confirmar-texto="As pesquisas saem do projeto e a busca recomeça do zero. A versão de agora ({{ versao }}) continua no histórico e pode ser restaurada."
+      data-confirmar-botao="Apagar as pesquisas" data-confirmar-perigo>
+  <h2 id="t-conf" class="cartao__titulo">Confirmar</h2>
+  {% if previa.marcas %}
+  <label class="escolha"><input type="checkbox" name="marcas" value="1" checked>
+    <span class="escolha__texto"><b>Apagar as marcas que a pesquisa preencheu</b> ({{ previa.marcas|length }})
+      <small>Você deixou a marca em branco e a pesquisa preencheu com a que achou nas 3 lojas. Apagando, a pesquisa nova fica livre para achar outra.
+        {% for d, m in previa.marcas %}{{ d }} ({{ m }}){{ ', ' if not loop.last else '.' }}{% endfor %} Marca que você mesmo escreveu não é apagada.</small></span></label>
+  {% endif %}
+  {% if previa.confirmadas or confirmadas_no_banco %}
+  <label class="escolha"><input type="checkbox" name="confirmadas" value="1" checked>
+    <span class="escolha__texto"><b>Apagar também as vagas que você confirmou</b> ({{ previa.confirmadas }} no projeto, {{ confirmadas_no_banco }} guardada(s))
+      <small>São vagas que o sistema achou, ficou em dúvida sobre a empresa e você informou o CNPJ. Marcado, elas saem e a busca recomeça do zero também nesses
+        cargos; se a mesma vaga aparecer de novo, o sistema pode pedir o CNPJ outra vez. Desmarcado, elas ficam guardadas e continuam no cargo.</small></span></label>
+  {% else %}<input type="hidden" name="confirmadas" value="1">{% endif %}
+  {% if tudo.a_mao %}
+  <label class="escolha"><input type="checkbox" name="a_mao" value="1">
+    <span class="escolha__texto"><b>Apagar também o que foi feito à mão</b> ({{ tudo.a_mao }} pesquisa(s))
+      <small>PDFs que você anexou, valores que você digitou e propostas de serviço. A pesquisa automática não refaz o que é manual: se marcar, você terá de
+        anexar de novo. (Os arquivos continuam no histórico.)</small></span></label>
+  {% endif %}
+  <div class="linha">
+    <button class="btn btn--perigo" name="depois" value="pesquisar" {% if tarefas_rodando %}disabled data-desabilitado{% endif %}>{{ icone('busca') }}Apagar e pesquisar tudo de novo</button>
+    <button class="btn btn--secundario" name="depois" value="" {% if tarefas_rodando %}disabled data-desabilitado{% endif %}>{{ icone('lixeira') }}Só apagar</button>
+    <a class="btn btn--texto" href="/p/{{ pid }}">Cancelar</a>
+  </div>
+  <p class="texto-apoio">"Apagar e pesquisar tudo de novo" já começa a pesquisa (de 30 minutos a algumas horas). "Só apagar" deixa o projeto pronto para você
+    ajustar os itens antes; depois, use "Pesquisar tudo automaticamente".</p>
+</form>
+{% endif %}
+{% endblock %}

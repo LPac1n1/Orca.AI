@@ -596,6 +596,46 @@ def pesquisar_tudo(pid: int):
     return RedirectResponse(f'/tarefa/{tid}', status_code=303)
 
 
+@app.get('/p/{pid}/zerar-pesquisas', response_class=HTMLResponse)
+def zerar_pesquisas_tela(request: Request, pid: int):
+    """O que vai sair e o que fica, ANTES de apagar as pesquisas do projeto para refazer do zero. Nada é mudado aqui."""
+    from orcamento import zerar
+    p, v = abrir(pid)
+    if p is None:
+        raise HTTPException(404)
+    previa = zerar.zerar(p.model_copy(deep=True), pid)                      # como ficaria, guardando o que foi feito à mão
+    tudo = zerar.zerar(p.model_copy(deep=True), pid, com_a_mao=True)        # e apagando também o que foi feito à mão
+    banco_prods, banco_vagas = zerar.contar_bancos(pid, previa)
+    confirmadas_no_banco = banco_vagas - zerar.contar_bancos(pid, dict(previa, com_confirmadas=False))[1]
+    return tpl.TemplateResponse(request, 'zerar.html', dict(contexto(p, pid, v), previa=previa, tudo=tudo, banco_prods=banco_prods, banco_vagas=banco_vagas,
+                                                            confirmadas_no_banco=confirmadas_no_banco))
+
+
+@app.post('/p/{pid}/zerar-pesquisas')
+def zerar_pesquisas(pid: int, a_mao: str = Form(''), marcas: str = Form(''), confirmadas: str = Form(''), depois: str = Form('')):
+    """Apaga as pesquisas do projeto (uma versão nova; a anterior fica no histórico) e esvazia o que a pesquisa nova poderia reaproveitar: as
+    opções de produto guardadas, as vagas guardadas destes cargos e as buscas do dia. Com depois=pesquisar, já começa o "Pesquisar tudo"."""
+    from orcamento import zerar
+    p, v = abrir(pid)
+    if p is None:
+        raise HTTPException(404)
+    if db.removido_em(pid):
+        return voltar_ao_projeto(pid, 'Nada foi apagado: o projeto está na área de removidos. Restaure o projeto antes.')
+    if any(t['estado'] in ('rodando', 'na fila') for t in tarefas.listar(pid, 10)):
+        return voltar_ao_projeto(pid, 'Nada foi apagado: há uma tarefa em andamento neste projeto. Espere terminar ou cancele em "Tarefas".')
+    res = zerar.zerar(p, pid, com_a_mao=bool(a_mao), com_marcas=bool(marcas), com_confirmadas=bool(confirmadas))
+    if not res['apagadas'] and not res['voltam']:
+        return voltar_ao_projeto(pid, 'Nada foi apagado: o projeto não tinha pesquisas para apagar.')
+    servico.arrumar_descricoes(p)   # os pedidos que voltaram já saem com a escrita acertada (1Kg → 1kg), na mesma versão
+    prods, vagas = zerar.contar_bancos(pid, res)
+    nova = db.salvar(pid, p, motivo=zerar.resumo_em_texto(res, prods, vagas))   # primeiro a versão; só depois os bancos (se a gravação falhar, nada some)
+    zerar.zerar_bancos(pid, res)
+    if depois == 'pesquisar':
+        return pesquisar_tudo(pid)
+    return voltar_ao_projeto(pid, f'{res["apagadas"]} pesquisa(s) apagada(s). O projeto está na versão {nova}; a versão {v}, com as pesquisas, continua no histórico. '
+                                  'Quando quiser, use "Pesquisar tudo automaticamente".')
+
+
 def consultar_cnpjs_que_faltam(p, ctx=None):
     """Consulta sozinho a situação dos CNPJs que ainda não têm consulta nem estão na base oficial deste computador."""
     cache, status = situacao_dos_cnpjs(p)

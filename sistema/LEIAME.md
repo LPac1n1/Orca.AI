@@ -2,6 +2,33 @@
 
 Monta e confere a **Grade Comparativa** e o **Plano de Aplicação** de projetos sociais para o órgão que vai analisá-los. Já vem com as regras estabelecidas pela Secretaria da Justiça e Cidadania de SP (SEJC) (o levantamento está em [../FASE0_SEJC.md](../FASE0_SEJC.md)); as de qualquer outro órgão são cadastradas pela tela "Órgãos". As decisões da OSC e os testes que justificam cada regra estão em [../FASE1B_RESULTADOS.md](../FASE1B_RESULTADOS.md).
 
+## Apagar as pesquisas e refazer do zero (06/10/2026) — `orcamento/zerar.py`, testes em `tests/test_zerar.py`
+
+**O pedido.** "Quero poder apagar todas as pesquisas já feitas dentro de um projeto, de uma vez. Objetivo: que toda a pesquisa seja refeita, com os mesmos itens, do zero. Sem pegar pesquisas já realizadas."
+
+**Onde fica.** Na visão geral do projeto, ao lado de "Pesquisar tudo automaticamente", e em Configuração: **"Apagar as pesquisas e refazer do zero"** (`/p/{id}/zerar-pesquisas`). Abre uma tela que mostra o que sai e o que fica, sem mudar nada; só depois de confirmar é que as pesquisas são apagadas. Dois botões: "Apagar e pesquisar tudo de novo" (já começa o "Pesquisar tudo") e "Só apagar".
+
+| O que sai | O que fica |
+|---|---|
+| Nos cargos: as 3 vagas e o valor mensal | Cargos, quantidade de profissionais, horas, duração, faixa pretendida, títulos similares aceitos |
+| Nos itens: as 3 lojas, os preços, o valor no plano, os comprovantes ligados ao item | Rubricas, itens, especificação, quantidade, teto da rubrica |
+| A **troca** que a pesquisa fez: o item volta a ser o que foi pedido (descrição, marca e especificação originais) | A marca que a OSC escreveu |
+| A **marca que a pesquisa preencheu** (opção, marcada) | Os comprovantes de CNPJ emitidos na Receita (valem para a empresa, não para a pesquisa) |
+| A quantidade que a pesquisa ajustou (limite de compra da loja) volta à pedida | Teto, CEP, órgão, configuração |
+| Os pontos marcados como revisados nos itens que mudam | A versão anterior, inteira, no histórico: restaurar traz as pesquisas e os PDFs de volta |
+| As vagas que a OSC **confirmou** (informou o CNPJ) — opção, marcada | O que a OSC fez à mão e a busca não sabe refazer: PDF anexado, valores digitados, propostas de serviço (opção para apagar também, desmarcada) |
+
+**Para a pesquisa nova não reaproveitar nada** (`zerar.zerar_bancos`): saem as opções de produto guardadas dos itens zerados (banco de produtos do projeto), as vagas guardadas daqueles cargos e dos títulos similares aceitos (banco de vagas) e as buscas guardadas do dia. O banco de vagas é comum a todos os projetos: as vagas daqueles cargos saem dele para todos, mas as pesquisas já GRAVADAS em outros projetos não mudam. Vaga que a OSC descartou continua descartada, para não voltar.
+
+**Decisões**
+- **Marca: quem diz se foi a pesquisa é o histórico** (`zerar.marcas_da_pesquisa`). A marca só sai quando o item existia sem marca e ela apareceu numa versão gravada pela pesquisa automática — e a OSC não mexeu nela depois. Marca escrita pela OSC (no campo ou na descrição) nunca é apagada.
+- **Vagas confirmadas pela OSC saem por padrão.** No primeiro teste na cópia elas ficaram (eram tratadas como trabalho manual) e o cargo voltou na hora com as mesmas 3 vagas, vindas do banco: a pesquisa não recomeçava do zero. Passaram a sair, com a opção de manter na tela. Se a mesma vaga for achada de novo, o sistema pode pedir o CNPJ outra vez.
+- **Item com pesquisa feita à mão fica inteiro.** As 3 pesquisas de um produto são do mesmo produto: não faz sentido apagar duas e manter a anexada. No sistema (software), cada cotação é de um fornecedor diferente: a da OSC fica no lugar e só as automáticas saem.
+- **Uma versão só.** O projeto ganha uma versão ("pesquisas zeradas para refazer do zero…", com os números); a versão é gravada antes de os bancos serem esvaziados. Com uma tarefa em andamento no projeto, nada é apagado.
+- **Pesquisa em branco não é "a mesma empresa".** Depois de zerar, o item com uma cotação mantida e duas em branco acusava "a mesma empresa em mais de uma pesquisa" (as duas em branco eram comparadas como iguais). Corrigido em `calculo.verificar` (R09), para cargos e itens.
+
+**Conferido numa cópia do projeto em uso:** 104 pesquisas apagadas em 7 cargos e 28 itens; 9 itens trocados voltaram ao pedido original; 3 marcas postas pela pesquisa saíram; 36 opções de produto e 42 vagas guardadas saíram dos bancos; a visão geral passou a mostrar "0 de 35 itens com as 3 pesquisas", e o "Pesquisar tudo" foi aos sites de vagas em vez de buscar no banco.
+
 ## Novo na 0.6 (05/10/2026): órgãos com regras próprias e planilha completa — testes em `tests/test_orgaos.py`
 
 **Por quê.** O sistema nasceu para a SEJC-SP, mas a OSC quer usá-lo para qualquer secretaria, emenda ou fundo: "deve ser possível adicionar, editar e excluir secretarias/órgãos e, em cada um deles, definir as regras (…). A definição e execução das regras deve ser dinâmica, tudo dentro do sistema." Nada de regra de órgão no código: cada órgão é um cadastro, e mudar uma regra é editar o cadastro.
@@ -249,7 +276,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 235 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 241 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;

@@ -155,8 +155,8 @@ def verificar(p: Projeto, cnpj_status: dict | None = None, hoje: dt.date | None 
                 checa_fonte(q, rot)
                 if q.faixa_min is not None and q.valor is not None and q.valor != q.faixa_min:
                     A.append(Alerta('R11', 'erro', rot, f'{q.nome}: faixa {brl(q.faixa_min)}–{brl(q.faixa_max)}, mas usado {brl(q.valor)} (deve ser o menor)'))
-            chaves = [cnpj_formatar(q.cnpj) or norm(q.nome) for q in r.pesquisas]
-            if len(set(chaves)) < 3:
+            chaves = [c for c in (cnpj_formatar(q.cnpj) or norm(q.nome) for q in r.pesquisas) if c]   # pesquisa em branco não conta como empresa repetida
+            if len(set(chaves)) < len(chaves):
                 A.append(Alerta('R09', 'erro', rot, 'a mesma empresa aparece em mais de uma pesquisa'))
             maxm, vh, div = mensal_maximo_rh(r, p.config)
             if maxm is not None and r.valor_mensal_plano is not None and r.valor_mensal_plano > maxm:
@@ -205,7 +205,8 @@ def verificar(p: Projeto, cnpj_status: dict | None = None, hoje: dt.date | None 
                     for f in s.fontes:
                         checa_fonte(f, rs)
                     chaves = [cnpj_formatar(f.cnpj)[:10] or norm(f.nome) for f in s.fontes]  # raiz do CNPJ: filiais da mesma empresa contam como uma só
-                    if len(set(chaves)) < 3:
+                    chaves = [c for c in chaves if c]   # pesquisa ainda em branco não é "a mesma empresa" de outra em branco
+                    if len(set(chaves)) < len(chaves):
                         A.append(Alerta('R09', 'erro', rs, 'a mesma empresa aparece em mais de uma das 3 pesquisas do item'))
                 if s.nivel:
                     A.append(Alerta('S02', 'info', rs, f'troca por item {"parecido" if s.nivel == 1 else "relacionado"}'

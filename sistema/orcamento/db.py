@@ -235,6 +235,12 @@ def cache_prefixo(prefixo):
                                                           (len(prefixo), prefixo, dt.date.today().isoformat()))}
 
 
+def cache_limpar_tudo():
+    """Esquece as buscas guardadas (valem só para o dia): a próxima pesquisa consulta as lojas de novo."""
+    with conectar_cache() as c:
+        c.execute('DELETE FROM busca')
+
+
 def cache_limpar_antigos():
     with conectar_cache() as c:
         c.execute('DELETE FROM busca WHERE dia < ?', (dt.date.today().isoformat(),))

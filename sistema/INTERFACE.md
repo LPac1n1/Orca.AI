@@ -289,3 +289,12 @@ Peças comuns das telas de rubrica ficam em `templates/_rubrica.html` (cartão d
 | Rubrica de produtos | Abre-e-fecha "Não sabe por onde começar? Peça à IA uma lista de itens e quantidades" (caixa de texto e botão; desligado sem a chave da IA). Depois da resposta, o cartão "O que a IA sugere para esta rubrica": tabela com caixa de marcar, item, quantidade por mês editável e o porquê; botões "Acrescentar os marcados à rubrica" e "Descartar a sugestão" |
 | Topo do projeto | Terceiro botão de baixar: "Planilhas em PDF" (as mesmas abas da planilha, prontas para imprimir) |
 | Ajuda | Glossário com "Órgão", "Regra própria" e "Começa no mês"; dúvida "Meu projeto é de outra secretaria. Funciona?"; a dúvida sobre os dados na internet diz o que a IA recebe |
+
+## 11. Apagar as pesquisas e refazer do zero (06/10/2026)
+
+| Tela | O que tem |
+|---|---|
+| Projeto → Visão geral | No passo "Pesquise vagas e preços", ao lado de "Pesquisar tudo automaticamente", o botão de texto "Apagar as pesquisas e refazer do zero" |
+| Projeto → Configuração | Cartão "Refazer as pesquisas do zero", antes de "Remover projeto" |
+| Apagar as pesquisas (`zerar.html`, `/p/{id}/zerar-pesquisas`) | Topo do projeto; 4 indicadores (pesquisas automáticas, itens que voltam ao pedido, marcas apagadas, feitas à mão); cartão "O que sai", com abre-e-fecha de cargos, itens, itens que voltam ao que foi pedido ("de → para") e quantidades; cartão "O que fica"; cartão "Confirmar" com as opções (marcas que a pesquisa preencheu e vagas confirmadas: marcadas; feito à mão: desmarcada) e os botões "Apagar e pesquisar tudo de novo", "Só apagar" e "Cancelar". O envio pede confirmação na janela de perigo. Com tarefa em andamento, aviso e botões desligados |
+| Ajuda | Dúvida "Quero refazer todas as pesquisas do zero. Como faço?" |

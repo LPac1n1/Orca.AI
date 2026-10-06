@@ -22,6 +22,7 @@ Já vem com as regras da Secretaria da Justiça e Cidadania do Estado de São Pa
 | **Órgãos e regras** | Cada órgão (secretaria, ministério, fundo, emenda) é um cadastro: quais regras valem e com que peso, as regras próprias dele ("só empresas do estado", "material permanente não pode", "mão de obra até 60% do total"), como o valor do plano é escolhido e quais planilhas vão no pacote. O projeto segue as regras do órgão dele. |
 | **Fechar no teto** | Encontra a combinação de horas e valores que fecha o plano exatamente no teto do projeto, sem sair das regras. |
 | **Histórico** | Cada alteração vira uma versão nova; nada é apagado e qualquer versão pode ser restaurada. |
+| **Refazer do zero** | Apaga, de uma vez, todas as pesquisas de um projeto — os itens ficam como foram pedidos — e pesquisa tudo de novo, sem reaproveitar nada do que estava guardado. Antes de confirmar, mostra o que sai e o que fica. |
 | **Pacote para envio** | Um `.zip` com a planilha formatada e com fórmulas (Plano de Aplicação, Cronograma físico-financeiro, Etapas e Fases, Cronograma de desembolso e Comparativo de Preço), as mesmas planilhas em PDF e o PDF de cada pesquisa, separado por rubrica e item, na ordem do plano, cada um já com o comprovante de CNPJ da empresa. |
 
 ## Como é o uso
@@ -116,6 +117,7 @@ Remover um órgão só o tira da lista: os projetos ligados a ele continuam com 
 │   │   ├── modelo.py, db.py     dados do projeto e versões (SQLite, só acrescenta)
 │   │   ├── regras.py, calculo.py  regras, médias, verificação
 │   │   ├── orgaos.py, regras_dinamicas.py  cadastro de órgãos e as regras próprias de cada um
+│   │   ├── zerar.py             apagar as pesquisas de um projeto para refazer do zero
 │   │   ├── otimizador.py        "Fechar no teto" (OR-Tools)
 │   │   ├── vagas.py             busca e leitura de vagas, títulos, banco de vagas
 │   │   ├── produtos/            lojas, identidade de produto, cesta, comprovantes, texto dos itens
@@ -153,7 +155,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 235 ao todo. Num clone limpo, 233 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 241 ao todo. Num clone limpo, 239 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -193,6 +195,8 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 
 O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.md](sistema/LEIAME.md).
 
+- **06/10/2026**
+  - **Apagar as pesquisas e refazer do zero**: um botão no projeto apaga todas as vagas e os preços já pesquisados e deixa os itens como foram pedidos (produto trocado volta ao pedido original; a marca que a pesquisa preencheu sai). A pesquisa nova não reaproveita nada: as opções guardadas, as vagas guardadas daqueles cargos e as buscas do dia são esvaziadas. A versão anterior fica no histórico.
 - **05/10/2026 — versão 0.6**
   - **Órgãos com regras próprias**: o sistema deixa de ser só da SEJC. Cada órgão é um cadastro com as regras que valem, as regras próprias (7 tipos), a forma de fazer o orçamento e as planilhas do pacote; a IA propõe as regras a partir do edital.
   - **Planilha completa**: além do Plano de Aplicação e do Comparativo de Preço, saem o Cronograma físico-financeiro, as Etapas e Fases e o Cronograma de desembolso, puxando os valores do Plano por fórmula. Cada cargo e rubrica pode dizer em que mês começa.

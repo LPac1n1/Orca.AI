@@ -37,6 +37,7 @@
 Pode levar de 30 minutos a algumas horas. O andamento aparece na tela e você pode continuar usando o computador."
                 data-confirmar-botao="Começar a pesquisa">
             <button class="btn {{ 'btn--primario' if x.atual else 'btn--secundario' }}" {% if not cargos and not materiais %}disabled data-desabilitado{% endif %}>{{ icone('busca') }}Pesquisar tudo automaticamente</button></form>
+          {% if cargos or materiais %}<a class="btn btn--texto" href="/p/{{ pid }}/zerar-pesquisas" title="Apaga as vagas e os preços já pesquisados e pesquisa tudo de novo, com os mesmos itens. Você vê o que vai sair antes de confirmar.">{{ icone('desfazer') }}Apagar as pesquisas e refazer do zero</a>{% endif %}
           {{ ajuda('Pesquisar tudo', 'Para cada cargo: 3 vagas de empresas diferentes e com CNPJ ativo, primeiro com o título exato e, se faltar, com os títulos similares aceitos na tela do cargo. Para cada item: o mesmo produto em 3 lojas de empresas diferentes, as mais baratas. Sistemas: pelas ferramentas de referência. Cada pesquisa fica com o comprovante em PDF.') }}
         {% elif x.chave == 'cnpjs' %}
           <form method="post" action="/p/{{ pid }}/cnpj"><button class="btn btn--secundario" data-aguarde="Consultando…">Consultar a situação dos CNPJs</button></form>
@@ -355,6 +356,13 @@ Pode levar de 30 minutos a algumas horas. O andamento aparece na tela e você po
   {% endif %}
 
   {% if not removido_em %}
+  <div class="cartao cartao--plano secao">
+    <div class="cartao__titulo"><h3>Refazer as pesquisas do zero</h3></div>
+    <p class="texto-apoio">Apaga, de uma vez, as vagas e os preços já pesquisados neste projeto — os itens ficam — para o sistema pesquisar tudo de novo, sem
+      reaproveitar o que já tinha achado. Antes de confirmar, você vê o que sai e o que fica. A versão de agora continua no histórico.</p>
+    <a class="btn btn--secundario" href="/p/{{ pid }}/zerar-pesquisas">{{ icone('desfazer') }}Apagar as pesquisas e refazer do zero</a>
+  </div>
+
   <div class="cartao cartao--plano cartao--perigo secao">
     <div class="cartao__titulo"><h3>Remover projeto</h3></div>
     <p class="texto-apoio">O projeto sai da lista e das rotinas automáticas e vai para a área de projetos removidos, na página inicial. Nada é apagado
