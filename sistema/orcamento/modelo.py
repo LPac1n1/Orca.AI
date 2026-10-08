@@ -99,6 +99,7 @@ class Config(BaseModel):
     usar_ia: bool = True                                      # Gemini só nos casos de dúvida (se houver chave)
     trocar_pela_categoria: bool = True                        # item sem o mesmo produto em 3 lojas (nem parecido): trocar por um produto da categoria da rubrica
     lojas_desligadas: List[str] = Field(default_factory=list)
+    comprovante: Literal['pagina', 'carrinho'] = 'pagina'    # produtos: a PÁGINA do produto (06/10/2026); o carrinho só como último recurso — ou primeiro, se a OSC preferir
 
 
 def _juntar(base, *partes):

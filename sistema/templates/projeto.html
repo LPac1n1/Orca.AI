@@ -309,12 +309,20 @@ Pode levar de 30 minutos a algumas horas. O andamento aparece na tela e você po
       <label class="escolha"><input type="radio" name="modo_cesta" value="trio" {% if p.config.modo_cesta == 'trio' %}checked{% endif %}>
         <span class="escolha__texto">As mesmas 3 lojas para a rubrica inteira <small>Menos lojas, mas costuma encontrar menos itens.</small></span></label>
       <p class="texto-apoio" style="margin-top: var(--esp-3)">As 3 pesquisas de cada item são sempre <b>exatamente do mesmo produto</b> (marca, cor, tipo e embalagem).
-        Quando o produto pedido não existe em 3 lojas, o sistema troca por outro (de outra marca ou parecido), que também é o mesmo nas 3 lojas, e nunca repete um
-        item que a rubrica já tem.</p>
+        Quando o produto pedido não existe em 3 lojas, o sistema <b>não troca sozinho</b>: procura o mesmo item de outra marca, tamanho ou cor e itens
+        parecidos, e mostra as opções na tela do item para você decidir.</p>
       <label class="escolha"><input type="checkbox" name="trocar_pela_categoria" value="1" {% if p.config.trocar_pela_categoria %}checked{% endif %}>
-        <span class="escolha__texto">Se nem um produto parecido existir em 3 lojas, trocar por outro produto da categoria da rubrica
-          <small>Exemplo: um grampeador que não existe igual em 3 lojas vira outro material de escritório (cola, tesoura…). Desmarcado, o item fica pendente para você
-            escolher a marca, mudar a descrição ou preencher à mão.</small></span></label>
+        <span class="escolha__texto">Procurar também produtos de outro tipo, da categoria da rubrica, como opção
+          <small>Exemplo: para um grampeador que não existe igual em 3 lojas, a tela do item também oferece outro material de escritório (cola, tesoura…).
+            Nada é trocado sem você escolher.</small></span></label>
+      <fieldset class="sem-borda" style="margin-top: var(--esp-3)"><legend class="campo__rotulo">Comprovante de cada preço</legend>
+        <label class="escolha"><input type="radio" name="comprovante" value="pagina" {% if p.config.comprovante != 'carrinho' %}checked{% endif %}>
+          <span class="escolha__texto">A página do produto na loja <small>Um PDF por produto, com o nome, a foto e o preço. A faixa do alto diz a quantidade do plano, o
+            preço unitário e o total. O carrinho da loja só é usado quando a página não mostra o preço que vale para o seu CEP.</small></span></label>
+        <label class="escolha"><input type="radio" name="comprovante" value="carrinho" {% if p.config.comprovante == 'carrinho' %}checked{% endif %}>
+          <span class="escolha__texto">O carrinho da loja, quando ela tiver <small>Mostra a quantidade e o total calculados pela própria loja, mas vem com as
+            vitrines e os avisos do carrinho. Lojas sem carrinho continuam com a página do produto.</small></span></label>
+      </fieldset>
       <div class="formulario" style="margin-top: var(--esp-3)">
         {{ campo('folga_teto', 'Folga do teto da rubrica', valor=('%.1f'|format(p.config.folga_teto * 100))|replace('.', ','), mascara='percentual', sufixo='%', tamanho='m',
                  dica='Se sobrar mais que isso do teto mensal de uma rubrica, o sistema acrescenta itens da lista de itens extras.', extra='data-min="0" data-max="50"') }}

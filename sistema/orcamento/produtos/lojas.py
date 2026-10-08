@@ -234,6 +234,26 @@ async def simular(c, loja, ofertas, cep, memo):
         x['simular'] = False
 
 
+async def na_quantidade(c, loja, x, qtd, cep):
+    """O que a loja VTEX cobra por `qtd` unidades do produto no CEP (a mesma simulação de carrinho): (preço unitário, quantas ela deixa
+    comprar). O preço de UMA unidade, que a página do produto mostra, nem sempre vale para a quantidade do plano: atacado ("a partir de 3
+    un."), promoção ("leve 3, pague 2") e limite por pedido mudam a conta (teste real de 08/10/2026: Atacadão, Sam's Club e Americanas).
+    None se a consulta falhar ou a loja não for VTEX."""
+    if LOJAS[loja]['plataforma'] != 'vtex' or not x.get('sku'):
+        return None
+    body = {'items': [{'id': x['sku'], 'quantity': int(qtd), 'seller': x.get('seller') or '1'}], 'postalCode': re.sub(r'\D', '', cep), 'country': 'BRA'}
+    try:
+        r = await c.post(f'https://{LOJAS[loja]["dominio"]}/api/checkout/pub/orderForms/simulation', json=body)
+        d = r.json() if r.status_code == 200 else {}
+    except Exception:
+        return None
+    disp = [it for it in d.get('items') or [] if it.get('availability') == 'available' and it.get('quantity')]
+    n = sum(it['quantity'] for it in disp)
+    if not n:
+        return None
+    return round(sum((it.get('sellingPrice') or 0) * it['quantity'] for it in disp) / n), n
+
+
 async def tenda_filial(c, cep):
     """Filial do Tenda que entrega no CEP (ex.: 03977-015 → 48, São Mateus). None se a consulta falhar."""
     try:

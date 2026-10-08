@@ -307,6 +307,7 @@ Peças comuns das telas de rubrica ficam em `templates/_rubrica.html` (cartão d
 | Cargo → banco de vagas | Vaga de outro título: "De outro título (X): para usar, escolha esse título em Títulos com vagas", no lugar dos botões 1-2-3 |
 | Cargo → banco de vagas → "Confirmar a empresa" | Lista "Empresas ativas com esse nome na base da Receita": razão social, nome fantasia, CNPJ, cidade/UF, selo "mesma cidade da vaga" ou "mesmo estado da vaga" e botão "É esta"; o campo de CNPJ continua para digitar |
 | Projeto → configuração → "Mão de obra" | Campo "Máximo de horas por mês de um cargo" (padrão 90) |
+| Projeto → configuração → "Pesquisa de produtos" | Escolha "Comprovante de cada preço": a página do produto (padrão) ou o carrinho da loja. O texto do bloco diz que o sistema não troca itens sozinho |
 | Apagar as pesquisas | O texto diz que saem todas as vagas guardadas dos cargos, inclusive as descartadas |
 
 ## 12. Quadro de decisão do item (06/10/2026)

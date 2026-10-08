@@ -608,7 +608,7 @@ async def capturar_no_contexto(c, url, rotulo, empresa=None):
     """PDF da página da vaga, num contexto de navegador já aberto, com faixa de identificação (data/hora + URL). Devolve (bytes, capturado_em).
     A página é guardada como aparece na tela, sem os avisos sobrepostos (cookies, propaganda: são só ocultados, nada é clicado), e só
     vale se for a do anúncio: se o site redirecionar para a busca ou mostrar a lista de vagas, levanta VagaEncerrada."""
-    from .produtos.evidencia import limpar
+    from .produtos.evidencia import limpar, FAIXA
     p = await c.new_page()
     try:
         await asyncio.wait_for(p.goto(url, timeout=60000, wait_until='domcontentloaded'), 70); await p.wait_for_timeout(3500)
@@ -624,8 +624,7 @@ async def capturar_no_contexto(c, url, rotulo, empresa=None):
         except Exception:
             pass
         await limpar(p)
-        await p.evaluate("(t)=>{const d=document.createElement('div');d.id='faixa-orcamento';d.style='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#fff8c4;font:12px monospace;padding:5px';d.textContent=t;document.body.prepend(d)}",
-                         f'PESQUISA SALARIAL | {rotulo} | capturado em {agora} | {url}')
+        await p.evaluate(FAIXA, f'PESQUISA SALARIAL | {rotulo} | capturado em {agora} | {url}')
         await p.wait_for_timeout(700)
         await limpar(p)   # aviso que aparece com atraso
         try:

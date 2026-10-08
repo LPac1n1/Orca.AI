@@ -156,7 +156,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 255 ao todo. Num clone limpo, 253 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 259 ao todo. Num clone limpo, 257 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -195,6 +195,10 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 ## Últimas mudanças
 
 O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.md](sistema/LEIAME.md).
+
+- **08/10/2026 — comprovante dos produtos**
+  - **O comprovante de cada preço é a página do produto**, um PDF por produto, em todas as lojas. A faixa do alto diz a quantidade do plano, o preço unitário e o total. O carrinho da loja só entra quando é a única maneira: a loja cobra outro preço unitário pela quantidade do plano (atacado "a partir de 3 unidades", promoção, limite por pedido), a página não mostra o preço que vale no CEP ou a loja barra a página. Quem preferir o carrinho escolhe na configuração do projeto.
+  - A faixa de identificação não cobre mais a página (numa loja ela saía ocupando a página inteira), e o balão "informe sua localização" por cima do nome do produto é ocultado.
 
 - **08/10/2026 — vagas e horas**
   - **Vagas de títulos diferentes não se misturam.** As 3 pesquisas de um cargo são sempre de vagas com o mesmo título. As do título do cargo ficam gravadas, mesmo sendo 1 ou 2; cada título similar é um grupo à parte, e os que têm 3 vagas aparecem como opção em "Títulos com vagas", na tela do cargo. A troca é das 3 de uma vez, e dá para voltar.

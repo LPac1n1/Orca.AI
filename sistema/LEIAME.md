@@ -2,6 +2,16 @@
 
 Monta e confere a **Grade Comparativa** e o **Plano de Aplicação** de projetos sociais para o órgão que vai analisá-los. Já vem com as regras estabelecidas pela Secretaria da Justiça e Cidadania de SP (SEJC) (o levantamento está em [../FASE0_SEJC.md](../FASE0_SEJC.md)); as de qualquer outro órgão são cadastradas pela tela "Órgãos". As decisões da OSC e os testes que justificam cada regra estão em [../FASE1B_RESULTADOS.md](../FASE1B_RESULTADOS.md).
 
+## Comprovante dos produtos: a página, não o carrinho (08/10/2026) — testes em `tests/test_comprovante.py`
+
+Pedido da OSC: "Não é preciso colocar o produto no carrinho. O comprovante deve ser a página, para todos os produtos" e, depois, "se o valor total da quantidade não puder ser visto na página (ex.: 20 sucos de uva 1 L), pode usar o carrinho, se for a única maneira".
+
+- `servico._comprovar`: a **página do produto** primeiro, em todas as lojas (`evidencia.pagina_produto`), um PDF por produto. `evidencia.faixa_do_produto`: a faixa do alto traz "quantidade 20 × R$ 8,99 = R$ 179,80".
+- **Quando o carrinho entra** (`servico._carrinho_da_loja`, lojas VTEX e Tenda): (1) o preço unitário muda com a quantidade — `lojas.na_quantidade` simula o pedido com a quantidade do plano; teste real: o Atacadão cobra menos a partir de 3 unidades, Sam's Club e Americanas têm promoção por quantidade e limite por pedido; no Tenda (atacado), toda quantidade maior que 1; (2) a página não comprovou (preço que vale no CEP não aparece, erro, produto esgotado na página); (3) a loja pediu verificação humana na PÁGINA mas tem carrinho — ela não é descartada e, no mesmo dia, vai direto ao carrinho. Loja sem carrinho que pede verificação humana continua descartada.
+- `Config.comprovante` ('pagina' é o padrão; 'carrinho' na configuração do projeto para quem preferir).
+- Teste real de 08/10/2026, um produto por loja: a página serviu em Atacadão, Sam's Club, Oba, Americanas, Livrarias Curitiba, Tenda, Telhanorte e Drogal; nenhuma barrou. Na Drogaria São Paulo/Pacheco a página dizia "produto esgotado" (cai no carrinho).
+- Correções vindas do teste: `ESTILO_FAIXA` com `!important` (o estilo da loja esticava a faixa até cobrir a página); "Exibir itens esgotados" (rótulo de filtro) não conta como produto esgotado; o balão "informar localização" é ocultado.
+
 ## Vagas: títulos que não se misturam, regras de título e salário, CNPJ e horas (08/10/2026)
 
 Pedidos da OSC depois de ler a explicação de como as pesquisas funcionam. Testes em `tests/test_v05.py` (grupos), `tests/test_v03.py` (título, salário, CNPJ), `tests/test_v07.py` (horas) e `tests/test_zerar.py`.
@@ -324,7 +334,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 255 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 259 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;

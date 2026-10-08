@@ -816,14 +816,12 @@ def _nome_arquivo(t):
     return re.sub(r'[^A-Za-z0-9]+', '_', t)[:30]
 
 
-async def _comprovar(br, pid, item, loja, pares, cep, ctx, sufixo='', bloqueadas=None):
-    """Comprovantes de uma loja para as ofertas [(linha, oferta)]. Devolve {(loja, url): dict(ev, preco, problema)}:
-    ev = Evidencia guardada (ou None), preco = preço unitário no carrinho (ou None), problema = None se o comprovante serve."""
+async def _carrinho_da_loja(br, pid, item, loja, pares, cep, ctx, sufixo=''):
+    """Comprovante pelo CARRINHO real da loja (lojas VTEX e Tenda), com as quantidades do plano e o CEP do projeto. Devolve
+    {(loja, url): dict(ev, preco, problema)} ou None se a loja não tem carrinho ou o carrinho falhou."""
     from .produtos import evidencia as EV
     out = {}
     plat = L.LOJAS[loja]['plataforma']
-    if bloqueadas and loja in bloqueadas:   # loja que barrou: não é acessada de novo
-        return {(loja, x['url']): dict(ev=None, preco=None, problema=bloqueadas[loja]) for _, x in pares}
     if plat == 'vtex' and all(x.get('sku') for _, x in pares):
         try:
             carrinhos, indisp = await asyncio.wait_for(EV.carrinhos_vtex(br, loja, [dict(sku=x['sku'], seller=x['seller'], qtd=l['qtd'], nome=x['nome'])
@@ -838,15 +836,16 @@ async def _comprovar(br, pid, item, loja, pares, cep, ctx, sufixo='', bloqueadas
                         if ev:   # o endereço guardado é o da PÁGINA DO PRODUTO (o do carrinho abre um carrinho vazio para quem clica)
                             ev = ev.model_copy(update=dict(url=x['url']))
                         prob = cr['problema'] or (_sem_preco(cr['pdf'], cr['precos'].get(x['sku']) or x['preco']) if ev else 'sem PDF do carrinho')
-                        out[(loja, x['url'])] = dict(ev=ev, preco=cr['precos'].get(x['sku']), problema=prob)
+                        out[(loja, x['url'])] = dict(ev=ev, preco=cr['precos'].get(x['sku']), problema=prob, carrinho=True)
             for l, x in pares:
                 if x['sku'] in indisp:
-                    out[(loja, x['url'])] = dict(ev=None, preco=None, problema=f'indisponível no carrinho da loja ({indisp[x["sku"]]})')
+                    out[(loja, x['url'])] = dict(ev=None, preco=None, problema=f'indisponível no carrinho da loja ({indisp[x["sku"]]})', carrinho=True)
             if len(carrinhos) > 1:
                 ctx.aviso(f'{L.LOJAS[loja]["nome"]}: a loja não junta todos os itens num carrinho só; foram feitos {len(carrinhos)} carrinhos.')
             return out
         except Exception as e:
-            ctx.fonte(L.LOJAS[loja]['nome'], 'repetindo', f'carrinho: {type(e).__name__}; tentando a página de cada produto')
+            ctx.fonte(L.LOJAS[loja]['nome'], 'repetindo', f'carrinho: {type(e).__name__}')
+            return None
     if plat == 'tenda':
         try:
             itens_t = [dict(nome=x['nome'], url=x['url'], qtd=l['qtd'], preco=x['preco']) for l, x in pares]
@@ -856,37 +855,106 @@ async def _comprovar(br, pid, item, loja, pares, cep, ctx, sufixo='', bloqueadas
                 await asyncio.sleep(20)
                 pdf, info = await asyncio.wait_for(EV.carrinho_tenda(br, itens_t, cep), 400)
             if not info['precos']:   # nenhum produto entrou no carrinho: não guarda o PDF de um carrinho vazio
-                return {(loja, x['url']): dict(ev=None, preco=None, problema=info['faltando'].get(x['url'], 'fora do carrinho')) for l, x in pares}
+                return {(loja, x['url']): dict(ev=None, preco=None, problema=info['faltando'].get(x['url'], 'fora do carrinho'), carrinho=True) for l, x in pares}
             sha, rel = db.guardar_arquivo(pid, f'carrinho_tenda_item{item}{sufixo}.pdf', pdf)
             ev = Evidencia(arquivo=rel, sha256=sha, url=info['url'], capturado_em=info['capturado_em'], origem='navegador')
             for l, x in pares:
                 if x['url'] in info['precos']:
                     prob = info['problema'] or _sem_preco(pdf, info['precos'][x['url']])
-                    out[(loja, x['url'])] = dict(ev=ev.model_copy(update=dict(url=x['url'])), preco=info['precos'][x['url']], problema=prob)
+                    out[(loja, x['url'])] = dict(ev=ev.model_copy(update=dict(url=x['url'])), preco=info['precos'][x['url']], problema=prob, carrinho=True)
                 else:
-                    out[(loja, x['url'])] = dict(ev=None, preco=None, problema=info['faltando'].get(x['url'], 'fora do carrinho'))
+                    out[(loja, x['url'])] = dict(ev=None, preco=None, problema=info['faltando'].get(x['url'], 'fora do carrinho'), carrinho=True)
             return out
         except Exception as e:
-            ctx.fonte(L.LOJAS[loja]['nome'], 'repetindo', f'carrinho: {type(e).__name__}; tentando a página de cada produto')
+            ctx.fonte(L.LOJAS[loja]['nome'], 'repetindo', f'carrinho: {type(e).__name__}')
+            return None
+    return None
+
+
+async def _preco_muda_com_a_quantidade(loja, pares, cep):
+    """As ofertas [(linha, oferta)] em que a loja cobra, pela quantidade do plano, um preço unitário diferente do de uma unidade — ou não
+    vende a quantidade toda num pedido. Tenda (atacado: o preço cai a partir de N unidades e a busca não diz de quanto): toda quantidade maior que 1."""
+    plat = L.LOJAS[loja]['plataforma']
+    varias = [(l, x) for l, x in pares if (l.get('qtd') or 1) > 1]
+    if plat == 'tenda' or not varias:
+        return varias if plat == 'tenda' else []
+    import httpx
+    out = []
+    async with httpx.AsyncClient(headers={'User-Agent': L.UA, 'Accept': 'application/json'}, timeout=25, follow_redirects=True) as c:
+        for l, x in varias:
+            r = await L.na_quantidade(c, loja, x, l['qtd'], cep)
+            if r and (r[0] != x.get('preco') or r[1] < l['qtd']):
+                out.append((l, x))
+    return out
+
+
+def tem_carrinho(loja, pares):
+    plat = L.LOJAS[loja]['plataforma']
+    return plat == 'tenda' or (plat == 'vtex' and all(x.get('sku') for _, x in pares))
+
+
+async def _comprovar(br, pid, item, loja, pares, cep, ctx, sufixo='', bloqueadas=None, modo=None):
+    """Comprovantes de uma loja para as ofertas [(linha, oferta)]. Devolve {(loja, url): dict(ev, preco, problema)}:
+    ev = Evidencia guardada (ou None), preco = preço unitário que o comprovante mostra (ou None), problema = None se o comprovante serve.
+
+    O comprovante é a PÁGINA DO PRODUTO, um PDF por produto, em todas as lojas (decisão da OSC, 06/10/2026) — a faixa do alto diz a quantidade,
+    o preço unitário e o total. O CARRINHO só entra como último recurso, quando a página do produto não serve (não mostra o preço que vale
+    para o CEP, deu erro ou a loja barrou a página) e a loja tem carrinho. modo='carrinho' (configuração do projeto): o carrinho primeiro."""
+    from .produtos import evidencia as EV
+    out = {}
+    if bloqueadas and loja in bloqueadas:   # loja que barrou: não é acessada de novo
+        return {(loja, x['url']): dict(ev=None, preco=None, problema=bloqueadas[loja]) for _, x in pares}
+    if modo is None:
+        try:
+            modo = db.carregar(pid)[0].config.comprovante
+        except Exception:
+            modo = 'pagina'
+    carrinho_antes = modo == 'carrinho' or bool(db.cache_ler(f'so_carrinho|{loja}'))   # hoje a página desta loja já foi barrada: direto ao carrinho
+    if carrinho_antes and tem_carrinho(loja, pares):
+        r = await _carrinho_da_loja(br, pid, item, loja, pares, cep, ctx, sufixo)
+        if r is not None:
+            return r
+        ctx.fonte(L.LOJAS[loja]['nome'], 'repetindo', 'o carrinho falhou; tentando a página de cada produto')
     bloqueadas = {} if bloqueadas is None else bloqueadas
+    falhos = []
+    # A página mostra o preço de UMA unidade. Quando a loja cobra outro preço pela quantidade do plano (atacado "a partir de 3 un.", promoção,
+    # limite por pedido), o total da quantidade não pode ser visto na página: aí — e só aí — o comprovante é o carrinho (decisão da OSC, 08/10/2026)
+    pela_quantidade = await _preco_muda_com_a_quantidade(loja, pares, cep) if tem_carrinho(loja, pares) and not carrinho_antes else []
+    if pela_quantidade:
+        r = await _carrinho_da_loja(br, pid, item, loja, pela_quantidade, cep, ctx, sufixo)
+        for k, v in (r or {}).items():
+            out[k] = dict(v, pelo_carrinho='o preço da loja muda com a quantidade')
+        pares = [(l, x) for l, x in pares if (loja, x['url']) not in out]   # (se o carrinho falhou, estes seguem para a página, com o preço unitário)
     for l, x in pares:
         if loja in bloqueadas:
             out[(loja, x['url'])] = dict(ev=None, preco=None, problema=bloqueadas[loja]); continue
         try:
-            pdf, info = await asyncio.wait_for(EV.pagina_produto(br, loja, x['url'], f'{l["desc"]} · qtd {l["qtd"]}', cep, x.get('preco')), 240)
+            pdf, info = await asyncio.wait_for(EV.pagina_produto(br, loja, x['url'], l['desc'], cep, x.get('preco'), qtd=l.get('qtd')), 240)
         except Exception as e:
             pdf, info = None, dict(problema=f'{type(e).__name__} ao guardar a página')
         ev = None
-        if pdf:
+        prob = info.get('problema') or (_sem_preco(pdf, info.get('preco_pagina') or x.get('preco')) if pdf else 'sem PDF da página')
+        if pdf and not (prob and tem_carrinho(loja, pares) and not carrinho_antes):   # página com problema numa loja que tem carrinho: o PDF ruim não é guardado
             sha, rel = db.guardar_arquivo(pid, f'produto_{loja}_item{item}{sufixo or "_" + _nome_arquivo(l["desc"])}.pdf', pdf)
             ev = Evidencia(arquivo=rel, sha256=sha, url=x['url'], capturado_em=info['capturado_em'], origem='navegador')
-        prob = (info.get('problema') or _sem_preco(pdf, info.get('preco_pagina') or x.get('preco'))) if ev else (info.get('problema') or 'sem PDF da página')
         out[(loja, x['url'])] = dict(ev=ev, preco=info.get('preco_pagina'), problema=prob)
+        if prob:
+            falhos.append((l, x))
         if info.get('problema') == EV.BLOQUEIO:
+            if tem_carrinho(loja, pares) and not carrinho_antes:
+                # a loja barrou a PÁGINA, mas tem carrinho (que não passa por essa verificação): não é descartada; hoje, vai direto ao carrinho
+                db.cache_gravar(f'so_carrinho|{loja}', True)
+                falhos = [(l2, x2) for l2, x2 in pares if (loja, x2['url']) not in out or out[(loja, x2['url'])]['problema']]
+                break
             bloqueadas[loja] = EV.BLOQUEIO
             db.loja_bloquear(loja, 'a loja pediu verificação humana (CAPTCHA/anti-robô)')   # decisão da OSC: loja com CAPTCHA é descartada
             ctx.aviso(f'{L.LOJAS[loja]["nome"]} pediu verificação humana (CAPTCHA). O sistema não resolve CAPTCHA: a loja foi descartada por '
                       f'{db.DIAS_BLOQUEIO} dias e os itens dela vão para outra loja com o mesmo produto, se houver.')
+    if falhos and not carrinho_antes and tem_carrinho(loja, pares) and loja not in bloqueadas:   # último recurso: o carrinho da loja, só para o que a página não comprovou
+        r = await _carrinho_da_loja(br, pid, item, loja, falhos, cep, ctx, sufixo)
+        for k, v in (r or {}).items():
+            if not v.get('problema') or not out.get(k, {}).get('ev'):
+                out[k] = dict(v, pelo_carrinho=out.get(k, {}).get('problema'))
     return out
 
 

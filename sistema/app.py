@@ -510,7 +510,7 @@ async def config(request: Request, pid: int):
     p.config = Config(divisor_horas=f['divisor_horas'], horas_max_mes=max(1, min(220, inteiro(f.get('horas_max_mes'), p.config.horas_max_mes))),
                       valores_defensaveis=bool(f.get('valores_defensaveis')), validade_dias=int(f.get('validade_dias') or 180),
                       modo_cesta=f.get('modo_cesta') or 'por_item', folga_teto=(folga or 500) / 10000, usar_ia=bool(f.get('usar_ia')), marcas_diferentes=False,
-                      trocar_pela_categoria=bool(f.get('trocar_pela_categoria')),
+                      trocar_pela_categoria=bool(f.get('trocar_pela_categoria')), comprovante='carrinho' if f.get('comprovante') == 'carrinho' else 'pagina',
                       lojas_desligadas=[k for k in LOJAS if not f.get(f'loja_{k}')])
     p.teto, p.nome, p.processo, p.proponente, p.cep = cent(f['teto']), f['nome'], f.get('processo', ''), f.get('proponente', ''), f.get('cep', '')
     novo_orgao = inteiro(f.get('orgao_id'), 0)

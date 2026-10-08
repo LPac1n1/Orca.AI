@@ -41,7 +41,7 @@ for(const el of document.querySelectorAll('body *')){
   if(!fixo&&txt.length<1500&&r.height<vh*0.7&&COOKIE.test(txt)&&(posto||dialogo)&&[...el.querySelectorAll('button,a,[role=button]')].some(b=>BOTAO.test(b.innerText||''))){ocultar(el);continue;}
   // balão "informe seu CEP" preso ao cabeçalho, por cima do nome do produto (Casa & Video, 05/10/2026): bloco curto, posto por cima da
   // página, com o campo do CEP e sem o preço do item
-  if(posto&&pos!=='sticky'&&txt.length<300&&r.width<vw*0.6&&/informe (o )?seu cep|digite (o )?seu cep/i.test(txt)&&el.querySelector('input')
+  if(posto&&pos!=='sticky'&&txt.length<300&&r.width<vw*0.6&&/informe (o )?seu cep|digite (o )?seu cep|informar localiza[cç][aã]o/i.test(txt)&&el.querySelector('input,button,a')
      &&!(manter&&manter.some(m=>m&&txt.includes(m)))){ocultar(el);continue;}
   // janela ou véu por cima do conteúdo em posição absoluta: tem z-index alto e é uma janela (modal, popup) ou cobre a tela quase sem texto
   const z=parseInt(cs.zIndex)||0;
@@ -72,11 +72,18 @@ for(const e of [document.documentElement,document.body]){e.style.setProperty('ov
 [...document.body.classList].forEach(c=>{if(/modal|popup|no-?scroll|overflow|lock|fixed/i.test(c))document.body.classList.remove(c)});
 return fora;}"""
 
-FAIXA = ("(t)=>{const d=document.createElement('div');d.id='faixa-orcamento';d.style='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#fff8c4;"
-         "font:12px monospace;padding:5px';d.textContent=t;document.body.prepend(d)}")
+# A faixa de identificação no alto do PDF. Cada propriedade vai com !important: o estilo da própria loja pode valer para "o primeiro bloco da
+# página" e esticar a faixa até cobrir a página inteira (Americanas, 08/10/2026: a 1ª página do PDF saía toda amarela, com o produto por baixo).
+ESTILO_FAIXA = ('position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:auto!important;width:auto!important;height:auto!important;'
+                'min-height:0!important;max-height:none!important;margin:0!important;padding:5px!important;transform:none!important;display:block!important;'
+                'box-sizing:border-box!important;z-index:2147483647!important;background:#fff8c4!important;color:#111!important;font:12px monospace!important;'
+                'line-height:1.3!important;text-align:left!important;white-space:normal!important;opacity:1!important;border:0!important')
+FAIXA = ("(t)=>{const a=document.getElementById('faixa-orcamento');if(a)a.remove();const d=document.createElement('div');d.id='faixa-orcamento';"
+         "d.setAttribute('style','" + ESTILO_FAIXA + "');d.textContent=t;document.body.prepend(d)}")
 ERRO_PAGINA = re.compile(r'\boops\b|problema inesperado|p[aá]gina n[aã]o (foi )?encontrada|page not found|\b404\b|access denied|acesso negado|'
                          r'erro interno|service unavailable|temporariamente indispon', re.I)
-INDISPONIVEL = re.compile(r'produto indispon[ií]vel|produtos indispon[ií]veis|fora de estoque|esgotado|avise-me quando chegar', re.I)
+# ("Exibir itens esgotados" é o rótulo de um filtro da página — Bazar Horizonte, 08/10/2026 —, não o estado do produto: só vale "esgotado" no singular)
+INDISPONIVEL = re.compile(r'produto indispon[ií]vel|produtos indispon[ií]veis|fora de estoque|\besgotado\b|avise-me quando chegar', re.I)
 TENTATIVAS = 3
 BLOQUEIO = 'BLOQUEIO: a loja pediu verificação humana (CAPTCHA/anti-robô); o sistema não resolve CAPTCHA'
 
@@ -422,7 +429,18 @@ def preco_principal_gpa(texto):
     return int(m.group(1).replace('.', '').replace(',', '')) if m else None
 
 
-async def pagina_produto(br, loja, url, rotulo, cep, preco=None):
+def faixa_do_produto(loja, rotulo, cep, quando, url, preco=None, qtd=None):
+    """O texto da faixa de identificação no alto do PDF. Com a quantidade do plano: 'quantidade 20 × R$ 8,99 = R$ 179,80' — a página da loja
+    mostra o preço de UMA unidade; o total da quantidade fica escrito na faixa (decisão da OSC, 06/10/2026)."""
+    conta = ''
+    if qtd and preco:
+        conta = f' | quantidade {qtd} × R$ {reais(preco)} = R$ {reais(preco * qtd)}'
+    elif qtd:
+        conta = f' | quantidade {qtd}'
+    return f'PESQUISA DE PREÇO | {LOJAS[loja]["nome"]} | {rotulo}{conta} | CEP {cep} | {quando} | {url}'
+
+
+async def pagina_produto(br, loja, url, rotulo, cep, preco=None, qtd=None):
     """PDF da página do produto, conferido (erro da loja, indisponível, preço ausente → nova tentativa). info['problema'] = None se ok.
     info['preco_pagina']: preço que a página mostra, quando é diferente do pesquisado (Pão de Açúcar/Extra): é o que vale."""
     problema, preco_pagina = None, None
@@ -455,7 +473,7 @@ async def pagina_produto(br, loja, url, rotulo, cep, preco=None):
                     return None, dict(capturado_em=_agora(), url=url, problema=problema)
             if problema is None or k == TENTATIVAS - 1:
                 quando = _agora()
-                await preparar_pdf(p, [reais(preco)] if preco else [], f'PESQUISA DE PREÇO | {LOJAS[loja]["nome"]} | {rotulo} | CEP {cep} | {quando} | {url}')
+                await preparar_pdf(p, [reais(preco)] if preco else [], faixa_do_produto(loja, rotulo, cep, quando, url, preco, qtd))
                 pdf = await p.pdf(print_background=True, page_ranges='1-2')
                 return pdf, dict(capturado_em=quando, url=url, problema=problema, preco_pagina=preco_pagina)
         except Exception as e:
