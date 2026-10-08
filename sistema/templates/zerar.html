@@ -39,7 +39,8 @@
     <li><b>Nos cargos:</b> as vagas e o valor mensal. Horas, quantidade de profissionais, faixa pretendida e títulos similares aceitos ficam.</li>
     <li><b>Nos itens:</b> as 3 lojas, os preços, o valor no plano e os comprovantes ligados ao item. Descrição, especificação e quantidade ficam.</li>
     <li><b>Para a pesquisa nova não reaproveitar nada:</b> {{ banco_prods }} opção(ões) de produto guardada(s) deste projeto, {{ banco_vagas }} vaga(s) guardada(s)
-      destes cargos e as buscas guardadas de hoje.{% if banco_vagas %} <span class="texto-apoio">O banco de vagas é comum a todos os projetos: as vagas destes
+      destes cargos e as buscas guardadas de hoje.{% if banco_vagas %} <span class="texto-apoio">Saem todas, inclusive as que você tinha descartado: se a pesquisa nova encontrar uma delas de novo, ela
+        passa por todo o processo outra vez (título, salário, CNPJ e página guardada). O banco de vagas é comum a todos os projetos: as vagas destes
       cargos saem dele para todos, mas as pesquisas já gravadas em outros projetos não mudam.</span>{% endif %}</li>
     <li><b>Pontos marcados como revisados</b> nos itens que mudam: a revisão era das pesquisas antigas.</li>
   </ul>
@@ -62,7 +63,6 @@
     <li><b>Os comprovantes de CNPJ</b> que você emitiu na Receita ({{ p.comprovantes_cnpj|length }}): valem para a empresa, e são usados de novo se ela aparecer na pesquisa nova.</li>
     <li>Teto, CEP, órgão, configuração e regras do projeto.</li>
     {% if previa.a_mao %}<li><b>O que você fez à mão</b> ({{ previa.a_mao }} pesquisa(s): PDF anexado, valores digitados, propostas de serviço), a menos que marque a opção abaixo.</li>{% endif %}
-    <li>As vagas que você <b>descartou</b> continuam descartadas, para não voltarem na pesquisa nova.</li>
   </ul>
   {% if previa.mantidos %}<details class="detalhe detalhe--leve"><summary>Ficam como estão ({{ previa.mantidos|length }})</summary><div class="detalhe__corpo">
     <ul class="lista-simples">{% for t in previa.mantidos %}<li>{{ t }}</li>{% endfor %}</ul></div></details>{% endif %}

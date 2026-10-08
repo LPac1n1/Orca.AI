@@ -331,18 +331,18 @@ async def coleta_diaria(ctx):
             if isinstance(r, RubricaRH):
                 c = cargos.setdefault(V.chave_cargo(r.cargo), [r.cargo, []])
                 c[1] += [t for t in servico.similares_do_cargo(r) if t not in c[1]]
-    faltam = [(c, sim) for c, sim in cargos.values() if len(V.tres_com_similares(c, sim)) < 3]
+    faltam = [(c, sim) for c, sim in cargos.values() if len(V.tres_do_banco(c)) < 3]
     out = {}
-    for i, (cargo, sim) in enumerate(faltam):
+    for i, (cargo, sim) in enumerate(faltam):   # cada título é um grupo à parte: o do cargo e, enquanto ele não tiver 3 vagas, cada similar aceito
         ctx.etapa(f'Cargo {i + 1} de {len(faltam)}: {cargo}')
-        if len(V.tres_do_banco(cargo)) < 3:
-            await V.coletar(cargo, None)
+        await V.coletar(cargo, None)
         for t in sim:
-            if len(V.tres_com_similares(cargo, sim)) >= 3:
+            if len(V.tres_do_banco(cargo)) >= 3:
                 break
-            ctx.etapa(f'Cargo {i + 1} de {len(faltam)}: {cargo} (título similar: {t})')
-            await V.coletar(t, None)
-        out[cargo] = len(V.tres_com_similares(cargo, sim))
+            if len(V.tres_do_banco(t)) < 3:
+                ctx.etapa(f'Cargo {i + 1} de {len(faltam)}: {cargo} (título similar: {t})')
+                await V.coletar(t, None)
+        out[cargo] = len(V.tres_do_banco(cargo))
         ctx.progresso(100 * (i + 1) / max(1, len(faltam)))
     return dict(cargos=out)
 
@@ -507,7 +507,8 @@ async def config(request: Request, pid: int):
     f = await request.form()
     p, _ = db.carregar(pid)
     folga = cent(f.get('folga_teto') or '5')
-    p.config = Config(divisor_horas=f['divisor_horas'], valores_defensaveis=bool(f.get('valores_defensaveis')), validade_dias=int(f.get('validade_dias') or 180),
+    p.config = Config(divisor_horas=f['divisor_horas'], horas_max_mes=max(1, min(220, inteiro(f.get('horas_max_mes'), p.config.horas_max_mes))),
+                      valores_defensaveis=bool(f.get('valores_defensaveis')), validade_dias=int(f.get('validade_dias') or 180),
                       modo_cesta=f.get('modo_cesta') or 'por_item', folga_teto=(folga or 500) / 10000, usar_ia=bool(f.get('usar_ia')), marcas_diferentes=False,
                       trocar_pela_categoria=bool(f.get('trocar_pela_categoria')),
                       lojas_desligadas=[k for k in LOJAS if not f.get(f'loja_{k}')])
@@ -695,8 +696,9 @@ async def nova_rubrica(request: Request, pid: int):
     p, _ = db.carregar(pid)
     horas, meses = inteiro(f.get('horas_mes'), 0), inteiro(f.get('meses'), 0)
     faixa = cent(f.get('faixa_pretendida')) if tipo == 'rh' else None
-    if tipo == 'rh' and faixa and not horas:   # com faixa pretendida as horas são calculadas depois; até lá, a jornada inteira do mês
-        horas = divisor_horas(nome, p.config.divisor_horas)[0] if nome else 0
+    if tipo == 'rh' and faixa and not horas:   # com faixa pretendida as horas são calculadas depois; até lá, o máximo de horas do cargo
+        from orcamento.regras import horas_maximas
+        horas = horas_maximas(nome, p.config) if nome else 0
     falta = [x for x, ok in (('o nome ' + ('do cargo' if tipo == 'rh' else 'da rubrica'), nome), ('as horas por mês (ou a faixa salarial pretendida)', horas or tipo != 'rh'),
                              ('a duração em meses', meses)) if not ok]
     if falta:
@@ -781,25 +783,40 @@ def rh_form(request: Request, pid: int, item: int, msg: str = '', ok: str = '', 
     while len(r.pesquisas) < 3:
         r.pesquisas.append(PesquisaSalarial())
     similares = servico.similares_do_cargo(r)
+    titulo_uso = servico.titulo_em_uso(r)
     em_uso = {q.evidencia.url: k for k, q in enumerate(r.pesquisas[:3]) if q.evidencia and q.evidencia.url}
     banco = V.banco_com_similares(r.cargo, similares)
     for x in banco:   # só entra no orçamento vaga com CNPJ confirmado, PDF guardado, salário definido e a empresa visível na página
         combinar = bool(x.get('pdf')) and V.pdf_a_combinar(db.caminho_absoluto(x['pdf']), x.get('faixa_min'))
         oculta = bool(x.get('pdf')) and V.empresa_oculta(caminho=db.caminho_absoluto(x['pdf']))
         errada = bool(x.get('pdf')) and V.pdf_nao_e_a_vaga(db.caminho_absoluto(x['pdf']))
-        x['usavel'] = x['cnpj_status'] == '🟢' and bool(x.get('pdf')) and not combinar and not oculta and not errada
+        outro_titulo = V.chave_cargo(x['titulo_busca']) != V.chave_cargo(titulo_uso)   # vagas de títulos diferentes não vão juntas para o orçamento
+        x['outro_titulo'] = outro_titulo
+        x['usavel'] = x['cnpj_status'] == '🟢' and bool(x.get('pdf')) and not combinar and not oculta and not errada and not outro_titulo
         x['oculta'] = oculta
         x['motivo_nao'] = ('salário a combinar' if combinar else 'a página não mostra as informações da empresa (a Catho só mostra com login)' if oculta
                            else f'o PDF guardado não é a página da vaga: {errada}' if errada
-                           else ('sem PDF' if x['cnpj_status'] == '🟢' else 'CNPJ não confirmado'))
+                           else ('sem PDF' if x['cnpj_status'] == '🟢' and not x.get('pdf') else 'CNPJ não confirmado' if x['cnpj_status'] != '🟢'
+                                 else f'é de outro título ({x["titulo_busca"]}): para usar, escolha esse título em "Títulos com vagas"'))
         x['em_uso'] = em_uso.get(x['url'])
         motivo = x.get('cnpj_motivo') or ''
         x['confirmavel'] = not combinar and not oculta and (x['cnpj_status'] == '🟡' or (x['cnpj_status'] != '🟢' and 'BAIXADA' not in motivo and 'INAPTA' not in motivo
                                                                         and 'SUSPENSA' not in motivo and 'a combinar' not in motivo))
+        if x['confirmavel']:   # empresas da base da Receita com esse nome, para a OSC escolher com um clique (as da cidade e da UF da vaga primeiro)
+            try:
+                from orcamento import cnpj_busca
+                x['candidatos'] = cnpj_busca.candidatos_da_base(x['empresa'], x.get('cidade'), x.get('uf'), limite=6)
+            except Exception:
+                x['candidatos'] = []
     banco.sort(key=lambda x: (x['em_uso'] is None, x['cnpj_status'] != '🟢', x['cnpj_status'] != '🟡', x['faixa_min'] or 10 ** 9))
     opcoes_similares = list(dict.fromkeys(V.sugestoes_similares(r.cargo) + similares))
-    tres = V.tres_na_faixa(r.cargo, similares, r.faixa_pretendida)
+    tres = V.tres_do_titulo(titulo_uso, r.faixa_pretendida)
+    grupos = V.grupos_de_titulos(r.cargo, similares, r.faixa_pretendida)
+    for g in grupos:
+        g['em_uso'] = V.chave_cargo(g['titulo']) == V.chave_cargo(titulo_uso)
+        g['media'] = (sum(x['faixa_min'] for x in g['vagas']) // len(g['vagas'])) if g['vagas'] else None
     return tpl.TemplateResponse(request, 'rh.html', dict(contexto(p, pid, v), r=r, banco=banco[:80], tres=tres, tres_alcanca=V.alcanca_a_faixa(tres, r.faixa_pretendida),
+                                                         grupos=grupos, titulo_uso=titulo_uso, titulos_misturados=servico.titulos_misturados(r),
                                                          horas_pela_faixa=horas_pela_faixa(r, p.config),
                                                          msg=msg, ok=ok, novo=novo, similares=similares, opcoes_similares=opcoes_similares,
                                                          descartadas=V.contar_descartadas(r.cargo, similares), link_busca_cnpj=V.link_busca_cnpj,
@@ -881,6 +898,25 @@ def vagas_do_banco(pid: int, item: int):
         return RedirectResponse(f'/p/{pid}/rh/{item}?msg={quote("Não há vaga confirmada no banco para este cargo.")}', status_code=303)
     db.salvar(pid, p, motivo=f'item {item}: {len(novas)} vaga(s) do banco (CNPJ confirmado)' + (f'; replicadas para {outros}' if outros else ''))
     msg = f'{len(novas)} vaga(s) do banco nas pesquisas.' + ('' if len(novas) == 3 else ' As outras posições ficaram como estavam (ou em branco).')
+    return RedirectResponse(f'/p/{pid}/rh/{item}?ok=1&msg={quote(msg)}#t-pesq', status_code=303)
+
+
+@app.post('/p/{pid}/rh/{item}/usar-titulo')
+def rh_usar_titulo(pid: int, item: int, titulo: str = Form(...)):
+    """Troca as 3 pesquisas do cargo pelas vagas de UM título: o do próprio cargo ou um título similar com 3 vagas (nunca dois juntos)."""
+    p, _ = db.carregar(pid)
+    r = next((x for x in p.rubricas if x.item == item and isinstance(x, RubricaRH)), None)
+    if r is None:
+        return voltar_ao_projeto(pid, f'O item {item} não é um cargo deste projeto.', 'mao-de-obra')
+    try:
+        novas, outros = servico.usar_titulo(p, pid, r, titulo)
+    except ValueError as e:
+        return RedirectResponse(f'/p/{pid}/rh/{item}?msg={quote(str(e))}#t-titulos', status_code=303)
+    em_uso = servico.titulo_em_uso(r)
+    db.salvar(pid, p, motivo=f'item {item}: as pesquisas passaram a ser das vagas com o título "{em_uso}" ({len(novas)} vaga(s)), por escolha da OSC'
+                             + (f'; replicadas para {outros}' if outros else ''))
+    msg = (f'As pesquisas agora são das vagas com o título "{em_uso}" ({len(novas)} de 3).'
+           + ('' if len(novas) == 3 else ' As posições que faltam ficaram em branco.'))
     return RedirectResponse(f'/p/{pid}/rh/{item}?ok=1&msg={quote(msg)}#t-pesq', status_code=303)
 
 
@@ -970,10 +1006,11 @@ async def rh_pdf(pid: int, item: int, k: int, arquivo: UploadFile = File(...)):
 
 
 @app.post('/p/{pid}/rh/{item}/vaga/confirmar')
-def rh_confirmar_vaga(pid: int, item: int, url: str = Form(...), cnpj: str = Form('')):
-    """A OSC confirma a empresa de uma vaga "em dúvida": confere o CNPJ (ATIVO), guarda a página da vaga em PDF e, se o cargo tiver
-    pesquisa em branco, já coloca a vaga nela."""
+def rh_confirmar_vaga(pid: int, item: int, url: str = Form(...), cnpj: str = Form(''), cnpj_escolhido: str = Form('')):
+    """A OSC confirma a empresa de uma vaga "em dúvida" — escolhendo uma das empresas com esse nome na base da Receita ou digitando o CNPJ:
+    confere o CNPJ (ATIVO), guarda a página da vaga em PDF e, se o cargo tiver pesquisa em branco (e a vaga for do título em uso), já a coloca."""
     from orcamento import vagas as V
+    cnpj = cnpj_escolhido or cnpj
 
     async def rodar(ctx):
         res = await V.confirmar_vaga(url, cnpj, ctx)
@@ -982,7 +1019,8 @@ def rh_confirmar_vaga(pid: int, item: int, url: str = Form(...), cnpj: str = For
         while len(r.pesquisas) < 3:
             r.pesquisas.append(PesquisaSalarial())
         vaga = next((k for k, q in enumerate(r.pesquisas[:3]) if not servico.pesquisa_completa(q)), None)
-        if vaga is not None and not any(servico._raiz(q.cnpj) == servico._raiz(res['cnpj']) for q in r.pesquisas):
+        do_titulo = any(v['url'] == url for v in V.vagas_do_banco(servico.titulo_em_uso(r), so_verdes=False))   # vaga de outro título não entra junto
+        if vaga is not None and do_titulo and not any(servico._raiz(q.cnpj) == servico._raiz(res['cnpj']) for q in r.pesquisas):
             servico.usar_vaga(p, pid, r, url, vaga)
             maxm, _, _ = mensal_maximo_rh(r, p.config)
             if maxm is not None:
@@ -992,7 +1030,9 @@ def rh_confirmar_vaga(pid: int, item: int, url: str = Form(...), cnpj: str = For
                       + (f'; replicada para {outros}' if outros else ''))
             ctx.aviso(f'Vaga de {res["empresa"]} confirmada (CNPJ {res["cnpj"]}, ATIVO) e colocada na pesquisa {vaga + 1}, que estava em branco.')
         else:
-            ctx.aviso(f'Vaga de {res["empresa"]} confirmada (CNPJ {res["cnpj"]}, ATIVO). Para usá-la, clique no número da pesquisa na tabela do banco de vagas.')
+            ctx.aviso(f'Vaga de {res["empresa"]} confirmada (CNPJ {res["cnpj"]}, ATIVO). '
+                      + ('Para usá-la, clique no número da pesquisa na tabela do banco de vagas.' if do_titulo else
+                         'Ela é de outro título: conta para o grupo desse título em "Títulos com vagas" (vagas de títulos diferentes não vão juntas).'))
         return dict(res, ir_para=f'/p/{pid}/rh/{item}#t-banco')
     tid = tarefas.iniciar('vaga_confirmar', 'Confirmar a empresa de uma vaga', rodar, pid)
     return RedirectResponse(f'/tarefa/{tid}', status_code=303)

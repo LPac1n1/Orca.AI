@@ -85,13 +85,20 @@ def tokens_titulo(s):
     return [_canonico(t) for t in _por_extenso(s.split())]
 
 
+SEPARADOR_TITULO = r'\s+[-–—]\s+|\s*[|•·]\s*|\s*[()]\s*|\s+/\s+|\s*:\s+'   # o que separa o cargo do resto do título do anúncio
+
+
+def _sem_vaga_de(titulo):
+    t = re.sub(r'\((?:a|o|as|os|es|e)\)', '', norm(titulo))
+    return re.sub(r'^\s*vagas?\s+(?:de|para)\s+', '', t)
+
+
 def titulo_limpo(titulo, cidade=None, uf=None):
     """O título sem o que não faz parte do cargo: "Vaga de", cidade/UF/zona e regime ou modalidade escritos depois de um traço ou entre parênteses."""
-    t = re.sub(r'\((?:a|o|as|os|es|e)\)', '', norm(titulo))
-    t = re.sub(r'^\s*vagas?\s+(?:de|para)\s+', '', t)
+    t = _sem_vaga_de(titulo)
     locais = {norm(x) for x in (cidade, uf) if x}
     fica = []
-    for i, parte in enumerate(re.split(r'\s+[-–|]\s+|\s*[()]\s*|\s+/\s+', t)):
+    for i, parte in enumerate(re.split(SEPARADOR_TITULO, t)):
         parte = parte.strip(' -–|/')
         if not parte:
             continue
@@ -103,11 +110,26 @@ def titulo_limpo(titulo, cidade=None, uf=None):
     return ' '.join(fica)
 
 
+def extensao_do_titulo(titulo):
+    """('coordenador de projetos', 'sao paulo') para "Coordenador de Projetos | São Paulo": o começo do título e a "extensão" que vem depois
+    de um separador (traço, barra, dois-pontos, parênteses). ('…', '') quando o título não tem extensão."""
+    partes = [p.strip(' -–—|/:') for p in re.split(SEPARADOR_TITULO, _sem_vaga_de(titulo))]
+    partes = [p for p in partes if p]
+    return (partes[0], ' - '.join(partes[1:])) if partes else ('', '')
+
+
 def titulo_exato(titulo, cargo, cidade=None, uf=None):
-    """O título do anúncio é o cargo? Mesmas palavras, na mesma ordem — sem contar gênero, plural, "de"/"e", abreviações e o que titulo_limpo tira."""
+    """O título do anúncio é o cargo? Mesmas palavras, na mesma ordem — sem contar gênero, plural, "de"/"e", abreviações e o que titulo_limpo tira.
+    Vale também o cargo seguido de uma EXTENSÃO qualquer (decisão da OSC, 06/10/2026): "Coordenador de Projetos | São Paulo",
+    "Psicólogo - Coca-Cola", "Orientador Socioeducativo - Educação". Palavra a mais ANTES do separador continua sendo outro título
+    ("Psicólogo Clínico - Hospital", "Coordenador de Projetos de TI")."""
     c = [t for t in tokens_titulo(cargo) if t not in _SOLTAS]
     ruido = RUIDO_TITULO - set(c)
-    return [t for t in tokens_titulo(titulo_limpo(titulo, cidade, uf)) if t not in _SOLTAS and t not in ruido] == c
+    limpo = lambda s: [t for t in tokens_titulo(s) if t not in _SOLTAS and t not in ruido]
+    if limpo(titulo_limpo(titulo, cidade, uf)) == c:
+        return True
+    comeco, extensao = extensao_do_titulo(titulo)
+    return bool(extensao) and limpo(comeco) == c
 
 
 def cargo_para_busca(cargo):
@@ -273,6 +295,8 @@ def conferir_salario_pdf(pdf=None, centavos=None, caminho=None):
         t = _texto_pdf(pdf, caminho)
     if len(t) < 200:
         return None
+    if centavos and centavos in salarios_no_texto(t):   # o valor está escrito na página como salário (no campo do site ou no texto da vaga)
+        return True
     m = SALARIO_PDF.search(t)
     exib = ler_salario(m.group(1)) if m else None
     if isinstance(exib, tuple) and centavos and exib[0] != centavos:
@@ -317,10 +341,28 @@ def pdf_a_combinar(caminho, centavos=None):
     return _PDF_COMBINAR[k]
 
 
+NAO_MENSAL = re.compile(r'\s*(?:reais\s*)?(?:/|por|a|ao|p/)\s*(?:hora|h\b|dia|di[aá]ria|aula|plant[aã]o|semana|quinzena|ano)', re.I)
+
+
 def salarios_no_texto(descricao):
-    """Salários escritos no texto da vaga ("Salário: R$ 1.727,27"), em centavos."""
+    """Salários MENSAIS escritos no texto da vaga ("Salário: R$ 1.727,27"), em centavos. "R$ 25,00 por hora" (ou por dia, aula, plantão,
+    semana) não é salário mensal e fica de fora."""
     txt = re.sub(r'\s+', ' ', H.unescape(re.sub(r'<[^>]+>', ' ', descricao or '')))
-    return [x for x in (valor_texto(m.group(1)) for m in SALARIO_TXT.finditer(txt)) if x]
+    out = []
+    for m in SALARIO_TXT.finditer(txt):
+        v = valor_texto(m.group(1))
+        if v and not NAO_MENSAL.match(txt[m.end():m.end() + 25]):
+            out.append(v)
+    return out
+
+
+def usar_salario_do_texto(v):
+    """Decisão da OSC (06/10/2026): quando o TEXTO da vaga cita o salário, vale o do texto (é o que a empresa escreveu), mesmo que o campo
+    de salário do site diga outro valor. Com mais de um valor no texto, a faixa vai do menor ao maior (R11: conta o menor)."""
+    txt = [x for x in v.get('salarios_texto') or [] if x]
+    if txt and not v.get('a_combinar') and (min(txt), max(txt)) != (v.get('faixa_min'), v.get('faixa_max')):
+        v['faixa_min'], v['faixa_max'], v['salario_da'], v['unidade'] = min(txt), max(txt), 'texto', None
+    return v
 
 
 SALARIO_TEXTO = r'(A combinar|A partir de R\$\s?[\d.]+(?:,\d{2})?|De R\$\s?[\d.]+(?:,\d{2})? a R\$\s?[\d.]+(?:,\d{2})?|At[eé] R\$\s?[\d.]+(?:,\d{2})?|R\$\s?[\d.]+(?:,\d{2})?)'
@@ -377,7 +419,14 @@ def _extrai(jp):
                 site_empresa=(site[0] if isinstance(site, list) and site else site) or None,
                 faixa_min=_cent(vmin), faixa_max=_cent(vmax), unidade=(unid or '').upper() or None,
                 data=(jp.get('datePosted') or '')[:10] or None, tipo=jp.get('employmentType'),
-                salarios_texto=salarios_no_texto(jp.get('description')), a_combinar=a_combinar(jp.get('description')))
+                salarios_texto=salarios_no_texto(jp.get('description')), a_combinar=a_combinar(jp.get('description')),
+                cnpjs_texto=cnpjs_no_texto(jp.get('description')))
+
+
+def cnpjs_no_texto(descricao):
+    """CNPJs escritos no texto da vaga (a empresa às vezes se identifica ali): só números, sem repetir."""
+    txt = H.unescape(re.sub(r'<[^>]+>', ' ', descricao or ''))
+    return list(dict.fromkeys(re.sub(r'\D', '', x) for x in re.findall(r'\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b', txt)))
 
 
 def avaliar(v, cargo):
@@ -389,6 +438,7 @@ def avaliar(v, cargo):
         return 'empresa confidencial/não identificada'
     if any(k in e for k in AGREGADORES):
         return 'publicada por agregador, não pela empresa (R15)'
+    usar_salario_do_texto(v)
     if not v['faixa_min']:
         return 'sem salário informado'
     if v.get('a_combinar'):
@@ -397,12 +447,7 @@ def avaliar(v, cargo):
         return f'faixa salarial genérica (R$ {v["faixa_min"] // 100} a R$ {v["faixa_max"] // 100}): provável "a combinar"'
     if v['unidade'] and v['unidade'] not in ('MONTH', 'MES', 'MÊS'):
         return f'salário por {v["unidade"]}, não mensal'
-    if v['faixa_min'] < 100000:
-        return 'salário menor que R$ 1.000 (provável erro de cadastro)'
-    fora = [x for x in v.get('salarios_texto') or [] if not (v['faixa_min'] * 0.99 <= x <= (v['faixa_max'] or v['faixa_min']) * 1.01)]
-    if fora:   # a pesquisa salarial precisa ser inequívoca: o texto não pode dizer outro salário
-        return f'o texto da vaga diz salário de R$ {fora[0] / 100:,.2f} e o anúncio informa R$ {v["faixa_min"] / 100:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
-    return None
+    return None   # qualquer salário mensal vale (decisão da OSC, 06/10/2026: não há mais o mínimo de R$ 1.000); o salário do texto já foi aplicado
 
 
 def sugerir(vagas, n=3):
@@ -547,6 +592,18 @@ def pdf_nao_e_a_vaga(caminho):
     return _PDF_VAGA[caminho]
 
 
+# Propaganda no MEIO do anúncio (InfoJobs: a faixa "Assine a Conta Premium", com imagem, entre a descrição e as exigências da vaga). Não é
+# uma janela por cima, então o LIMPAR não a tira; ela atrapalha a leitura do comprovante. É só ocultada: nada é clicado. Vale para faixa
+# com imagem e quase sem texto, cujo endereço ou classe diz que é promoção, plano pago ou publicidade.
+SEM_PROPAGANDA = r"""()=>{const fora=[];
+for(const a of document.querySelectorAll('a[class*=promo i],a[href*=premium i],a[class*=banner i],a[class*=publi i],a[class*=advert i],[class*=publicidade i],[data-ad-slot]')){
+  if(a.id==='faixa-orcamento'||a.closest('#faixa-orcamento'))continue;
+  const r=a.getBoundingClientRect(), txt=(a.innerText||'').trim();
+  if(r.width>=250&&r.height>=60&&txt.length<60&&(a.querySelector('img,picture,svg,iframe')||a.tagName==='IFRAME')){a.style.setProperty('display','none','important');fora.push((a.className||a.tagName).toString().slice(0,40));}
+}
+return fora;}"""
+
+
 async def capturar_no_contexto(c, url, rotulo, empresa=None):
     """PDF da página da vaga, num contexto de navegador já aberto, com faixa de identificação (data/hora + URL). Devolve (bytes, capturado_em).
     A página é guardada como aparece na tela, sem os avisos sobrepostos (cookies, propaganda: são só ocultados, nada é clicado), e só
@@ -571,6 +628,10 @@ async def capturar_no_contexto(c, url, rotulo, empresa=None):
                          f'PESQUISA SALARIAL | {rotulo} | capturado em {agora} | {url}')
         await p.wait_for_timeout(700)
         await limpar(p)   # aviso que aparece com atraso
+        try:
+            await p.evaluate(SEM_PROPAGANDA)
+        except Exception:
+            pass
         return await p.pdf(print_background=True, page_ranges='1-2'), agora
     finally:
         await p.close()
@@ -736,52 +797,55 @@ def outros_titulos(cargo, similares):
     return out
 
 
-def tres_com_similares(cargo, similares=()):
-    """As (até) 3 vagas do cargo: primeiro as de título exato; se faltar, as dos títulos similares aceitos (as de menor salário),
-    sempre de empresas diferentes."""
-    escolhidas = tres_do_banco(cargo)
-    raizes = {_raiz(v['cnpj']) for v in escolhidas}
-    extras = sorted((dict(v, titulo_busca=t) for t in outros_titulos(cargo, similares) for v in candidatas(t)),
-                    key=lambda v: (v['faixa_min'] or 10 ** 9, v['coletada_em'] or ''))
-    for v in extras:
-        if len(escolhidas) >= 3:
-            break
-        r = _raiz(v['cnpj'])
-        if r and r not in raizes:
-            raizes.add(r); escolhidas.append(dict(v, similar=True))
-    return escolhidas
-
-
 def alcanca_a_faixa(vagas, faixa):
     """As 3 vagas têm média igual ou maior que a faixa pretendida? (sem faixa: basta serem 3)"""
     from .regras import media
     return len(vagas) == 3 and (not faixa or media([v['faixa_min'] for v in vagas]) >= faixa)
 
 
-def tres_na_faixa(cargo, similares=(), faixa=None):
-    """As 3 vagas do cargo para a FAIXA pretendida (decisão da OSC, 05/10/2026): as de menor salário cuja média ainda chega na faixa, de
-    empresas diferentes; título exato antes dos similares aceitos. Sem faixa, ou se nenhuma combinação do banco chega nela: as 3 de menor
-    salário (tres_com_similares) — quem chama avisa que a faixa não foi alcançada."""
+def tres_do_titulo(titulo, faixa=None):
+    """As (até) 3 vagas de UM título — o cargo ou um título similar —, de empresas diferentes: as de menor salário. Com faixa pretendida
+    (decisão da OSC, 05/10/2026): as de menor salário cuja média ainda chega na faixa; se nenhuma combinação chega, as 3 de menor salário
+    (quem chama avisa). Vagas de títulos diferentes NUNCA entram juntas (decisão da OSC, 06/10/2026)."""
     import itertools
     from .regras import media
-    padrao = tres_com_similares(cargo, similares)
+    padrao = tres_do_banco(titulo)
     if not faixa or alcanca_a_faixa(padrao, faixa):
         return padrao
-    cands, vistas = [], set()
-    for t, similar in [(cargo, False)] + [(t, True) for t in outros_titulos(cargo, similares)]:
-        for v in candidatas(t):
-            if v['url'] not in vistas and v.get('faixa_min') and _raiz(v['cnpj']):
-                vistas.add(v['url']); cands.append(dict(v, similar=True, titulo_busca=t) if similar else v)
-    cands.sort(key=lambda v: (bool(v.get('similar')), abs(v['faixa_min'] - faixa)))   # as mais próximas da faixa bastam para achar a menor média que chega nela
+    cands = [v for v in candidatas(titulo) if v.get('faixa_min') and _raiz(v['cnpj'])]
+    cands.sort(key=lambda v: abs(v['faixa_min'] - faixa))   # as mais próximas da faixa bastam para achar a menor média que chega nela
     melhor = None
     for trio in itertools.combinations(cands[:40], 3):
         sal = sorted(v['faixa_min'] for v in trio)
         if len({_raiz(v['cnpj']) for v in trio}) < 3 or media(sal) < faixa:
             continue
-        chave = (sum(1 for v in trio if v.get('similar')), sum(sal), sal)
+        chave = (sum(sal), sal)
         if melhor is None or chave < melhor[0]:
             melhor = (chave, trio)
     return sorted(melhor[1], key=lambda v: v['faixa_min']) if melhor else padrao
+
+
+def tres_na_faixa(cargo, similares=(), faixa=None):
+    """As 3 vagas do TÍTULO DO CARGO para a faixa pretendida (os títulos similares são outros grupos: ver grupos_de_titulos)."""
+    return tres_do_titulo(cargo, faixa)
+
+
+def grupos_de_titulos(cargo, similares=(), faixa=None):
+    """Um grupo por título: o do cargo primeiro, depois cada título similar aceito. Cada grupo traz as suas (até) 3 vagas — as que iriam para
+    o orçamento se o grupo fosse o escolhido. Só grupo COMPLETO (3 vagas de empresas diferentes) pode ser oferecido como opção."""
+    out = []
+    for t, similar in [(cargo, False)] + [(t, True) for t in outros_titulos(cargo, similares)]:
+        tres = [dict(v, similar=similar, titulo_busca=t) for v in tres_do_titulo(t, faixa)]
+        out.append(dict(titulo=t, similar=similar, vagas=tres, completo=len(tres) == 3, chega=alcanca_a_faixa(tres, faixa)))
+    return out
+
+
+def grupo_do_titulo(titulo_vaga, cargo, similares=()):
+    """De que grupo é uma vaga, pelo título do anúncio: o cargo, um dos títulos similares aceitos, ou None (não é de nenhum)."""
+    for t in [cargo] + outros_titulos(cargo, similares):
+        if titulo_vaga and titulo_exato(titulo_vaga, t):
+            return t
+    return None
 
 
 def banco_com_similares(cargo, similares=(), so_verdes=False, descartadas=False):
@@ -922,7 +986,8 @@ async def coletar(cargo, ctx=None, alvo=3, parar=None, faixa=None):
                         ctx.progresso((45 if not profundo else 80) + (25 if not profundo else 15) * i / max(1, len(aptas)),
                                       f'Conferindo o CNPJ de "{v["empresa"]}" ({i + 1}/{len(aptas)} vagas aptas)')
                     try:
-                        k = await asyncio.wait_for(cnpj_do_empregador(br, api, v['empresa'], v.get('cidade'), v.get('uf'), v.get('site_empresa'), ctx), 240)
+                        k = await asyncio.wait_for(cnpj_do_empregador(br, api, v['empresa'], v.get('cidade'), v.get('uf'), v.get('site_empresa'), ctx,
+                                                                      cnpjs_texto=v.get('cnpjs_texto') or ()), 240)
                     except Exception as ex:
                         k = dict(status='🔴', cnpj=None, motivo=f'erro {type(ex).__name__}')
                     tentadas += 1

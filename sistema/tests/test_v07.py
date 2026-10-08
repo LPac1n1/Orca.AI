@@ -221,12 +221,16 @@ def test_titulo_de_vaga_entendido_sem_afrouxar_o_cargo():
     from orcamento import vagas as V
     sim = [('Aux. Administrativo', 'Auxiliar Administrativo'), ('Auxiliar Administrativo - Zona Sul', 'Auxiliar Administrativo'), ('Vaga de Assistente Social', 'Assistente Social'),
            ('Assistente Social (Temporário)', 'Assistente Social'), ('Auxiliar de Serviços Gerais PCD', 'Auxiliar de Serviços Gerais'), ('Aux. Serv. Ger.', 'Auxiliar de Serviços Gerais'),
-           ('Coordenador(a) de Projetos | São Paulo', 'Coordenador de Projetos'), ('Psicóloga - SP', 'Psicólogo'), ('Coord. Pedagógico', 'Coordenador Pedagógico')]
+           ('Coordenador(a) de Projetos | São Paulo', 'Coordenador de Projetos'), ('Psicóloga - SP', 'Psicólogo'), ('Coord. Pedagógico', 'Coordenador Pedagógico'),
+           # o cargo seguido de uma extensão qualquer (decisão da OSC, 06/10/2026)
+           ('Assistente Social - Hospitalar', 'Assistente Social'), ('Psicólogo - Coca-Cola', 'Psicólogo'), ('Orientador Socioeducativo - Educação', 'Orientador Socioeducativo'),
+           ('Coordenador de Projetos: Educação', 'Coordenador de Projetos'), ('Psicólogo (Clínica Vida)', 'Psicólogo'), ('Coordenador de Projetos|Campinas', 'Coordenador de Projetos')]
     for titulo, cargo in sim:
         assert V.titulo_exato(titulo, cargo, 'São Paulo', 'SP'), titulo
     nao = [('Psicólogo Clínico', 'Psicólogo'), ('Assistente Social Júnior', 'Assistente Social'), ('Auxiliar Administrativo II', 'Auxiliar Administrativo'),
-           ('Coordenador de Projetos Sociais', 'Coordenador de Projetos'), ('Assistente Social - Hospitalar', 'Assistente Social'), ('Supervisor Administrativo', 'Auxiliar Administrativo'),
-           ('Estágio em Psicologia', 'Psicólogo')]
+           ('Coordenador de Projetos Sociais', 'Coordenador de Projetos'), ('Supervisor Administrativo', 'Auxiliar Administrativo'),
+           ('Estágio em Psicologia', 'Psicólogo'), ('Psicólogo Clínico - Hospital', 'Psicólogo'), ('Hospital - Psicólogo', 'Psicólogo'),
+           ('Assistente do Coordenador de Projetos', 'Coordenador de Projetos')]
     for titulo, cargo in nao:
         assert not V.titulo_exato(titulo, cargo, 'São Paulo', 'SP'), titulo
     assert V.cargo_para_busca('Orientador(a) Socioeducativo (recibo ou MEI) - 20h semanais') == 'Orientador Socioeducativo'
@@ -385,21 +389,25 @@ def test_faixa_pretendida_escolhe_as_vagas_e_ajusta_as_horas(cliente):
     # as horas mais próximas da faixa: Assistente Social (30 h por semana = 150 h no mês), média 3.166,67 → 21,11 por hora
     r = RubricaRH(item=1, cargo='Assistente Social', horas_mes=40, meses=10, faixa_pretendida=200000,
                   pesquisas=[PesquisaSalarial(nome=n, cnpj=c, valor=v) for n, c, v in (('A', '1', 200000), ('B', '2', 350000), ('C', '3', 400000))])
-    cfg = Config()
+    cfg = Config(horas_max_mes=220)                                                         # sem o limite de horas do projeto: só a jornada legal
     assert media_rh(r) == 316667 and horas_pela_faixa(r, cfg) == (95, 200545)             # 95 h = 2.005,45 (94 h daria 1.984,34: mais longe)
+    assert horas_pela_faixa(r, Config()) == (90, 189990)                                   # com o limite padrão do projeto: no máximo 90 h por mês
     r.faixa_pretendida = 500000                                                             # acima da média: nem a jornada inteira alcança
-    assert horas_pela_faixa(r, cfg) == (150, 316650)
+    assert horas_pela_faixa(r, cfg) == (150, 316650) and horas_pela_faixa(r, Config()) == (90, 189990)
     r.faixa_pretendida = None
     assert horas_pela_faixa(r, cfg) is None
     # no sistema: cargo criado só com a faixa (sem horas); o banco tem 5 vagas
     pid = _novo(cliente)
     cliente.post(f'/p/{pid}/rubrica', data={'tipo': 'rh', 'nome': 'Psicólogo', 'faixa_pretendida': '2.000,00', 'meses': '10'})
     r = db.carregar(pid)[0].rubricas[0]
-    assert r.faixa_pretendida == 200000 and r.horas_mes == 220                              # até haver vagas, a jornada inteira
+    assert r.faixa_pretendida == 200000 and r.horas_mes == 90                               # até haver vagas, o máximo de horas do projeto (padrão: 90 h)
+    p0 = db.carregar(pid)[0]
+    p0.config.horas_max_mes, p0.rubricas[0].horas_mes = 220, 220                            # (daqui em diante, sem o limite de 90 h: o caso é o da jornada inteira)
+    db.salvar(pid, p0)
     for empresa, cnpj, sal in (('Alfa', '11111111000111', 150000), ('Beta', '22222222000122', 160000), ('Gama', '33333333000133', 170000),
                                ('Delta', '44444444000144', 210000), ('Epsilon', '55555555000155', 260000)):
         _vaga_no_banco(V, 'Psicólogo', empresa, cnpj, sal)
-    assert [v['empresa'] for v in V.tres_com_similares('Psicólogo')] == ['Alfa', 'Beta', 'Gama']          # sem faixa: as 3 de menor salário (média 1.600)
+    assert [v['empresa'] for v in V.tres_do_titulo('Psicólogo')] == ['Alfa', 'Beta', 'Gama']              # sem faixa: as 3 de menor salário (média 1.600)
     tres = V.tres_na_faixa('Psicólogo', (), 200000)
     assert [v['empresa'] for v in tres] == ['Alfa', 'Delta', 'Epsilon'] and V.alcanca_a_faixa(tres, 200000)   # a menor média que chega em 2.000: 2.066,67
     assert [v['empresa'] for v in V.tres_na_faixa('Psicólogo', (), 300000)] == ['Alfa', 'Beta', 'Gama']    # nenhuma combinação chega em 3.000: as mais baratas
@@ -448,6 +456,7 @@ def test_fechar_no_teto_reparte_por_igual_quando_as_faixas_nao_cabem(cliente):
     p.rubricas = [RubricaRH(item=1, cargo='Psicólogo', quantidade=3, horas_mes=95, meses=10, faixa_pretendida=120000, valor_mensal_plano=119510, pesquisas=pesquisas()),
                   RubricaRH(item=2, cargo='Designer Gráfico', quantidade=1, horas_mes=95, meses=10, faixa_pretendida=120000, valor_mensal_plano=119510, pesquisas=pesquisas())]
     p.teto = 1258 * (30 * 85 + 10 * 85)                       # só cabem 85 h em média: 10 h a menos que as da faixa (várias combinações fecham no centavo)
+    p.config.horas_max_mes = 220                              # (o limite de 90 h do projeto não entra neste caso: a faixa pede 95 h)
     db.salvar(pid, p)
     res = otimizar(p)
     assert res['status'] == 'OK' and [r.horas_mes for r in res['projeto'].rubricas] == [85, 85]      # antes: 82 h e 94 h (quase tudo no cargo de 3 profissionais)
@@ -469,3 +478,38 @@ def test_alt_clique_nao_baixa_a_pagina(cliente):
     js = r.text
     assert "if (!e.altKey || e.ctrlKey || e.shiftKey || e.metaKey || e.button !== 0) { return; }" in js
     assert "a.target === '_blank' || a.hasAttribute('download') || a.origin !== location.origin" in js and 'location.assign(a.href)' in js and 'reenviar(b.form, b)' in js
+
+
+def test_horas_por_mes_nunca_passam_do_limite_do_projeto(cliente):
+    """Decisão da OSC (06/10/2026): no cálculo automático das horas (faixa pretendida e "Fechar no teto"), as horas mensais de um cargo não
+    passam de 90, e nunca da jornada definida em lei para o cargo. Horas digitadas acima do limite aparecem como erro na verificação."""
+    from orcamento import db
+    from orcamento.calculo import verificar, horas_pela_faixa
+    from orcamento.modelo import RubricaRH, PesquisaSalarial, Config
+    from orcamento.otimizador import otimizar
+    from orcamento.regras import horas_maximas
+    assert Config().horas_max_mes == 90 and horas_maximas('Psicólogo', Config()) == 90 and horas_maximas('Assistente Social', Config(horas_max_mes=200)) == 150
+    assert horas_maximas('Auxiliar Administrativo', Config(horas_max_mes=300)) == 220 and horas_maximas('Técnico em Radiologia', Config(horas_max_mes=130)) == 120
+    pesquisas = lambda: [PesquisaSalarial(nome=n, cnpj=c, valor=v, faixa_min=v) for n, c, v in (('A', '11.222.333/0001-81', 130000), ('B', '11.444.777/0001-61', 150000),
+                                                                                              ('C', '45.997.418/0001-53', 170000))]
+    # média 1.500 → 6,82 por hora (44 h semanais = 220 h): a faixa de 1.000 pediria 147 h; com o limite, 90 h (613,80)
+    r = RubricaRH(item=1, cargo='Auxiliar Administrativo', horas_mes=40, meses=10, faixa_pretendida=100000, pesquisas=pesquisas())
+    assert horas_pela_faixa(r, Config(horas_max_mes=220)) == (147, 100254) and horas_pela_faixa(r, Config()) == (90, 61380)
+    pid = _novo(cliente)
+    p = db.carregar(pid)[0]
+    p.rubricas = [RubricaRH(item=1, cargo='Auxiliar Administrativo', horas_mes=129, meses=10, valor_mensal_plano=87978, pesquisas=pesquisas())]
+    p.teto = 682 * 80 * 10                                             # o teto cabe em 80 h
+    db.salvar(pid, p)
+    s12 = [a for a in verificar(p) if a.regra == 'S12']
+    assert len(s12) == 1 and s12[0].gravidade == 'erro' and '129 horas por mês: o máximo para este cargo é 90 h' in s12[0].mensagem
+    res = otimizar(p)
+    assert res['status'] == 'OK' and res['projeto'].rubricas[0].horas_mes == 80 and not [a for a in verificar(res['projeto']) if a.regra == 'S12']
+    p.teto = 682 * 150 * 10                                            # um teto que só fecharia com 150 h: o "Fechar no teto" não passa das 90 h
+    assert otimizar(p)['status'] != 'OK'
+    p.teto = 682 * 80 * 10
+    # o limite é do projeto: dá para mudar na configuração (e nunca passa da jornada legal do cargo)
+    pag = cliente.get(f'/p/{pid}').text
+    assert 'name="horas_max_mes"' in pag and 'Máximo de horas por mês de um cargo' in pag
+    p.config.horas_max_mes = 130
+    db.salvar(pid, p)
+    assert not [a for a in verificar(db.carregar(pid)[0]) if a.regra == 'S12']

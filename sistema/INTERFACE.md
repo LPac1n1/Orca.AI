@@ -299,6 +299,16 @@ Peças comuns das telas de rubrica ficam em `templates/_rubrica.html` (cartão d
 | Apagar as pesquisas (`zerar.html`, `/p/{id}/zerar-pesquisas`) | Topo do projeto; 4 indicadores (pesquisas automáticas, itens que voltam ao pedido, marcas apagadas, feitas à mão); cartão "O que sai", com abre-e-fecha de cargos, itens, itens que voltam ao que foi pedido ("de → para") e quantidades; cartão "O que fica"; cartão "Confirmar" com as opções (marcas que a pesquisa preencheu e vagas confirmadas: marcadas; feito à mão: desmarcada) e os botões "Apagar e pesquisar tudo de novo", "Só apagar" e "Cancelar". O envio pede confirmação na janela de perigo. Com tarefa em andamento, aviso e botões desligados |
 | Ajuda | Dúvida "Quero refazer todas as pesquisas do zero. Como faço?" |
 
+## 13. Títulos com vagas, empresas para confirmar e limite de horas (08/10/2026)
+
+| Tela | O que tem |
+|---|---|
+| Cargo → "2. As 3 pesquisas de salário" | Quadro **"Títulos com vagas"** (`id="t-titulos"`), acima da lista das pesquisas, quando há vagas de outro título, título similar em uso ou títulos misturados: o título em uso, um item por título (selos "título do cargo" / "título similar" / "em uso", "N de 3 vagas", média, as empresas com o salário), botão "Usar as 3 vagas deste título" nos grupos completos e "Voltar ao título do cargo"; embaixo, "Ainda sem 3 vagas (não podem ser usados): …". Com títulos misturados, aviso de erro no alto do quadro |
+| Cargo → banco de vagas | Vaga de outro título: "De outro título (X): para usar, escolha esse título em Títulos com vagas", no lugar dos botões 1-2-3 |
+| Cargo → banco de vagas → "Confirmar a empresa" | Lista "Empresas ativas com esse nome na base da Receita": razão social, nome fantasia, CNPJ, cidade/UF, selo "mesma cidade da vaga" ou "mesmo estado da vaga" e botão "É esta"; o campo de CNPJ continua para digitar |
+| Projeto → configuração → "Mão de obra" | Campo "Máximo de horas por mês de um cargo" (padrão 90) |
+| Apagar as pesquisas | O texto diz que saem todas as vagas guardadas dos cargos, inclusive as descartadas |
+
 ## 12. Quadro de decisão do item (06/10/2026)
 
 | Tela | O que tem |

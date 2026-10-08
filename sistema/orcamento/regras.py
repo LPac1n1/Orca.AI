@@ -31,6 +31,8 @@ REGRAS = {
     'S08': ('Dois itens da mesma rubrica não podem ser o mesmo produto', 'regra do sistema'),
     'S09': ('O valor mensal do cargo segue a faixa salarial pretendida, ajustando as horas (até a jornada inteira do mês)', 'configuração da rubrica'),
     'S10': ('Pedido de uma embalagem com várias unidades (caixa, pacote, kit) atendido com a embalagem, não com a unidade avulsa', 'regra do sistema'),
+    'S11': ('As 3 pesquisas de um cargo são de vagas com o MESMO título (o do cargo ou um título similar; nunca dois juntos)', 'regra do sistema'),
+    'S12': ('Horas por mês de um cargo: até o limite do projeto (padrão 90 h) e nunca acima da jornada legal do cargo', 'regra do sistema'),
     'D09': ('Teto mensal da rubrica definido pela OSC', 'configuração da rubrica'),
 }
 
@@ -77,6 +79,14 @@ def divisor_horas(cargo, modo):
     if modo == 'praticado':
         return DIVISOR_PRATICADO['assistente_social' if e['jornada'] == 'assistente_social' else 'geral'], e
     return e['semanais'] * 5, e
+
+
+def horas_maximas(cargo, cfg):
+    """O máximo de horas por mês que um cargo pode ter no plano: o limite do projeto (padrão 90 h — decisão da OSC, 06/10/2026) e nunca mais
+    que a jornada do mês definida em lei para o cargo (44 h semanais → 220 h; Assistente Social, 30 h → 150 h…)."""
+    div, e = divisor_horas(cargo, cfg.divisor_horas)
+    legal = div if cfg.divisor_horas == 'praticado' else e['semanais'] * 5
+    return max(1, min(legal, getattr(cfg, 'horas_max_mes', None) or legal))
 
 
 def media(precos):

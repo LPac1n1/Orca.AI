@@ -514,7 +514,7 @@ def rh_pronto(r):
     """Cargo com as 3 pesquisas completas e ainda válidas pelas regras atuais: CNPJ, salário mensal definido (não 'a combinar',
     nem faixa genérica) e a página da vaga guardada em PDF."""
     from . import vagas as V
-    if len(r.pesquisas) != 3:
+    if len(r.pesquisas) != 3 or titulos_misturados(r):
         return False
     for q in r.pesquisas:
         ev = q.evidencia
@@ -1384,6 +1384,55 @@ def similares_do_cargo(r):
     return V.outros_titulos(r.cargo, V.sugestoes_similares(r.cargo) if r.titulos_similares is None else r.titulos_similares)
 
 
+def titulo_em_uso(r):
+    """O título cujas vagas vão para o orçamento do cargo: o do próprio cargo ou, se a OSC escolheu, UM título similar aceito. Vagas de
+    títulos diferentes nunca entram juntas (decisão da OSC, 06/10/2026)."""
+    from . import vagas as V
+    t = getattr(r, 'titulo_em_uso', None)
+    return t if t and any(V.chave_cargo(t) == V.chave_cargo(x) for x in similares_do_cargo(r)) else r.cargo
+
+
+def do_titulo(q, titulo):
+    """A pesquisa é de uma vaga desse título? Pesquisa sem título de vaga (preenchida à mão) não é de título nenhum: vale em qualquer grupo."""
+    from . import vagas as V
+    return not q.titulo_vaga or V.titulo_exato(q.titulo_vaga, titulo)
+
+
+def titulos_misturados(r):
+    """Os títulos (grupos) das pesquisas do cargo quando há mais de um — o que não pode. [] se as pesquisas são todas do mesmo título."""
+    from . import vagas as V
+    sim = similares_do_cargo(r)
+    grupos = []
+    for q in r.pesquisas[:3]:
+        if q.titulo_vaga:
+            g = V.grupo_do_titulo(q.titulo_vaga, r.cargo, sim) or q.titulo_vaga
+            if not any(V.chave_cargo(g) == V.chave_cargo(x) for x in grupos):
+                grupos.append(g)
+    return grupos if len(grupos) > 1 else []
+
+
+def usar_titulo(p, pid, r, titulo):
+    """A OSC escolhe de que título são as 3 pesquisas do cargo: o do próprio cargo (as vagas que houver, 1 a 3) ou um título similar com
+    3 vagas. As 3 pesquisas são trocadas de uma vez. Devolve (as pesquisas novas, itens do mesmo cargo que receberam as mesmas)."""
+    from . import vagas as V
+    from .calculo import mensal_maximo_rh, nivelar_pela_faixa
+    proprio = V.chave_cargo(titulo or '') == V.chave_cargo(r.cargo)
+    aceito = next((t for t in similares_do_cargo(r) if V.chave_cargo(t) == V.chave_cargo(titulo or '')), None)
+    if not proprio and not aceito:
+        raise ValueError(f'"{titulo}" não é um título similar aceito para este cargo')
+    tres = V.tres_do_titulo(r.cargo if proprio else aceito, r.faixa_pretendida)
+    if not proprio and len(tres) < 3:
+        raise ValueError(f'o título "{aceito}" não tem 3 vagas válidas, de empresas diferentes, no banco de vagas')
+    r.titulo_em_uso = None if proprio else aceito
+    novas = [_pesquisa_da_vaga(pid, v) for v in tres]
+    manuais = [q for q in r.pesquisas if not q.titulo_vaga and pesquisa_completa(q) and _raiz(q.cnpj) not in {_raiz(n.cnpj) for n in novas}]
+    r.pesquisas = (novas + manuais + [PesquisaSalarial(), PesquisaSalarial(), PesquisaSalarial()])[:3]
+    maxm, _, _ = mensal_maximo_rh(r, p.config)
+    if not nivelar_pela_faixa(r, p.config) and maxm is not None:
+        r.valor_mensal_plano = maxm
+    return novas, replicar_pesquisas(p, r)
+
+
 def _pesquisa_da_vaga(pid, v):
     """Pesquisa salarial a partir de uma vaga do banco (o PDF da vaga é copiado para as evidências do projeto)."""
     ev = Evidencia(url=v['url'], origem='navegador', capturado_em=v['coletada_em'])
@@ -1413,6 +1462,9 @@ def usar_vaga(p, pid, r, url, k):
     v = next((x for x in V.banco_com_similares(r.cargo, similares_do_cargo(r), so_verdes=True) if x['url'] == url), None)
     if v is None:
         raise ValueError('a vaga não está no banco (ou não tem CNPJ confirmado e PDF)')
+    if V.chave_cargo(v['titulo_busca']) != V.chave_cargo(titulo_em_uso(r)):
+        raise ValueError(f'essa vaga é do título "{v["titulo_busca"]}", e as pesquisas do cargo são do título "{titulo_em_uso(r)}": vagas de títulos diferentes '
+                         f'não vão juntas para o orçamento. Para usar as vagas de "{v["titulo_busca"]}", escolha esse título em "Títulos com vagas"')
     if v.get('pdf') and V.pdf_a_combinar(db.caminho_absoluto(v['pdf']), v.get('faixa_min')):
         raise ValueError('a página da vaga diz "salário a combinar": não pode entrar no orçamento')
     outras = [_raiz(q.cnpj) for j, q in enumerate(r.pesquisas) if j != k]
@@ -1476,11 +1528,12 @@ async def recapturar_catho(pid, ctx, completar=True):
         for r in [x for x in p.rubricas if isinstance(x, RubricaRH) and not rh_pronto(x)]:
             sim = similares_do_cargo(r)
             ocultas = sorted((v for v in V.banco_com_similares(r.cargo, sim, so_verdes=True)
-                              if v['plataforma'] == 'Catho' and V.empresa_oculta(caminho=db.caminho_absoluto(v['pdf']))),
+                              if v['plataforma'] == 'Catho' and V.chave_cargo(v['titulo_busca']) == V.chave_cargo(titulo_em_uso(r))
+                              and V.empresa_oculta(caminho=db.caminho_absoluto(v['pdf']))),
                              key=lambda v: v['faixa_min'] or 10 ** 9)
             tentativas = 0
             for v in ocultas:
-                if len(V.tres_com_similares(r.cargo, sim)) >= 3 or tentativas >= 6:
+                if len(V.tres_do_titulo(titulo_em_uso(r))) >= 3 or tentativas >= 6:
                     break
                 tentativas += 1
                 ctx.progresso(85, f'{r.cargo}: guardando a página de outra vaga da Catho ({v["empresa"]})')
@@ -1561,6 +1614,7 @@ def replicar_pesquisas(p, r):
     for x in p.rubricas:
         if isinstance(x, RubricaRH) and x.item != r.item and norm(x.cargo) == norm(r.cargo):
             x.pesquisas = [q.model_copy(deep=True) for q in r.pesquisas]
+            x.titulo_em_uso = r.titulo_em_uso
             from .calculo import nivelar_pela_faixa
             if nivelar_pela_faixa(x, p.config):   # o outro item tem a sua faixa: as horas dele seguem a nova média
                 outros.append(x.item); continue
@@ -1572,9 +1626,10 @@ def replicar_pesquisas(p, r):
 
 
 def usar_vagas_do_banco(p, pid, r):
-    """As (até) 3 vagas do banco para o cargo: título exato primeiro; se faltar, títulos similares aceitos (copia os PDFs para o projeto)."""
+    """As (até) 3 vagas do banco para o cargo, todas do TÍTULO EM USO — o do cargo ou o título similar que a OSC escolheu (copia os PDFs
+    para o projeto)."""
     from . import vagas as V
-    return [_pesquisa_da_vaga(pid, v) for v in V.tres_na_faixa(r.cargo, similares_do_cargo(r), r.faixa_pretendida)]
+    return [_pesquisa_da_vaga(pid, v) for v in V.tres_do_titulo(titulo_em_uso(r), r.faixa_pretendida)]
 
 
 def pesquisa_completa(q):
@@ -1616,17 +1671,20 @@ def anexar_pdf_vaga(p, pid, r, k, nome_arquivo, conteudo):
     return '; '.join(msg) + '.'
 
 
-def colocar_vagas(r, novas):
+def colocar_vagas(r, novas, titulo=None):
     """Coloca as vagas encontradas nas pesquisas do cargo (pedido da OSC, 02/10/2026: mesmo com 1 ou 2 vagas confirmadas, elas entram).
     Com 3, substituem as 3 pesquisas. Com menos, entram nas primeiras posições; as outras posições ficam com a pesquisa completa que já
-    estava (de outra empresa) ou em branco. Devolve quantas pesquisas ficaram preenchidas."""
-    if not novas:
+    estava (de outra empresa e do MESMO título, ou preenchida à mão) ou em branco: pesquisa de vaga de outro título sai, porque títulos
+    diferentes não vão juntos para o orçamento (06/10/2026). Devolve quantas pesquisas ficaram preenchidas."""
+    titulo = titulo or r.cargo
+    de_outro = [q for q in r.pesquisas if pesquisa_completa(q) and not do_titulo(q, titulo)]
+    if not novas and not de_outro:
         return 0
     if len(novas) >= 3:
         r.pesquisas = list(novas[:3])
         return 3
     raizes = {_raiz(q.cnpj) for q in novas}
-    mantidas = [q for q in r.pesquisas if pesquisa_completa(q) and _raiz(q.cnpj) not in raizes]
+    mantidas = [q for q in r.pesquisas if pesquisa_completa(q) and _raiz(q.cnpj) not in raizes and do_titulo(q, titulo)]
     r.pesquisas = (list(novas) + mantidas + [PesquisaSalarial(), PesquisaSalarial(), PesquisaSalarial()])[:3]
     return sum(1 for q in r.pesquisas if pesquisa_completa(q))
 
@@ -1636,22 +1694,22 @@ def aplicar_vagas(p, pid, r):
     from .calculo import mensal_maximo_rh
     from .calculo import nivelar_pela_faixa
     novas = usar_vagas_do_banco(p, pid, r)
-    colocar_vagas(r, novas)
+    antes = [q.model_dump() for q in r.pesquisas]
+    colocar_vagas(r, novas, titulo_em_uso(r))
     maxm, _, _ = mensal_maximo_rh(r, p.config)
     if not nivelar_pela_faixa(r, p.config) and maxm is not None:   # com faixa pretendida, as horas mudam para o valor chegar nela
         r.valor_mensal_plano = maxm
-    return novas, (replicar_pesquisas(p, r) if novas else [])
+    mudou = antes != [q.model_dump() for q in r.pesquisas]
+    return novas, (replicar_pesquisas(p, r) if novas or mudou else [])
 
 
 def _proxima_vaga(r, k, fora=()):
-    """A próxima vaga válida do banco para a pesquisa k: título exato primeiro, depois os similares aceitos, da de menor salário para a
-    maior; de empresa diferente das outras duas pesquisas e que não seja uma das vagas em `fora`."""
+    """A próxima vaga válida do banco para a pesquisa k, do TÍTULO EM USO, da de menor salário para a maior; de empresa diferente das
+    outras duas pesquisas e que não seja uma das vagas em `fora`."""
     from . import vagas as V
     usadas = {q.evidencia.url for j, q in enumerate(r.pesquisas) if j != k and q.evidencia and q.evidencia.url} | set(fora)
     raizes = {_raiz(q.cnpj) for j, q in enumerate(r.pesquisas) if j != k and q.cnpj}
-    sim = similares_do_cargo(r)
-    similares = sorted((dict(v, similar=True) for t in V.outros_titulos(r.cargo, sim) for v in V.candidatas(t)), key=lambda v: (v['faixa_min'] or 10 ** 9))
-    validas = [v for v in list(V.candidatas(r.cargo)) + similares if v['url'] not in usadas and _raiz(v['cnpj']) not in raizes]
+    validas = [v for v in V.candidatas(titulo_em_uso(r)) if v['url'] not in usadas and _raiz(v['cnpj']) not in raizes]
     if r.faixa_pretendida and validas:   # com faixa pretendida: a de menor salário que deixa a média das 3 chegar na faixa
         from .regras import media
         outras = [(q.valor if q.valor is not None else q.faixa_min) for j, q in enumerate(r.pesquisas) if j != k]
@@ -1674,21 +1732,16 @@ async def outra_vaga(pid, item, k, ctx):
     atual = r.pesquisas[k].evidencia.url if r.pesquisas[k].evidencia else None
     v = _proxima_vaga(r, k, [atual] if atual else [])
     if v is None:
-        ctx.progresso(5, f'Não há outra vaga válida no banco para "{r.cargo}": buscando nos sites')
+        ctx.progresso(5, f'Não há outra vaga válida no banco para "{titulo_em_uso(r)}": buscando nos sites')
         tem_outra = lambda: _proxima_vaga(r, k, [atual] if atual else []) is not None
-        await V.coletar(r.cargo, ctx, parar=tem_outra)
+        await V.coletar(titulo_em_uso(r), ctx, parar=tem_outra)   # só o título em uso: vaga de outro título não entra junto
         v = _proxima_vaga(r, k, [atual] if atual else [])
-        for t in ([] if v else similares_do_cargo(r)):
-            ctx.etapa(f'Buscando o título similar "{t}"')
-            await V.coletar(t, ctx, parar=tem_outra)
-            v = _proxima_vaga(r, k, [atual] if atual else [])
-            if v:
-                break
     volta = f'/p/{pid}/rh/{item}#pesquisa{k}'
     ctx.progresso(100, 'Concluído')
     if v is None:
-        ctx.aviso(f'Não foi encontrada outra vaga válida para a pesquisa {k + 1} de "{r.cargo}" (com CNPJ confirmado, salário definido e de empresa diferente '
-                  f'das outras duas). A pesquisa ficou como estava. Você pode aceitar outros títulos similares, confirmar uma vaga "em dúvida" ou preencher à mão.')
+        ctx.aviso(f'Não foi encontrada outra vaga válida para a pesquisa {k + 1} de "{r.cargo}" com o título "{titulo_em_uso(r)}" (com CNPJ confirmado, salário '
+                  f'definido e de empresa diferente das outras duas). A pesquisa ficou como estava. Você pode confirmar uma vaga "em dúvida", preencher à mão ou '
+                  f'trocar as 3 pesquisas pelas vagas de outro título, em "Títulos com vagas".')
         return dict(versao=None, ir_para=volta)
     p, _ = db.carregar(pid)   # a busca é demorada: relê o projeto
     r = _rubrica(p, item)
@@ -1756,41 +1809,53 @@ async def recapturar_vaga(pid, item, k, ctx):
 
 
 async def vagas_do_cargo(pid, item, ctx):
-    """Busca as vagas do cargo (título exato). Se não chegar a 3, busca também os títulos similares aceitos. As vagas confirmadas entram
-    nas pesquisas mesmo que sejam só 1 ou 2."""
+    """Busca as vagas do cargo (título exato). Se não chegar a 3 (ou à faixa pretendida), busca também CADA título similar aceito — cada
+    título é um grupo à parte. Para o orçamento só vão vagas de UM título (decisão da OSC, 06/10/2026): as do título em uso — o do cargo,
+    mesmo que sejam só 1 ou 2, ou o título similar que a OSC escolheu. Os títulos similares com 3 vagas ficam como opção, na tela do cargo."""
     from . import vagas as V
     p, _ = db.carregar(pid)
     r = _rubrica(p, item)
     similares, faixa = similares_do_cargo(r), r.faixa_pretendida
-    # com faixa pretendida, a busca só para quando o banco tem 3 vagas cuja média chega nela (ou quando as páginas acabam)
-    pronto = (lambda: V.alcanca_a_faixa(V.tres_na_faixa(r.cargo, similares, faixa), faixa)) if faixa else None
-    res = await V.coletar(r.cargo, ctx, parar=pronto, faixa=faixa)
+    # com faixa pretendida, a busca de um título só para quando ele tem 3 vagas cuja média chega nela (ou quando as páginas acabam)
+    pronto = lambda t: (lambda: V.alcanca_a_faixa(V.tres_do_titulo(t, faixa), faixa)) if faixa else None
+    completo = lambda t: V.alcanca_a_faixa(V.tres_do_titulo(t, faixa), faixa)
+    res = await V.coletar(r.cargo, ctx, parar=pronto(r.cargo), faixa=faixa)
     usados = []
-    for t in similares:
-        if (pronto() if pronto else len(V.tres_com_similares(r.cargo, similares)) >= 3):
-            break
-        ctx.etapa(f'Faltam vagas com o título exato{" que cheguem na faixa" if faixa else ""}: buscando o título similar "{t}"')
-        await V.coletar(t, ctx, parar=pronto, faixa=faixa)
-        usados.append(t)
+    if not completo(r.cargo):
+        if not similares and r.titulos_similares is None and p.config.usar_ia:
+            try:   # cargo fora da lista do sistema: a IA sugere títulos com a mesma função; eles são procurados e viram OPÇÃO (a OSC escolhe)
+                ia.titulos_similares(r.cargo, pid)
+            except Exception:
+                pass
+            similares = similares_do_cargo(r)
+        for t in similares:
+            if not completo(t):
+                ctx.etapa(f'Faltam vagas com o título exato{" que cheguem na faixa" if faixa else ""}: buscando o título similar "{t}"')
+                await V.coletar(t, ctx, parar=pronto(t), faixa=faixa)
+            usados.append(t)
     p, _ = db.carregar(pid)   # a coleta é demorada: relê o projeto para não desfazer o que mudou nesse meio-tempo
     r = _rubrica(p, item)
+    antes = [q.model_dump() for q in r.pesquisas]
     novas, outros = aplicar_vagas(p, pid, r)
-    n_sim = sum(1 for q in novas if q.titulo_vaga and V.chave_cargo(q.titulo_vaga) != V.chave_cargo(r.cargo))
-    if novas:
+    em_uso = titulo_em_uso(r)
+    if novas or antes != [q.model_dump() for q in r.pesquisas]:
         res['versao'] = db.salvar(pid, p, autor='sistema (vagas)',
-                                  motivo=f'item {item}: {len(novas)} vaga(s) do banco (CNPJ confirmado)' + (f', {n_sim} de título similar' if n_sim else '')
+                                  motivo=f'item {item}: {len(novas)} vaga(s) do banco (CNPJ confirmado)'
+                                  + (f', do título similar "{em_uso}" (escolhido pela OSC)' if V.chave_cargo(em_uso) != V.chave_cargo(r.cargo) else '')
                                   + (f'; replicadas para os itens {outros} (mesmo cargo)' if outros else ''), vagas=[q.evidencia.url for q in novas])
-    if len(novas) < 3 and not similares and not V.sugestoes_similares(r.cargo) and p.config.usar_ia:
-        try:   # cargo fora da lista do sistema: a IA sugere títulos com a mesma função (a OSC aceita ou não, na tela do cargo)
-            sug = [t for t in ia.titulos_similares(r.cargo, pid) if V.chave_cargo(t) != V.chave_cargo(r.cargo)]
-        except Exception:
-            sug = []
-        if sug:
-            ctx.aviso(f'Títulos com a mesma função de "{r.cargo}" que você pode aceitar na tela do cargo (em "Títulos similares aceitos"): {", ".join(sug)}.')
+    grupos = [g for g in V.grupos_de_titulos(r.cargo, similares_do_cargo(r), faixa) if V.chave_cargo(g['titulo']) != V.chave_cargo(em_uso)]
+    opcoes = [g for g in grupos if g['completo']]
     if len(novas) < 3:
-        ctx.aviso(f'{len(novas)} de 3 vagas confirmadas para "{r.cargo}"' + (f' (procurado também: {", ".join(usados)})' if usados else '')
-                  + '. As que faltam ficaram em branco: o sistema continua procurando na coleta diária; você também pode preencher à mão, '
-                    'confirmar uma vaga "em dúvida" do banco ou aceitar outros títulos similares na tela do cargo.')
+        ctx.aviso(f'{len(novas)} de 3 vagas confirmadas com o título "{em_uso}"' + (f' (procurado também: {", ".join(usados)})' if usados else '')
+                  + '. As que faltam ficaram em branco: o sistema continua procurando na coleta diária; você também pode preencher à mão ou '
+                    'confirmar uma vaga "em dúvida" do banco.'
+                  + (' Títulos com 3 vagas, para você escolher na tela do cargo (vagas de títulos diferentes não vão juntas para o orçamento): '
+                     + '; '.join(f'{g["titulo"]} (salários de {_reais(g["vagas"][0]["faixa_min"])} a {_reais(g["vagas"][-1]["faixa_min"])})' for g in opcoes) + '.' if opcoes else '')
+                  + (' Ainda sem 3 vagas: ' + ', '.join(f'{g["titulo"]} ({len(g["vagas"])})' for g in grupos if not g['completo'] and g['vagas']) + '.'
+                     if any(not g['completo'] and g['vagas'] for g in grupos) else ''))
+    elif V.chave_cargo(em_uso) != V.chave_cargo(r.cargo) and completo(r.cargo):
+        ctx.aviso(f'O cargo está com as vagas do título similar "{em_uso}", que você escolheu, e agora já há 3 vagas com o título exato "{r.cargo}": '
+                  'se quiser, volte para o título do cargo em "Títulos com vagas", na tela do cargo.')
     if r.faixa_pretendida and len(novas) == 3:
         from .calculo import media_rh, horas_pela_faixa
         from .regras import brl

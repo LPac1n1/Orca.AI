@@ -12,7 +12,7 @@ from orcamento.vagas import titulo_exato, avaliar
     ('Coordenador(a) de Projetos', 'Coordenador de Projetos', True), ('Coordenadora de Projeto', 'Coordenador de Projetos', True),
     ('COORDENADOR DE PROJETOS', 'Coordenador de Projetos', True), ('Coordenador/a de Projetos', 'Coordenador de Projetos', True),
     ('Coordenador de Projetos de TI', 'Coordenador de Projetos', False), ('Coordenador de Projetos Sociais', 'Coordenador de Projetos', False),
-    ('Coordenador de Projetos - São Paulo', 'Coordenador de Projetos', False), ('Auxiliar de Serviço Geral', 'Auxiliar de serviços gerais', True),
+    ('Coordenador de Projetos - São Paulo', 'Coordenador de Projetos', True), ('Auxiliar de Serviço Geral', 'Auxiliar de serviços gerais', True),
     ('Psicóloga', 'Psicólogo', True), ('Psicólogo Clínico', 'Psicólogo', False), ('Orientadora Socioeducativa', 'Orientador socioeducativo', True),
     ('Designer Gráfico Pleno', 'Designer Gráfico', False), ('Auxiliar Administrativa', 'Auxiliar Administrativo', True),
 ])
@@ -88,6 +88,47 @@ def test_base_da_receita_homonimos_e_nome_unico(dados, monkeypatch):
     assert cnpj_busca.conferir_local(dict(status='🟢', cnpj='1', municipio='EXTERIOR', uf='EX', motivo='x'), 'Goiás', None)['status'] == '🔴'
 
 
+def test_sede_em_outro_estado_so_e_duvida_quando_ha_homonima(dados, monkeypatch):
+    """Pedido da OSC (06/10/2026): muitas vagas ficavam "em dúvida" por causa do nome da empresa. Medido no banco: 10 de 31 eram só "CNPJ em
+    outro estado", sem haver outra empresa com o nome. A vaga diz onde é o TRABALHO; a sede pode ser em outro lugar."""
+    import asyncio
+    from orcamento import cnpj_base, cnpj_busca
+    arq = os.path.join(dados, 'cnpj_teste.sqlite'); _base_exemplo(arq)
+    monkeypatch.setattr(cnpj_base, 'BASE', arq)
+    # empresa única com esse nome no Brasil, sede em SP, vaga no Ceará: é ela
+    unica = dict(status='🟢', cnpj='13312641000123', municipio='SAO PAULO', uf='SP', motivo='nome confere', fonte='Yahoo')
+    r = cnpj_busca.conferir_local(unica, 'Fortaleza', 'CE', 'DNA Facilities')
+    assert r['status'] == '🟢' and 'sede em SP, vaga em CE' in r['motivo'] and 'única empresa ativa com esse nome' in r['motivo']
+    # há outra empresa com o mesmo nome: continua em dúvida
+    r = cnpj_busca.conferir_local(dict(status='🟢', cnpj='12802628000190', municipio='NITEROI', uf='RJ', motivo='nome confere', fonte='Yahoo'), 'São Paulo', 'SP', 'Confiança RH')
+    assert r['status'] == '🟡' and cnpj_busca.OUTRA_UF in r['motivo']
+    # CNPJ publicado no site oficial da empresa (ou escrito na vaga): a sede em outro estado não é dúvida, mesmo havendo homônimas
+    r = cnpj_busca.conferir_local(dict(status='🟢', cnpj='12802628000190', municipio='NITEROI', uf='RJ', motivo='CNPJ publicado no site oficial', fonte='site oficial https://x'),
+                                  'São Paulo', 'SP', 'Confiança RH')
+    assert r['status'] == '🟢' and 'sede em RJ, vaga em SP' in r['motivo']
+    assert cnpj_busca.conferir_local(unica, 'São Paulo', 'SP', 'DNA Facilities') == unica                 # mesmo estado: nada muda
+    assert cnpj_busca.conferir_local(unica, 'Fortaleza', 'CE')['status'] == '🟡'                            # sem o nome não dá para conferir as homônimas
+    # dúvida guardada (memória de 30 dias) só por causa do estado: é conferida de novo com a regra atual, sem consultar a internet
+    from orcamento import db
+    chave = 'dna facilities|fortaleza|ce'
+    with db.conectar() as c:
+        c.execute('INSERT OR REPLACE INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)',
+                  (chave, db.agora(), '{"status": "🟡", "cnpj": "13312641000123", "uf": "SP", "municipio": "SAO PAULO", "fonte": "Yahoo", '
+                                      '"motivo": "nome confere; CNPJ em SP, vaga em CE: pode ser filial ou homônima"}'))
+    r = asyncio.run(cnpj_busca.cnpj_do_empregador(None, None, 'DNA Facilities', 'Fortaleza', 'CE'))
+    assert r['status'] == '🟢' and r['cnpj'] == '13312641000123' and r['motivo'].startswith('nome confere; sede em SP, vaga em CE')
+    # CNPJ escrito no texto da própria vaga: vale (ativo na base e o nome confere), antes de qualquer busca
+    from orcamento.vagas import cnpjs_no_texto
+    assert cnpjs_no_texto('<p>Empresa DNA Facilities, CNPJ 13.312.641/0001-23. Contato...</p> CNPJ: 13312641000123') == ['13312641000123']
+    r = asyncio.run(cnpj_busca.cnpj_do_empregador(None, None, 'DNA Facilities', 'Rio de Janeiro', 'RJ', cnpjs_texto=['13312641000123']))
+    assert r['status'] == '🟢' and r['fonte'] == 'texto da vaga' and 'escrito no texto da própria vaga' in r['motivo'] and 'sede em SP, vaga em RJ' in r['motivo']
+    assert asyncio.run(cnpj_busca.cnpj_do_texto(None, 'Outra Empresa Qualquer', ['13312641000123'])) is None   # o CNPJ escrito é de outra empresa: não vale
+    # para a OSC escolher com um clique: as empresas com esse nome, as do estado da vaga primeiro
+    cs = cnpj_busca.candidatos_da_base('Confiança RH', 'Niterói', 'RJ')
+    assert [(c['cnpj'], c['municipio'], c['na_cidade']) for c in cs] == [('12802628000190', 'NITEROI', True), ('03472547000188', 'NITEROI', True)]   # o nome idêntico antes do nome contido
+    assert cnpj_busca.candidatos_da_base('Empresa Que Não Existe', 'Niterói', 'RJ') == []
+
+
 def test_grade_com_fornecedor_por_item(dados, tmp_path):
     from openpyxl import load_workbook
     from orcamento.modelo import Projeto, RubricaMaterial, Subitem, Fonte
@@ -123,7 +164,19 @@ def test_salario_no_texto_da_vaga(texto, esperado):
     assert salarios_no_texto(texto) == esperado
 
 
-def test_salario_do_texto_diferente_do_anuncio_nao_vale():
+def test_salario_do_texto_da_vaga_e_o_que_vale():
+    """Decisão da OSC (06/10/2026): o texto da vaga pode citar o salário e, se citar, é o do texto que vale (antes a vaga era recusada)."""
+    from orcamento.vagas import salarios_no_texto
     v = dict(titulo='Auxiliar de Serviços Gerais', empresa='Orsegups', faixa_min=200000, faixa_max=200000, unidade='MONTH', salarios_texto=[172727])
-    assert 'o texto da vaga diz salário de R$ 1.727,27' in avaliar(v, 'Auxiliar de serviços gerais')
-    assert avaliar(dict(v, salarios_texto=[200000]), 'Auxiliar de serviços gerais') is None
+    assert avaliar(v, 'Auxiliar de serviços gerais') is None
+    assert (v['faixa_min'], v['faixa_max'], v['salario_da']) == (172727, 172727, 'texto')
+    v2 = dict(v, faixa_min=200000, faixa_max=200000, salarios_texto=[200000]); v2.pop('salario_da')
+    assert avaliar(v2, 'Auxiliar de serviços gerais') is None and 'salario_da' not in v2            # o texto diz o mesmo: nada muda
+    v3 = dict(v, faixa_min=None, faixa_max=None, salarios_texto=[250000, 180000])                  # o site não informa; o texto cita dois valores
+    assert avaliar(v3, 'Auxiliar de serviços gerais') is None and (v3['faixa_min'], v3['faixa_max']) == (180000, 250000)
+    # qualquer salário mensal vale: não há mais o mínimo de R$ 1.000
+    assert avaliar(dict(titulo='Auxiliar de Serviços Gerais', empresa='Orsegups', faixa_min=80000, faixa_max=80000, unidade='MONTH'), 'Auxiliar de serviços gerais') is None
+    # valor por hora, por dia ou por aula escrito no texto não é salário mensal
+    assert salarios_no_texto('Salário: R$ 1.727,27 + benefícios. Salário de R$ 25,00 por hora. Salário R$ 120,00/dia. salário R$ 800') == [172727, 80000]
+    v4 = dict(v, faixa_min=200000, faixa_max=200000, salarios_texto=[172727], a_combinar=True)
+    assert 'a combinar' in avaliar(v4, 'Auxiliar de serviços gerais') and v4['faixa_min'] == 200000   # "a combinar" continua fora

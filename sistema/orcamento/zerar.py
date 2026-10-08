@@ -191,10 +191,10 @@ def zerar(p, pid=None, com_a_mao=False, com_marcas=True, com_confirmadas=True):
 
 
 def _onde_vagas(chaves, com_confirmadas):
-    """Vagas guardadas destes cargos: saem todas, menos as que a OSC descartou (continuam descartadas, para não voltarem) e — se ela pedir para
-    ficarem — as que ela mesma confirmou."""
+    """Vagas guardadas destes cargos: saem TODAS — também as que a OSC tinha descartado (decisão de 06/10/2026: a vaga que for encontrada de
+    novo não é descartada; passa por todo o processo outra vez) —, menos, se ela pedir para ficarem, as que ela mesma confirmou."""
     from .vagas import CONFIRMADA_PELA_OSC
-    q = f"cargo_chave IN ({','.join('?' * len(chaves))}) AND descartada_em IS NULL"
+    q = f"cargo_chave IN ({','.join('?' * len(chaves))})"
     args = list(chaves)
     if not com_confirmadas:
         q += ' AND (cnpj_motivo IS NULL OR cnpj_motivo NOT LIKE ?)'; args.append(CONFIRMADA_PELA_OSC + '%')
@@ -224,7 +224,11 @@ def zerar_bancos(pid, res):
         for item, d in res['pedidos']:
             c.execute('DELETE FROM produto_banco WHERE projeto_id=? AND item=? AND descricao=?', (pid, item, d))
         if res['chaves_de_vaga']:
+            from .cnpj_busca import sa
             q, args = _onde_vagas(res['chaves_de_vaga'], res['com_confirmadas'])
+            # a consulta de CNPJ guardada de cada empresa também sai: a vaga reencontrada tem o CNPJ conferido de novo
+            for row in c.execute('SELECT empresa, cidade, uf FROM vaga_banco WHERE ' + q, args).fetchall():
+                c.execute('DELETE FROM empresa_cnpj WHERE chave=?', (f"{sa(row['empresa'])}|{sa(row['cidade'])}|{sa(row['uf'])}",))
             c.execute('DELETE FROM vaga_banco WHERE ' + q, args)
     db.cache_limpar_tudo()
     return prods, vagas

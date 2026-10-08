@@ -2,6 +2,23 @@
 
 Monta e confere a **Grade Comparativa** e o **Plano de Aplicação** de projetos sociais para o órgão que vai analisá-los. Já vem com as regras estabelecidas pela Secretaria da Justiça e Cidadania de SP (SEJC) (o levantamento está em [../FASE0_SEJC.md](../FASE0_SEJC.md)); as de qualquer outro órgão são cadastradas pela tela "Órgãos". As decisões da OSC e os testes que justificam cada regra estão em [../FASE1B_RESULTADOS.md](../FASE1B_RESULTADOS.md).
 
+## Vagas: títulos que não se misturam, regras de título e salário, CNPJ e horas (08/10/2026)
+
+Pedidos da OSC depois de ler a explicação de como as pesquisas funcionam. Testes em `tests/test_v05.py` (grupos), `tests/test_v03.py` (título, salário, CNPJ), `tests/test_v07.py` (horas) e `tests/test_zerar.py`.
+
+| Pedido | O que foi feito |
+|---|---|
+| Título com "extensão" vale: "Coordenador de Projetos \| São Paulo", "Psicólogo - Coca-Cola" | `vagas.titulo_exato`: vale o cargo seguido de qualquer coisa depois de um separador (traço, barra, dois-pontos, parênteses) — `vagas.extensao_do_titulo`. Palavra a mais ANTES do separador ("Psicólogo Clínico - Hospital") e o cargo depois do separador ("Hospital - Psicólogo") continuam sendo outro título |
+| Qualquer salário, não só acima de R$ 1.000 | Saiu o mínimo. Continua fora: sem salário, "a combinar", faixa genérica (máximo acima de 5× o mínimo) e salário que não é mensal |
+| O texto pode citar o salário e, se citar, é ele que vale | `vagas.usar_salario_do_texto` (antes a vaga era recusada). Com dois valores no texto, a faixa vai do menor ao maior. "R$ 25 por hora / dia / aula / plantão" não é salário mensal (`NAO_MENSAL`). A conferência com o PDF aceita o valor escrito na página como salário |
+| Vagas de títulos diferentes, mesmo similares, não vão juntas | **Cada título é um grupo** (`vagas.grupos_de_titulos`, `tres_do_titulo`). `RubricaRH.titulo_em_uso` diz de que título são as 3 pesquisas (vazio = o do cargo). A busca procura o título do cargo e, se faltar, cada similar aceito; grava só as do título em uso (1 a 3) e mostra os grupos com 3 vagas em "Títulos com vagas" (`/p/{id}/rh/{item}/usar-titulo` troca as 3 de uma vez). Grupo com menos de 3 não é opção. "Buscar outra vaga" e "usar na pesquisa" só aceitam vaga do título em uso. Verificação: **S11** (erro) quando as pesquisas são de títulos diferentes; cargo assim não conta como pronto |
+| Muitas vagas "em dúvida" por causa do nome da empresa | Medido no banco: 31 de 61 em dúvida; 10 só por "CNPJ em outro estado". `cnpj_busca.conferir_local`: sede em outro estado só é dúvida quando há OUTRA empresa ativa com o nome (não é dúvida com CNPJ do site oficial nem com nome único na base). A dúvida guardada por esse motivo é conferida de novo, sem internet. `cnpj_do_texto`: o CNPJ escrito no texto da vaga vale. `candidatos_da_base`: a tela lista as empresas com o nome (as da cidade e do estado da vaga primeiro) para confirmar com um clique. Homônimas de verdade continuam em dúvida: o sistema não adivinha |
+| Comprovantes com pop-up, principalmente da InfoJobs | Os PDFs antigos tinham o aviso de cookies (Didomi), que chega atrasado; os novos, a faixa "Assine a Conta Premium" no meio do anúncio. `evidencia.AVISOS_CSS`: regra de estilo posta na página antes do PDF (vale para o que chegar depois; cobre as ferramentas de cookies mais usadas e o "entrar com o Google"). `vagas.SEM_PROPAGANDA`: oculta faixa de imagem que leva a plano pago ou publicidade. Nada é clicado |
+| Apagar e refazer: tirar as vagas do banco; a reencontrada passa por tudo de novo | `zerar._onde_vagas`: saem TODAS as vagas dos cargos (antes as descartadas ficavam, para não voltarem) e a consulta de CNPJ guardada das empresas delas |
+| Horas mensais: no máximo 90, seguindo a lei | `Config.horas_max_mes` (padrão 90, na configuração do projeto) e `regras.horas_maximas`: o menor entre o limite do projeto e a jornada legal do cargo no mês (tabela `JORNADAS`, com a lei de cada profissão). Vale em `horas_pela_faixa` e no otimizador ("Fechar no teto"). Verificação: **S12** (erro) para horas acima do limite |
+
+**Projetos antigos.** Cargo com pesquisas de títulos misturados aparece com erro S11 e, na tela, com o aviso para escolher um título. Cargo com mais horas que o limite aparece com S12: recalcule com a faixa pretendida ou com o "Fechar no teto".
+
 ## O sistema nunca substitui um item sozinho (06/10/2026) — testes em `tests/test_decidir.py`
 
 **O relato.** "Fiz o pedido de Folha Sulfite 500 Folhas e ele substituiu por giz de cera. Tenho certeza que existem muitas folhas sulfites iguais em muitas lojas." E: "ao fazer a pesquisa total o sistema substituiu um item de papelaria por outro grampeador, então ficaram dois itens de grampeador. O sistema nunca pode substituir um item na pesquisa completa de tudo." E o pedido: ao pesquisar um item de novo, **mostrar as opções de substituição e perguntar**; se a pessoa não quiser, deixar mudar o pedido para tentar de novo.
@@ -307,7 +324,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 252 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 255 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;

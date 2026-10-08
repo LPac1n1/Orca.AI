@@ -11,7 +11,7 @@ from .cp import cp_model
 
 from .modelo import Projeto, RubricaRH
 from .calculo import media_rh, media_subitem
-from .regras import valor_hora, divisor_horas, brl, valores_do_plano
+from .regras import valor_hora, divisor_horas, horas_maximas, brl, valores_do_plano
 
 
 def tipo_da_rubrica(r):
@@ -29,7 +29,7 @@ def otimizar(p: Projeto, ajustar_horas=True, limite_segundos=30):
                 return dict(status='DADOS_INCOMPLETOS', motivo=f'Item {r.item}: faltam as 3 pesquisas salariais')
             div, enq = divisor_horas(r.cargo, p.config.divisor_horas)
             vh = valor_hora(med, div)
-            hmax = div if p.config.divisor_horas == 'praticado' else enq['semanais'] * 5
+            hmax = max(horas_maximas(r.cargo, p.config), 1)   # o limite de horas do projeto (padrão 90 h) e nunca acima da jornada legal
             if ajustar_horas and r.faixa_pretendida:
                 # Cargo com faixa pretendida: conta o desvio do valor mensal em PROPORÇÃO da faixa (e não em horas). Em horas, o corte ia todo para
                 # o cargo em que cada hora vale mais dinheiro no total (caso real de 05/10/2026: Assistente Social de 47 h para 27 h, 43% abaixo
@@ -114,7 +114,7 @@ def _prova(p, ajustar_horas):
         if isinstance(r, RubricaRH):
             div, enq = divisor_horas(r.cargo, p.config.divisor_horas)
             vh = valor_hora(media_rh(r), div)
-            hmax = div if p.config.divisor_horas == 'praticado' else enq['semanais'] * 5
+            hmax = horas_maximas(r.cargo, p.config)
             lo += vh * (1 if ajustar_horas else r.horas_mes) * r.meses * (r.quantidade or 1)
             hi += vh * (hmax if ajustar_horas else r.horas_mes) * r.meses * (r.quantidade or 1)
         else:

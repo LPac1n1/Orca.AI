@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, asdict
 
 from .modelo import Projeto, RubricaRH, RubricaMaterial, Fonte, descricao_completa
-from .regras import (REGRAS, CNPJ_PLATAFORMAS, media, valor_hora, divisor_horas, cnpj_dv_ok, cnpj_formatar,
+from .regras import (REGRAS, CNPJ_PLATAFORMAS, media, valor_hora, divisor_horas, horas_maximas, cnpj_dv_ok, cnpj_formatar,
                      vencimento, brl, norm)
 from .comparador import qty, norm as cnorm
 
@@ -30,8 +30,9 @@ def mensal_maximo_rh(r: RubricaRH, cfg):
 
 
 def horas_pela_faixa(r: RubricaRH, cfg):
-    """Horas inteiras do mês (R17) que deixam o valor mensal o MAIS PRÓXIMO da faixa pretendida, até a jornada inteira do mês.
-    Devolve (horas, valor mensal) ou None (cargo sem faixa ou sem as 3 pesquisas). Média abaixo da faixa: jornada inteira (o máximo possível)."""
+    """Horas inteiras do mês (R17) que deixam o valor mensal o MAIS PRÓXIMO da faixa pretendida, até o máximo de horas do cargo
+    (regras.horas_maximas: o limite do projeto, padrão 90 h, e nunca acima da jornada legal). Devolve (horas, valor mensal) ou None (cargo
+    sem faixa ou sem as 3 pesquisas). Média abaixo da faixa: o máximo de horas (o mais perto possível)."""
     m = media_rh(r)
     if not r.faixa_pretendida or m is None:
         return None
@@ -39,8 +40,9 @@ def horas_pela_faixa(r: RubricaRH, cfg):
     vh = valor_hora(m, div)
     if vh <= 0:
         return None
-    baixo = max(1, min(div, r.faixa_pretendida // vh))
-    h = min((baixo, min(div, baixo + 1)), key=lambda x: (abs(vh * x - r.faixa_pretendida), x))
+    hmax = horas_maximas(r.cargo, cfg)
+    baixo = max(1, min(hmax, r.faixa_pretendida // vh))
+    h = min((baixo, min(hmax, baixo + 1)), key=lambda x: (abs(vh * x - r.faixa_pretendida), x))
     return h, vh * h
 
 
@@ -108,7 +110,7 @@ class Alerta:
 
 # a gravidade mais forte que cada regra do catálogo gera na verificação (as que não estão aqui valem na pesquisa e no cálculo, sem gerar ponto)
 GRAVIDADE_PADRAO = {'D09': 'atencao', 'R01': 'erro', 'R02': 'erro', 'R03': 'atencao', 'R04': 'atencao', 'R05': 'erro', 'R06': 'erro', 'R07': 'erro', 'R08': 'erro',
-                    'R09': 'erro', 'R10': 'erro', 'R11': 'erro', 'R16': 'erro', 'S01': 'atencao', 'S02': 'info', 'S03': 'info', 'S04': 'atencao', 'S05': 'erro', 'S10': 'atencao',
+                    'R09': 'erro', 'R10': 'erro', 'R11': 'erro', 'R16': 'erro', 'S01': 'atencao', 'S02': 'info', 'S03': 'info', 'S04': 'atencao', 'S05': 'erro', 'S10': 'atencao', 'S11': 'erro', 'S12': 'erro',
                     'S06': 'atencao', 'S07': 'erro', 'S08': 'erro', 'S09': 'atencao'}
 
 
@@ -163,12 +165,16 @@ def verificar(p: Projeto, cnpj_status: dict | None = None, hoje: dt.date | None 
                 A.append(Alerta('R02', 'erro', rot, f'mensal {brl(r.valor_mensal_plano)} > máximo {brl(maxm)} (média {brl(media_rh(r))} ÷ {div} = {brl(vh)}/h × {r.horas_mes} h)'))
             if r.valor_mensal_plano is None:
                 A.append(Alerta('R04', 'atencao', rot, 'valor mensal do plano ainda não definido'))
+            hmax = horas_maximas(r.cargo, p.config)
+            if r.horas_mes and r.horas_mes > hmax:
+                A.append(Alerta('S12', 'erro', rot, f'{r.horas_mes} horas por mês: o máximo para este cargo é {hmax} h ('
+                                + (f'limite de horas do projeto' if hmax == p.config.horas_max_mes else f'jornada legal do cargo no mês') + '). Reduza as horas'))
             if r.faixa_pretendida and maxm is not None:
-                cheio = vh * div
-                if media_rh(r) < r.faixa_pretendida:
-                    A.append(Alerta('S09', 'atencao', rot, f'a média das 3 vagas ({brl(media_rh(r))}) não chega na faixa pretendida ({brl(r.faixa_pretendida)}): com a jornada '
-                                    f'inteira ({div} h) o máximo é {brl(cheio)}, faltam {brl(r.faixa_pretendida - cheio)}. Aceite títulos similares ou vagas de salário '
-                                    f'maior, ou reduza a faixa'))
+                cheio = vh * hmax
+                if cheio + vh // 2 < r.faixa_pretendida:
+                    A.append(Alerta('S09', 'atencao', rot, f'a média das 3 vagas ({brl(media_rh(r))}) não chega na faixa pretendida ({brl(r.faixa_pretendida)}): com o máximo '
+                                    f'de horas ({hmax} h) o valor é {brl(cheio)}, faltam {brl(r.faixa_pretendida - cheio)}. Use vagas de salário maior (ou de outro título), '
+                                    f'ou reduza a faixa'))
                 elif r.valor_mensal_plano is not None and abs(r.valor_mensal_plano - r.faixa_pretendida) > vh:
                     A.append(Alerta('S09', 'info', rot, f'o valor no plano ({brl(r.valor_mensal_plano)}, {r.horas_mes} h) está a {brl(abs(r.valor_mensal_plano - r.faixa_pretendida))} '
                                     f'da faixa pretendida ({brl(r.faixa_pretendida)}): as horas foram mudadas à mão ou pelo "Fechar no teto"'))
@@ -179,9 +185,13 @@ def verificar(p: Projeto, cnpj_status: dict | None = None, hoje: dt.date | None 
                 if q.evidencia and q.evidencia.arquivo and empresa_oculta(q.evidencia.arquivo):
                     A.append(Alerta('S05', 'erro', rot, f'pesquisa {k + 1} ({q.nome or "empresa não informada"}): a página guardada da vaga não mostra as '
                                     f'informações da empresa (a Catho só as mostra para quem está logado)'))
-                if q.titulo_vaga and chave_titulo(q.titulo_vaga) != chave_titulo(r.cargo):
+                if q.titulo_vaga and not titulo_do_cargo(q.titulo_vaga, r.cargo):
                     A.append(Alerta('S04', 'atencao', rot, f'pesquisa {k + 1} ({q.nome or "empresa não informada"}): vaga com o título "{q.titulo_vaga}", '
                                     f'similar ao cargo (não havia 3 vagas com o título exato)'))
+            mist = titulos_das_pesquisas(r)
+            if mist:
+                A.append(Alerta('S11', 'erro', rot, 'as pesquisas são de vagas com títulos diferentes (' + ' e '.join(f'"{t}"' for t in mist) + '): vagas de títulos '
+                                'diferentes não vão juntas para o orçamento. Na tela do cargo, em "Títulos com vagas", escolha um título só'))
         else:
             rot = f'Item {r.item} – {r.descricao}'
             usa_fontes_da_rubrica = any(len(s.fontes) != 3 and s.descricao not in r.fontes_por_subitem for s in r.subitens) or not r.subitens
@@ -323,6 +333,16 @@ def pagina_errada(rel):
         return pdf_nao_e_a_vaga(db.caminho_absoluto(rel))
     except Exception:
         return None
+
+
+def titulo_do_cargo(titulo_vaga, cargo):
+    from .vagas import titulo_exato
+    return titulo_exato(titulo_vaga, cargo)
+
+
+def titulos_das_pesquisas(r):
+    from .servico import titulos_misturados
+    return titulos_misturados(r)
 
 
 def chave_titulo(t):

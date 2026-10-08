@@ -43,6 +43,7 @@ class RubricaRH(BaseModel):
     valor_mensal_plano: Optional[int] = None  # o que está (ou estará) no Plano de Aplicação (por profissional)
     quantidade: int = 1                       # quantos profissionais com este cargo e esta carga (ex.: 3 assistentes sociais = 1 item, quantidade 3)
     titulos_similares: Optional[List[str]] = None   # títulos aceitos quando faltam vagas com o título exato; None = as sugestões do sistema
+    titulo_em_uso: Optional[str] = None             # título similar que a OSC escolheu para as 3 pesquisas (None = o título do cargo); nunca dois juntos
     # Faixa salarial pretendida (decisão da OSC, 05/10/2026): quanto se quer pagar por mês a cada profissional. As vagas são as de menor salário
     # cuja média ainda chega nela, e as HORAS do mês são ajustadas para o valor do plano ficar o mais perto possível dela.
     faixa_pretendida: Optional[int] = None
@@ -89,6 +90,7 @@ class RubricaMaterial(BaseModel):
 
 class Config(BaseModel):
     divisor_horas: Literal['legal', 'praticado'] = 'legal'
+    horas_max_mes: int = 90                                   # máximo de horas por mês de um cargo (decisão da OSC, 06/10/2026); nunca acima da jornada legal do cargo
     valores_defensaveis: bool = True
     validade_dias: int = 180
     modo_cesta: Literal['por_item', 'trio'] = 'por_item'     # por item: cada subitem com as suas 3 lojas (padrão)

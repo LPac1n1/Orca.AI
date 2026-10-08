@@ -103,7 +103,7 @@ def test_previa_mostra_o_que_sai_e_o_que_fica_sem_mudar_nada(cliente):
     for texto in ('Apagar as pesquisas e refazer do zero', 'Os <b>itens ficam</b>', 'Pão de Forma Pullman 500g', '<b>Pão de Forma 480g</b>', 'Café (Pilão)',
                   'Café Solúvel: de 3 para <b>5</b>', 'Apagar as marcas que a pesquisa preencheu', 'Apagar também o que foi feito à mão', f'restaure a versão {v}',
                   'Os comprovantes de CNPJ', 'Apagar e pesquisar tudo de novo', 'Só apagar', 'O banco de vagas é comum a todos os projetos',
-                  'Apagar também as vagas que você confirmou</b> (1 no projeto, 1 guardada(s))', 'name="confirmadas" value="1" checked', 'continuam descartadas'):
+                  'Apagar também as vagas que você confirmou</b> (1 no projeto, 1 guardada(s))', 'name="confirmadas" value="1" checked', 'passa por todo o processo outra vez'):
         assert texto in pag, texto
     assert 'Maguary' not in pag.split('Apagar as marcas')[1].split('</label>')[0]                                       # a marca que a OSC escreveu não entra na lista
     ind = dict(re.findall(r'indicador__rotulo">([^<]+)</div><div class="indicador__valor">(\d+)', pag))
@@ -152,12 +152,12 @@ def test_apagar_as_pesquisas_deixa_os_itens_como_foram_pedidos(cliente):
     assert set(banco) == {'Leite 1L'} and db.produtos_do_banco(pid, 4) == {} and set(db.produtos_do_banco(pid + 99, 3)) == {'Café 500g'}
     with db.conectar() as c:
         ficaram = {row['url'] for row in c.execute('SELECT url FROM vaga_banco')}
-    assert ficaram == {'v2', 'v5'}                  # a descartada pela OSC continua descartada e a de outro cargo não é tocada; a que ela confirmou saiu com as outras
+    assert ficaram == {'v5'}                        # só a de outro cargo fica: a descartada pela OSC também sai (reencontrada, passa por todo o processo de novo)
                                                     # (senão voltaria para o cargo na hora, e a pesquisa não recomeçaria do zero)
     assert db.cache_ler('busca|loja|cafe') is None
     motivo = db.historico(pid)[0][0]['motivo']
     assert motivo.startswith('pesquisas zeradas para refazer do zero em') and '1 item(ns) trocado(s) voltaram ao pedido original' in motivo and '6 pesquisa(s) feita(s) à mão mantida(s)' in motivo
-    assert '3 opção(ões) de produto e 3 vaga(s) guardadas saíram dos bancos' in motivo and 'confirmada' not in motivo
+    assert '3 opção(ões) de produto e 4 vaga(s) guardadas saíram dos bancos' in motivo and 'confirmada' not in motivo
     # "Pesquisar tudo" enxerga os itens como não pesquisados; e dá para voltar atrás: a versão anterior volta inteira
     assert not cliente.appmod.servico.rh_pronto(psi) and len(cliente.appmod.servico.subitens_a_pesquisar(al)) == 5
     cliente.post(f'/p/{pid}/restaurar/{v}')
@@ -178,7 +178,7 @@ def test_opcoes_manter_as_marcas_manter_as_confirmadas_e_apagar_o_que_foi_feito_
     assert sis.subitens[0].precos == [None] * 3 and srv.subitens[0].precos == [None] * 3 and srv.subitens[0].valor_plano is None
     assert set(p.revisados) == {'R05|Plano|total abaixo do teto'} and db.produtos_do_banco(pid, 3) == {}
     with db.conectar() as c:
-        assert {row['url'] for row in c.execute('SELECT url FROM vaga_banco')} == {'v2', CONFIRMADA, 'v5'}
+        assert {row['url'] for row in c.execute('SELECT url FROM vaga_banco')} == {CONFIRMADA, 'v5'}
     motivo = db.historico(pid)[0][0]['motivo']
     assert '26 pesquisa(s) apagada(s)' in motivo and '1 vaga(s) confirmada(s) pela OSC mantida(s)' in motivo and 'à mão mantida' not in motivo
 
@@ -227,3 +227,21 @@ def test_pesquisas_em_branco_nao_sao_a_mesma_empresa(cliente):
     assert r09() == []                                                         # cargo com 1 vaga anexada + 2 em branco; sistema com 1 cotação + 2 em branco
     p.rubricas[1].pesquisas[0] = p.rubricas[1].pesquisas[1].model_copy()       # agora sim: a mesma empresa em duas pesquisas do cargo
     assert r09() == ['Item 2 – Assistente Social']
+
+
+def test_vaga_reencontrada_depois_de_zerar_passa_por_todo_o_processo(cliente):
+    """Decisão da OSC (06/10/2026): ao apagar para refazer, as vagas dos cargos saem TODAS do banco — também as descartadas — e a consulta de
+    CNPJ guardada de cada empresa sai junto: a vaga que a pesquisa nova encontrar de novo não é pulada nem volta descartada."""
+    from orcamento import db, vagas as V, zerar
+    with db.conectar() as c:
+        for url, empresa, descartada in (('z1', 'Alfa Serviços', None), ('z2', 'Beta Clínica', '2026-10-01T10:00:00'), ('z3', 'Gama', None)):
+            c.execute('INSERT INTO vaga_banco (url, cargo_chave, cargo, titulo, empresa, cidade, uf, coletada_em, valida_ate, cnpj_status, pdf, descartada_em) '
+                      'VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', (url, V.chave_cargo('Psicólogo' if url != 'z3' else 'Motorista'), 'Psicólogo', 'Psicólogo', empresa, 'São Paulo', 'SP',
+                                                           '2026-10-01T10:00:00', '2027-03-30', '🟢', 'banco_vagas/x.pdf', descartada))
+        for chave in ('alfa servicos|sao paulo|sp', 'beta clinica|sao paulo|sp', 'gama|sao paulo|sp'):
+            c.execute('INSERT INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)', (chave, '2026-10-01T10:00:00-03:00', '{}'))
+    res = dict(rubricas_inteiras=[], pedidos=[], chaves_de_vaga=[V.chave_cargo('Psicólogo')], com_confirmadas=True)
+    assert zerar.contar_bancos(1, res) == (0, 2) and zerar.zerar_bancos(1, res) == (0, 2)
+    with db.conectar() as c:
+        assert [r['url'] for r in c.execute('SELECT url FROM vaga_banco')] == ['z3']                                   # a descartada (z2) também saiu
+        assert [r['chave'] for r in c.execute('SELECT chave FROM empresa_cnpj')] == ['gama|sao paulo|sp']             # o CNPJ das duas será conferido de novo

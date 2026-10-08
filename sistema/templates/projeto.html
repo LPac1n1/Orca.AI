@@ -288,6 +288,8 @@ Pode levar de 30 minutos a algumas horas. O andamento aparece na tela e você po
         <span class="escolha__texto">Jornada legal <small>Horas semanais ÷ 6 × 30. Exemplos: 44 h → 220 horas; Assistente Social (30 h) → 150 horas.</small></span></label>
       <label class="escolha"><input type="radio" name="divisor_horas" value="praticado" {% if p.config.divisor_horas == 'praticado' %}checked{% endif %}>
         <span class="escolha__texto">Divisor já aceito pela SEJC <small>180 horas; Assistente Social, 120 horas.</small></span></label>
+      {{ campo('horas_max_mes', 'Máximo de horas por mês de um cargo', valor=p.config.horas_max_mes, mascara='inteiro', tamanho='m', sufixo='horas',
+               ajuda_texto='Nenhum cargo passa deste número de horas por mês: nem no cálculo automático (faixa pretendida e "Fechar no teto"), nem digitando. O limite também nunca passa da jornada legal do cargo (220 horas para 44 h semanais; 150 para Assistente Social).') }}
     </fieldset>
 
     <fieldset class="cartao">

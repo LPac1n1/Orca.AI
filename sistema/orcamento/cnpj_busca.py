@@ -93,15 +93,65 @@ def _local(j, cidade, uf):
     return ok_uf and ok_cid
 
 
-def conferir_local(r, cidade, uf):
+OUTRA_UF = 'pode ser filial ou homônima'
+
+
+def conferir_local(r, cidade, uf, nome=None):
+    """Trava do lugar. Empresa com sede num estado e vaga em outro é o normal (a vaga diz onde é o TRABALHO): isso só é dúvida quando existe
+    OUTRA empresa ativa com o mesmo nome. Não é dúvida quando o CNPJ é o publicado no site oficial da empresa, nem quando ela é a única
+    com esse nome na base da Receita (ajuste de 08/10/2026: 10 das 31 vagas "em dúvida" do banco estavam assim, sem haver homônima)."""
     if not r.get('cnpj'):
         return r
     if sa(r.get('municipio')) == 'exterior':
         return dict(r, status='🔴', motivo='empresa estrangeira (município EXTERIOR): não é o empregador no Brasil')
     u = uf_da_vaga(cidade, uf)
     if r['status'] == '🟢' and u and (r.get('uf') or '').upper() != u:
-        return dict(r, status='🟡', motivo=f"{r['motivo']}; CNPJ em {r.get('uf')}, vaga em {u}: pode ser filial ou homônima")
+        if str(r.get('fonte', '')).startswith(('site oficial', 'texto da vaga')):
+            return dict(r, motivo=f"{r['motivo']}; sede em {r.get('uf')}, vaga em {u}")
+        h = homonimos_na_base(nome) if nome else None
+        if h is not None and not [k for k in h if k != re.sub(r'\D', '', r['cnpj'])[:8]]:
+            return dict(r, motivo=f"{r['motivo']}; sede em {r.get('uf')}, vaga em {u}: é a única empresa ativa com esse nome na base da Receita")
+        return dict(r, status='🟡', motivo=f"{r['motivo']}; CNPJ em {r.get('uf')}, vaga em {u}: {OUTRA_UF}")
     return r
+
+
+def candidatos_da_base(nome, cidade=None, uf=None, limite=8):
+    """As empresas ATIVAS da base da Receita com esse nome (uma por empresa: o estabelecimento da cidade ou da UF da vaga, senão a matriz),
+    para a OSC escolher com um clique quando o sistema fica em dúvida. As da cidade e da UF da vaga vêm primeiro."""
+    if not nome or not cnpj_base.situacao().get('existe'):
+        return []
+    u, cid = uf_da_vaga(cidade, uf), (sa(cidade) if cidade and not uf_da_vaga(cidade, None) else None)
+    por_raiz = {}
+    for e in cnpj_base.buscar(nome, limite=2000):
+        f = confere(nome, {'razao_social': e['razao'], 'nome_fantasia': e['fantasia']})
+        if f:
+            por_raiz.setdefault(e['cnpj'][:8], dict(forca=f, estabs=[]))['estabs'].append(e)
+            por_raiz[e['cnpj'][:8]]['forca'] = max(por_raiz[e['cnpj'][:8]]['forca'], f)
+    out = []
+    for d in por_raiz.values():
+        ests = d['estabs']
+        e = (next((x for x in ests if cid and sa(x['municipio']) == cid), None) or next((x for x in ests if u and (x['uf'] or '').upper() == u), None)
+             or next((x for x in ests if x['matriz']), ests[0]))
+        out.append(dict(cnpj=e['cnpj'], razao=e['razao'], fantasia=e['fantasia'], municipio=e['municipio'], uf=e['uf'], matriz=e['matriz'], forca=d['forca'],
+                        na_cidade=bool(cid and sa(e['municipio']) == cid), na_uf=bool(u and (e['uf'] or '').upper() == u), estabelecimentos=len(ests)))
+    out.sort(key=lambda x: (not x['na_cidade'], not x['na_uf'], -x['forca'], x['razao'] or ''))
+    return out[:limite]
+
+
+async def cnpj_do_texto(api, nome, cnpjs):
+    """CNPJ que a própria empresa escreveu no texto da vaga: se é válido, ATIVO e o nome confere, é o do empregador (não há o que adivinhar)."""
+    for x in dict.fromkeys(re.sub(r'\D', '', c) for c in cnpjs or ()):
+        if not dv_ok(x):
+            continue
+        b = cnpj_base.por_cnpj(x)
+        if b and confere(nome, {'razao_social': b['razao'], 'nome_fantasia': b['fantasia']}):
+            return dict(status='🟢', cnpj=x, razao_social=b['razao'], nome_fantasia=b['fantasia'], municipio=b['municipio'], uf=b['uf'], fonte='texto da vaga',
+                        candidatos=[], motivo='CNPJ escrito no texto da própria vaga; nome confere e a empresa está ATIVA na base da Receita')
+        j = None if b else await api.dados(x)
+        if j and confere(nome, j) and (j.get('descricao_situacao_cadastral') or '').upper() == 'ATIVA':
+            return dict(status='🟢', cnpj=x, razao_social=j.get('razao_social'), nome_fantasia=j.get('nome_fantasia'), municipio=j.get('municipio'), uf=j.get('uf'),
+                        fonte='texto da vaga', candidatos=[], motivo='CNPJ escrito no texto da própria vaga; nome confere e a situação é ATIVA')
+    return None
 
 
 def homonimos_na_base(nome):
@@ -291,18 +341,28 @@ async def _online(br, api, nome, cidade, uf, site, ctx=None):
                 nome_fantasia=j.get('nome_fantasia'), municipio=j.get('municipio'), uf=j.get('uf'), fonte=v['fonte'], candidatos=cands, motivo=criterio)
 
 
-async def cnpj_do_empregador(br, api, nome, cidade=None, uf=None, site=None, ctx=None):
-    """Resolve o CNPJ do empregador (base primeiro; online só quando precisa), com memória de 30 dias por nome/local."""
+async def cnpj_do_empregador(br, api, nome, cidade=None, uf=None, site=None, ctx=None, cnpjs_texto=()):
+    """Resolve o CNPJ do empregador (o CNPJ escrito na vaga, se houver; a base; online só quando precisa), com memória de 30 dias por nome/local."""
+    do_texto = await cnpj_do_texto(api, nome, cnpjs_texto) if cnpjs_texto else None
+    if do_texto:
+        return conferir_local(do_texto, cidade, uf, nome)
     chave = f'{sa(nome)}|{sa(cidade)}|{sa(uf)}'
     with db.conectar() as c:
         row = c.execute('SELECT consultado_em, json FROM empresa_cnpj WHERE chave=?', (chave,)).fetchone()
     if row and (dt.datetime.now().astimezone() - dt.datetime.fromisoformat(row['consultado_em'])).days < 30:
-        return json.loads(row['json'])
+        r = json.loads(row['json'])
+        if r.get('status') == '🟡' and OUTRA_UF in (r.get('motivo') or '') and r.get('cnpj'):
+            # dúvida guardada só por a sede ser em outro estado: conferida de novo com a regra atual (sem consultar nada na internet)
+            r = conferir_homonimos(conferir_local(dict(r, status='🟢', motivo=r['motivo'].split('; CNPJ em')[0]), cidade, uf, nome), nome)
+            if r.get('status') == '🟢':
+                with db.conectar() as c:
+                    c.execute('INSERT OR REPLACE INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)', (chave, row['consultado_em'], json.dumps(r, ensure_ascii=False)))
+        return r
     b = cnpj_pela_base(nome, cidade, uf)
     if b:
-        r = conferir_local(b, cidade, uf)
+        r = conferir_local(b, cidade, uf, nome)
     else:
-        r = conferir_homonimos(conferir_local(await _online(br, api, nome, cidade, uf, site, ctx), cidade, uf), nome)
+        r = conferir_homonimos(conferir_local(await _online(br, api, nome, cidade, uf, site, ctx), cidade, uf, nome), nome)
     with db.conectar() as c:
         c.execute('INSERT OR REPLACE INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)', (chave, db.agora(), json.dumps(r, ensure_ascii=False)))
     return r

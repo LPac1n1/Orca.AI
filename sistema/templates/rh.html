@@ -54,7 +54,7 @@
     <details class="detalhe detalhe--leve" id="similares" {% if novo %}open{% endif %}>
     <summary>Títulos similares aceitos: {{ (similares|join(', '))|truncate(90, true, '…') if similares else 'nenhum' }}</summary>
     <fieldset class="sem-borda detalhe__corpo">
-      <legend class="campo__rotulo">Vagas com estes títulos também valem {{ ajuda('Títulos similares', 'Quando não há 3 vagas com o título exato do cargo (é comum em cargos como "Orientador socioeducativo"), o sistema completa as pesquisas com vagas destes títulos, que têm a mesma função. O título exato vem sempre primeiro, e cada vaga de título similar aparece na verificação para você conferir.') }}</legend>
+      <legend class="campo__rotulo">Vagas com estes títulos também valem {{ ajuda('Títulos similares', 'Quando não há 3 vagas com o título exato do cargo (é comum em cargos como "Orientador socioeducativo"), o sistema procura também vagas destes títulos, que têm a mesma função. Cada título é um grupo à parte: o que tiver 3 vagas aparece como opção em "Títulos com vagas", e você troca as 3 pesquisas de uma vez. Vagas de títulos diferentes nunca vão juntas para o orçamento.') }}</legend>
       <input type="hidden" name="similares_enviados" value="1">
       {% if opcoes_similares %}
       <p class="texto-apoio">Marque os títulos que fazem o mesmo trabalho. Desmarque os que não servem para este projeto.</p>
@@ -79,12 +79,35 @@
       {{ ajuda('Banco de vagas', 'O sistema guarda por 180 dias as vagas que já encontrou para este cargo e para os títulos similares aceitos (empresa com CNPJ confirmado e página salva em PDF). Vaga com salário "a combinar" não entra.') }}</div>
     <div class="linha">
       <button class="btn btn--primario" name="depois" value="buscar" data-aguarde="Salvando e iniciando…">{{ icone('busca') }}Salvar e buscar vagas automaticamente</button>
-      {% if tres %}<button class="btn btn--secundario" type="submit" form="f-banco">Usar {{ 'as 3 vagas' if tres|length == 3 else ('a vaga' if tres|length == 1 else 'as ' ~ tres|length ~ ' vagas') }} de menor salário {{ 'que chegam na faixa' if r.faixa_pretendida and tres_alcanca else 'do banco' }}</button>{% endif %}
+      {% if tres %}<button class="btn btn--secundario" type="submit" form="f-banco">Usar {{ 'as 3 vagas' if tres|length == 3 else ('a vaga' if tres|length == 1 else 'as ' ~ tres|length ~ ' vagas') }} de menor salário {{ 'que chegam na faixa' if r.faixa_pretendida and tres_alcanca else 'do banco' }}{% if titulo_uso != r.cargo %} ({{ titulo_uso }}){% endif %}</button>{% endif %}
     </div>
     <p class="texto-apoio" style="margin: var(--esp-3) 0">O sistema prioriza as vagas de <b>menor salário</b> e o título exato.
-      {% if r.faixa_pretendida %}Com a faixa pretendida de {{ r.faixa_pretendida|brl }}, valem as de menor salário cuja <b>média chega na faixa</b>; as horas são ajustadas para o valor do plano ficar o mais perto dela.{% endif %} Se achar só 1 ou 2 vagas confirmadas, elas entram e as
-      outras pesquisas ficam como estavam. Clique numa pesquisa para abrir, conferir ou preencher à mão.
+      {% if r.faixa_pretendida %}Com a faixa pretendida de {{ r.faixa_pretendida|brl }}, valem as de menor salário cuja <b>média chega na faixa</b>; as horas são ajustadas para o valor do plano ficar o mais perto dela.{% endif %} Se achar só 1 ou 2 vagas confirmadas com o título do cargo, elas entram e as
+      outras pesquisas ficam em branco: vagas de títulos similares nunca completam as do cargo — elas aparecem em "Títulos com vagas", para você trocar as 3 de uma vez. Clique numa pesquisa para abrir, conferir ou preencher à mão.
       {% if tres|length < 3 %}Ainda não há 3 vagas válidas no banco; a coleta diária continua procurando.{% endif %}</p>
+    {% set outros_grupos = grupos|rejectattr('em_uso')|list %}
+    {% if titulos_misturados or outros_grupos|selectattr('vagas')|list or titulo_uso != r.cargo %}
+    <div class="cartao cartao--plano" id="t-titulos" style="margin-bottom: var(--esp-3)">
+      <h3 class="cartao__titulo">Títulos com vagas {{ ajuda('Títulos com vagas', 'As 3 pesquisas de um cargo têm de ser de vagas com o MESMO título: o do cargo ou um título similar. Vagas de títulos diferentes não vão juntas para o orçamento. Quando faltam vagas com o título do cargo, o sistema procura os títulos similares aceitos; os que têm 3 vagas (de empresas diferentes) aparecem aqui como opção. Ao escolher um título, as 3 pesquisas são trocadas de uma vez.') }}</h3>
+      {% if titulos_misturados %}<div class="aviso aviso--erro" role="status">{{ icone('erro') }}<div class="aviso__corpo"><b>As pesquisas deste cargo são de títulos diferentes</b>
+        ({{ titulos_misturados|join(' e ') }}). Vagas de títulos diferentes não vão juntas para o orçamento: escolha um título abaixo.</div></div>{% endif %}
+      <p class="texto-apoio">As 3 pesquisas são sempre de vagas com o mesmo título. Hoje estão com o título <b>{{ titulo_uso }}</b>{% if titulo_uso != r.cargo %} (similar ao cargo, escolhido por você){% endif %}.</p>
+      <ul class="lista-simples">
+      {% for g in grupos %}{% if g.em_uso or g.completo or not g.similar %}
+        <li class="linha linha--entre"><span><b>{{ g.titulo }}</b>
+          {% if not g.similar %}{{ selo('info', 'título do cargo') }}{% else %}{{ selo('alerta', 'título similar') }}{% endif %}
+          {% if g.em_uso %}{{ selo('ok', 'em uso') }}{% endif %}
+          <span class="texto-apoio">· {{ g.vagas|length }} de 3 {{ 'vaga' if g.vagas|length == 1 else 'vagas' }}{% if g.media %} · média {{ g.media|brl }}{% endif %}{% if r.faixa_pretendida and g.completo and not g.chega %} · não chega na faixa pretendida{% endif %}</span>
+          {% for x in g.vagas %}<div class="texto-apoio">{{ x.empresa }} — {{ x.faixa_min|brl }} · {{ x.plataforma }}{% if x.titulo %} · "{{ x.titulo }}"{% endif %}</div>{% endfor %}
+          {% if not g.vagas %}<div class="texto-apoio">Nenhuma vaga confirmada com este título.</div>{% endif %}</span>
+          {% if not g.em_uso or titulos_misturados %}<form method="post" action="/p/{{ pid }}/rh/{{ r.item }}/usar-titulo"><input type="hidden" name="titulo" value="{{ g.titulo }}">
+            <button class="btn btn--secundario" data-aguarde="Trocando…">{{ ('Usar as 3 vagas deste título' if g.completo else ('Usar ' ~ ('a vaga' if g.vagas|length == 1 else 'as ' ~ g.vagas|length ~ ' vagas') ~ ' deste título') if g.vagas else 'Voltar ao título do cargo') if g.similar or g.vagas else 'Voltar ao título do cargo' }}</button></form>{% endif %}</li>
+      {% endif %}{% endfor %}
+      </ul>
+      {% set incompletos = outros_grupos|selectattr('similar')|rejectattr('completo')|selectattr('vagas')|list %}
+      {% if incompletos %}<p class="texto-apoio">Ainda sem 3 vagas (não podem ser usados): {% for g in incompletos %}{{ g.titulo }} ({{ g.vagas|length }}){{ ', ' if not loop.last }}{% endfor %}. A coleta diária continua procurando.</p>{% endif %}
+    </div>
+    {% endif %}
     <div class="itens itens--vagas" id="lista-pesquisas" style="margin-bottom: 0">
       <div class="itens__cabecalho" aria-hidden="true"><span></span><span>Pesquisa</span><span>Empresa e vaga</span><span class="n">Salário</span><span>Site</span><span>Data</span><span>Página</span><span>Situação</span></div>
       {% for q in r.pesquisas %}{% set k = loop.index0 %}
@@ -217,7 +240,7 @@
       {% for v in banco %}{% set n = loop.index0 %}
       <tr><th scope="row" data-rotulo="Empresa, vaga e local">
           {% if v.pdf %}<a href="/vaga/pdf?url={{ v.url|urlencode }}" target="_blank">{{ icone('pdf') }}{{ v.empresa }}</a>{% else %}{{ v.empresa }}{% endif %}
-          <div class="texto-apoio">{{ v.titulo }}{% if v.similar %} {{ selo('alerta', 'título similar') }}{% endif %}{% if v.cidade or v.uf %} · {{ v.cidade or '' }}{% if v.uf %}/{{ v.uf }}{% endif %}{% endif %}
+          <div class="texto-apoio">{{ v.titulo }}{% if v.similar %} {{ selo('alerta', 'título similar: ' ~ v.titulo_busca, quebra=true) }}{% endif %}{% if v.cidade or v.uf %} · {{ v.cidade or '' }}{% if v.uf %}/{{ v.uf }}{% endif %}{% endif %}
             · <a href="{{ v.url }}" target="_blank" rel="noopener noreferrer">no site {{ icone('externo') }}<span class="so-leitor"> (abre o anúncio de {{ v.empresa }} em outra aba)</span></a></div></th>
         <td class="n" data-rotulo="Menor salário">{{ v.faixa_min|brl }}</td>
         <td data-rotulo="Site">{{ v.plataforma }}</td><td data-rotulo="Lida em">{{ v.coletada_em|data_br(false) }}</td>
@@ -225,7 +248,8 @@
           {% if v.cnpj %}<span class="num">{{ v.cnpj|cnpj }}</span>{% endif %}</div>
           {% if v.cnpj_motivo %}<details class="detalhe detalhe--leve detalhe--mini"><summary>{{ 'como foi confirmado' if v.cnpj_status == '🟢' else 'por quê' }}</summary><div class="detalhe__corpo texto-apoio">{{ v.cnpj_motivo }}</div></details>{% endif %}</td>
         <td data-rotulo="Usar na pesquisa"><div class="linha{% if v.usavel or not v.confirmavel %} linha--junta{% endif %}">
-          {% if v.usavel %}
+          {% if v.outro_titulo and v.cnpj_status == '🟢' %}<span class="texto-apoio">De outro título ({{ v.titulo_busca }}): para usar, escolha esse título em <a href="#t-titulos">Títulos com vagas</a>.</span>
+          {% elif v.usavel %}
           <span class="linha linha--junta" role="group" aria-label="Usar a vaga de {{ v.empresa }} na pesquisa">{% for k in range(3) %}
             <form method="post" action="/p/{{ pid }}/rh/{{ r.item }}/usar-vaga"><input type="hidden" name="url" value="{{ v.url }}"><input type="hidden" name="k" value="{{ k }}">
               <button class="btn btn--secundario btn--posicao" aria-pressed="{{ 'true' if v.em_uso == k else 'false' }}"
@@ -235,8 +259,14 @@
           <details class="detalhe detalhe--leve"><summary>Confirmar a empresa</summary>
             <form class="detalhe__corpo pilha" method="post" action="/p/{{ pid }}/rh/{{ r.item }}/vaga/confirmar">
               <input type="hidden" name="url" value="{{ v.url }}">
-              <p class="texto-apoio">O sistema não teve certeza de qual empresa é esta. Se você souber, informe o CNPJ de <b>{{ v.empresa }}</b>{% if v.cidade %} ({{ v.cidade }}{% if v.uf %}/{{ v.uf }}{% endif %}){% endif %}:
+              <p class="texto-apoio">O sistema não teve certeza de qual empresa é esta. Se você souber, {{ 'escolha abaixo ou ' if v.candidatos }}informe o CNPJ de <b>{{ v.empresa }}</b>{% if v.cidade %} ({{ v.cidade }}{% if v.uf %}/{{ v.uf }}{% endif %}){% endif %}:
                 ele confere se está ATIVO e guarda a página da vaga em PDF. Se houver pesquisa em branco, a vaga já entra nela.</p>
+              {% if v.candidatos %}<fieldset class="sem-borda"><legend class="campo__rotulo">Empresas ativas com esse nome na base da Receita</legend>
+                <ul class="lista-simples">{% for e in v.candidatos %}
+                  <li class="linha linha--entre"><span><b>{{ e.razao or e.fantasia }}</b>{% if e.fantasia and e.razao and e.fantasia != e.razao %} <span class="texto-apoio">({{ e.fantasia }})</span>{% endif %}
+                    <div class="texto-apoio"><span class="num">{{ e.cnpj|cnpj }}</span> · {{ e.municipio }}/{{ e.uf }}{% if e.na_cidade %} · {{ selo('ok', 'mesma cidade da vaga') }}{% elif e.na_uf %} · {{ selo('info', 'mesmo estado da vaga') }}{% endif %}{% if e.estabelecimentos > 1 %} · {{ e.estabelecimentos }} estabelecimentos{% endif %}</div></span>
+                    <button class="btn btn--secundario" name="cnpj_escolhido" value="{{ e.cnpj }}" formnovalidate data-aguarde="Conferindo…">É esta</button></li>{% endfor %}
+                </ul></fieldset>{% endif %}
               {{ campo('cnpj', 'CNPJ da empresa', id='c-vcnpj' ~ n, valor=(v.cnpj|cnpj) if v.cnpj else '', mascara='cnpj', obrigatorio=true, exemplo='00.000.000/0000-00', extra='data-preenche=""') }}
               <a class="texto-apoio" href="{{ link_busca_cnpj(v.empresa) }}" target="_blank" rel="noopener noreferrer">Procurar o CNPJ de {{ v.empresa }} {{ icone('externo') }}</a>
               <div><button class="btn btn--secundario" data-aguarde="Conferindo…">{{ icone('certo') }}Confirmar e guardar a vaga</button></div>

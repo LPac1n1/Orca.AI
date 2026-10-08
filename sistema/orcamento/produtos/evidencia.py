@@ -81,8 +81,26 @@ TENTATIVAS = 3
 BLOQUEIO = 'BLOQUEIO: a loja pediu verificação humana (CAPTCHA/anti-robô); o sistema não resolve CAPTCHA'
 
 
+# Avisos de cookies das ferramentas mais usadas pelos sites (Didomi na InfoJobs, OneTrust, Cookiebot, CookieYes, Usercentrics, Iubenda,
+# Complianz, Osano, TrustArc, Quantcast) e janelas de "entrar com o Google". Muitos aparecem com ATRASO, depois de a página ser limpa: uma
+# regra de estilo posta na página continua valendo para o que chegar depois (o LIMPAR só enxerga o que já está na tela). Nada é clicado.
+AVISOS_CSS = ('#didomi-host,#didomi-popup,.didomi-popup-backdrop,.didomi-notice-banner,#onetrust-consent-sdk,#onetrust-banner-sdk,.onetrust-pc-dark-filter,'
+              '#CybotCookiebotDialog,#CybotCookiebotDialogBodyUnderlay,.cky-consent-container,.cky-overlay,#usercentrics-root,#iubenda-cs-banner,'
+              '.cmplz-cookiebanner,.osano-cm-window,#truste-consent-track,.qc-cmp2-container,#tarteaucitronRoot,#cookie-law-info-bar,.cc-window,'
+              '#credential_picker_container,#credential_picker_iframe,iframe[src*="accounts.google.com/gsi"],'
+              'ins.adsbygoogle,iframe[src*="doubleclick"],iframe[src*="googlesyndication"],[id^="google_ads_iframe"],[id^="div-gpt-ad"]'
+              '{display:none!important;visibility:hidden!important}'
+              'html.didomi-popup-open,body.didomi-popup-open,body.modal-open{overflow:visible!important;position:static!important}')
+POR_AVISOS_CSS = ("(css)=>{if(!document.getElementById('estilo-orcamento')){const s=document.createElement('style');s.id='estilo-orcamento';"
+                  "s.textContent=css;(document.head||document.documentElement).appendChild(s);}}")
+
+
 async def limpar(p, manter=()):
-    """Oculta as janelas sobrepostas antes do PDF (ver LIMPAR). Devolve o que foi ocultado (para conferência)."""
+    """Oculta as janelas sobrepostas antes do PDF (ver LIMPAR e AVISOS_CSS). Devolve o que foi ocultado (para conferência)."""
+    try:
+        await p.evaluate(POR_AVISOS_CSS, AVISOS_CSS)
+    except Exception:
+        pass
     try:
         return await p.evaluate(LIMPAR, list(manter))
     except Exception:

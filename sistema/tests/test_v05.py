@@ -108,28 +108,68 @@ def _guardar(V, cargo, empresa, cnpj, sal, status='🟢', pdf=True, titulo=None)
     return v['url']
 
 
-def test_titulos_similares_completam_as_tres_vagas(cliente):
+def test_titulos_similares_sao_grupos_que_nao_se_misturam(cliente):
+    """Decisão da OSC (06/10/2026): vagas de títulos diferentes, mesmo similares, não vão juntas para o orçamento — ou um título, ou outro.
+    As vagas do título do cargo ficam gravadas (mesmo sendo 1 ou 2); os títulos similares com 3 vagas viram OPÇÃO, e a troca é das 3 de uma vez."""
     from orcamento import vagas as V
     assert 'Educador social' in V.sugestoes_similares('Orientadora Socioeducativa')
     _guardar(V, 'Orientador socioeducativo', 'Alfa', '11111111000111', 240000)
     _guardar(V, 'Educador social', 'Beta', '22222222000122', 210000)
     _guardar(V, 'Educador social', 'Gama', '33333333000133', 220000)
-    _guardar(V, 'Educador social', 'Alfa Filial', '11111111000292', 200000)          # mesma empresa (raiz do CNPJ) da vaga exata: não entra
+    _guardar(V, 'Educador social', 'Alfa Filial', '11111111000292', 200000)          # outra filial da Alfa: no grupo "Educador social" ela conta como empresa
+    _guardar(V, 'Agente social', 'Delta', '44444444000144', 190000)                  # título similar com 1 vaga só: não vira opção
     assert [v['empresa'] for v in V.tres_do_banco('Orientador socioeducativo')] == ['Alfa']
-    tres = V.tres_com_similares('Orientador socioeducativo', ['Educador social'])
-    assert [(v['empresa'], bool(v.get('similar'))) for v in tres] == [('Alfa', False), ('Beta', True), ('Gama', True)]
-    assert len(V.tres_com_similares('Orientador socioeducativo', [])) == 1
-    # na tela: o banco mostra as vagas dos títulos aceitos; ao usar, a pesquisa guarda o título e a verificação aponta (S04)
+    grupos = V.grupos_de_titulos('Orientador socioeducativo', ['Educador social', 'Agente social'])
+    assert [(g['titulo'], g['similar'], g['completo'], [v['empresa'] for v in g['vagas']]) for g in grupos] == [
+        ('Orientador socioeducativo', False, False, ['Alfa']), ('Educador social', True, True, ['Alfa Filial', 'Beta', 'Gama']), ('Agente social', True, False, ['Delta'])]
+    assert V.grupo_do_titulo('Educadora Social - Zona Sul', 'Orientador socioeducativo', ['Educador social']) == 'Educador social'
+    assert V.grupo_do_titulo('Orientador(a) Socioeducativo | SP', 'Orientador socioeducativo', ['Educador social']) == 'Orientador socioeducativo'
+    assert V.grupo_do_titulo('Psicólogo', 'Orientador socioeducativo', ['Educador social']) is None
     from orcamento import db, servico
     from orcamento.calculo import verificar
     pid = _novo(cliente)
     cliente.post(f'/p/{pid}/rubrica', data={'tipo': 'rh', 'nome': 'Orientador socioeducativo', 'quantidade': '3', 'horas_mes': '60', 'meses': '10'})
     pag = cliente.get(f'/p/{pid}/rh/1').text
     assert 'título similar' in pag and 'value="Educador social" checked' in pag
+    # o quadro "Títulos com vagas": o título do cargo (1 de 3, em uso), a opção com 3 vagas e, à parte, o título que ainda não tem 3
+    quadro = pag.split('id="t-titulos"')[1].split('id="lista-pesquisas"')[0]
+    assert 'Usar as 3 vagas deste título' in quadro and quadro.count('action="/p/%d/rh/1/usar-titulo"' % pid) == 1 and 'value="Educador social"' in quadro
+    assert 'Ainda sem 3 vagas (não podem ser usados): Agente social (1)' in quadro and 'value="Agente social"' not in quadro
+    # "usar as vagas do banco": só a vaga do título do cargo entra; as outras duas ficam em branco (nada de completar com o título similar)
     cliente.post(f'/p/{pid}/rh/1/vagas/banco')
     p = db.carregar(pid)[0]
-    assert [q.nome for q in p.rubricas[0].pesquisas] == ['ALFA', 'BETA', 'GAMA'] and p.rubricas[0].pesquisas[1].titulo_vaga == 'Educador social'
-    assert sum(a.regra == 'S04' for a in verificar(p)) == 2
+    assert [q.nome for q in p.rubricas[0].pesquisas] == ['ALFA', '', ''] and not any(a.regra in ('S04', 'S11') for a in verificar(p))
+    # uma vaga de outro título não entra numa pesquisa avulsa
+    r = cliente.post(f'/p/{pid}/rh/1/usar-vaga', data={'url': 'https://vagas.exemplo/beta', 'k': '1'}, follow_redirects=False)
+    assert 'vagas%20de%20t%C3%ADtulos%20diferentes' in r.headers['location'] and [q.nome for q in db.carregar(pid)[0].rubricas[0].pesquisas] == ['ALFA', '', '']
+    # a OSC escolhe o grupo "Educador social": as 3 pesquisas são trocadas de uma vez, e a verificação aponta cada uma (S04), sem mistura (S11)
+    r = cliente.post(f'/p/{pid}/rh/1/usar-titulo', data={'titulo': 'Educador social'}, follow_redirects=False)
+    assert r.status_code == 303 and '#t-pesq' in r.headers['location']
+    p = db.carregar(pid)[0]
+    assert p.rubricas[0].titulo_em_uso == 'Educador social' and servico.titulo_em_uso(p.rubricas[0]) == 'Educador social'
+    assert [q.nome for q in p.rubricas[0].pesquisas] == ['ALFA FILIAL', 'BETA', 'GAMA'] and all(q.titulo_vaga == 'Educador social' for q in p.rubricas[0].pesquisas)
+    assert sum(a.regra == 'S04' for a in verificar(p)) == 3 and not any(a.regra == 'S11' for a in verificar(p)) and servico.rh_pronto(p.rubricas[0])
+    pag = cliente.get(f'/p/{pid}/rh/1').text
+    quadro = pag.split('id="t-titulos"')[1].split('id="lista-pesquisas"')[0]
+    assert 'Hoje estão com o título <b>Educador social</b>' in quadro and 'value="Orientador socioeducativo"' in quadro   # dá para voltar ao título do cargo
+    # título que não tem 3 vagas não pode ser escolhido
+    r = cliente.post(f'/p/{pid}/rh/1/usar-titulo', data={'titulo': 'Agente social'}, follow_redirects=False)
+    assert 'n%C3%A3o%20tem%203%20vagas' in r.headers['location'] and db.carregar(pid)[0].rubricas[0].titulo_em_uso == 'Educador social'
+    # projeto antigo, com títulos misturados: a verificação aponta o erro (S11), o cargo não conta como pronto e a tela pede para escolher um título
+    p = db.carregar(pid)[0]
+    r0 = p.rubricas[0]
+    r0.titulo_em_uso = None
+    r0.pesquisas[0].titulo_vaga = 'Orientador Socioeducativo'
+    db.salvar(pid, p)
+    p = db.carregar(pid)[0]
+    assert servico.titulos_misturados(p.rubricas[0]) == ['Orientador socioeducativo', 'Educador social'] and not servico.rh_pronto(p.rubricas[0])
+    s11 = [a for a in verificar(p) if a.regra == 'S11']
+    assert len(s11) == 1 and s11[0].gravidade == 'erro' and 'não vão juntas para o orçamento' in s11[0].mensagem
+    assert 'As pesquisas deste cargo são de títulos diferentes' in cliente.get(f'/p/{pid}/rh/1').text
+    # voltar ao título do cargo: fica só a vaga dele; as do título similar saem
+    cliente.post(f'/p/{pid}/rh/1/usar-titulo', data={'titulo': 'Orientador socioeducativo'})
+    p = db.carregar(pid)[0]
+    assert p.rubricas[0].titulo_em_uso is None and [q.nome for q in p.rubricas[0].pesquisas] == ['ALFA', '', ''] and not servico.titulos_misturados(p.rubricas[0])
     # a OSC desmarca o título similar: ele deixa de valer para este cargo
     r = p.rubricas[0]
     dados = {'cargo': r.cargo, 'quantidade': '3', 'regime': r.regime, 'horas_mes': '60', 'meses': '10', 'similares_enviados': '1', 'similar': ['Agente social'],

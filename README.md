@@ -156,7 +156,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 252 ao todo. Num clone limpo, 250 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 255 ao todo. Num clone limpo, 253 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -195,6 +195,15 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 ## Últimas mudanças
 
 O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.md](sistema/LEIAME.md).
+
+- **08/10/2026 — vagas e horas**
+  - **Vagas de títulos diferentes não se misturam.** As 3 pesquisas de um cargo são sempre de vagas com o mesmo título. As do título do cargo ficam gravadas, mesmo sendo 1 ou 2; cada título similar é um grupo à parte, e os que têm 3 vagas aparecem como opção em "Títulos com vagas", na tela do cargo. A troca é das 3 de uma vez, e dá para voltar.
+  - **Título com extensão vale.** "Coordenador de Projetos | São Paulo", "Psicólogo - Coca-Cola" e "Orientador Socioeducativo - Educação" são o cargo. Palavra a mais antes do separador ("Psicólogo Clínico") continua sendo outro título.
+  - **Salário.** Qualquer salário mensal vale (não há mais o mínimo de R$ 1.000). Se o texto da vaga cita o salário, é o do texto que vale; valor por hora, dia ou aula não é salário mensal.
+  - **Empresa "em dúvida" com menos frequência.** Sede num estado e vaga em outro deixou de ser dúvida quando não existe outra empresa com o mesmo nome (ou quando o CNPJ é o do site oficial). O CNPJ escrito no texto da própria vaga é usado. Quando há empresas com o mesmo nome, a tela lista as da base da Receita para confirmar com um clique.
+  - **Páginas guardadas sem aviso por cima.** Os avisos de cookies que chegam atrasados e a propaganda no meio do anúncio (InfoJobs) são ocultados antes do PDF. Nada é clicado.
+  - **Apagar e refazer do zero** tira do banco todas as vagas dos cargos, inclusive as descartadas, e a consulta de CNPJ guardada: a vaga reencontrada passa por todo o processo de novo.
+  - **Horas por mês: no máximo 90** (configurável no projeto), e nunca acima da jornada legal do cargo. Vale para a faixa pretendida, para o "Fechar no teto" e para o que for digitado (a verificação aponta).
 
 - **06/10/2026**
   - **O sistema nunca substitui um item sozinho.** Antes, quando o produto pedido não existia igual em 3 lojas, a pesquisa trocava por outro (até por um produto de outro tipo: folha sulfite virou giz de cera, e dois itens viraram o mesmo grampeador). Agora só é gravado o item achado como foi pedido; o resto vira opção para você decidir na tela do item — substituir, mudar o pedido e pesquisar de novo, ou preencher à mão. Vale para a pesquisa completa e para a pesquisa de um item.
