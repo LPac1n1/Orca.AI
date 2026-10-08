@@ -115,7 +115,16 @@ ICONES = {   # desenhos de traço, 24×24, sem arquivos externos (o sistema func
     'vassoura': '<path d="M14 4l6 6"/><path d="M17 7 9 15"/><path d="M9 15c-3 0-5 2-6 5h8c2-1 3-3 2-5z"/>',
 }
 tpl.env.filters.update(moeda=moeda, data_br=data_br, duracao=duracao)
-tpl.env.globals.update(ICONES=ICONES, tarefas_ativas=tarefas_ativas, periodo_texto=periodo_texto)
+def ia_estado():
+    """O estado da IA para o topo de todas as telas (sem consultar a internet)."""
+    from orcamento import ia
+    try:
+        return ia.estado()
+    except Exception:
+        return dict(chave=False, situacao='sem_chave', rotulo='sem chave', hoje=0, esgotados=[], por_tipo=[], sessao={}, falha=None, ultima=None, modelo=None)
+
+
+tpl.env.globals.update(ICONES=ICONES, tarefas_ativas=tarefas_ativas, periodo_texto=periodo_texto, ia_estado=ia_estado)
 
 
 def cent(s):
@@ -377,6 +386,12 @@ def api_cnpj(numero: str):
     return JSONResponse({'ok': True, 'razao': b.get('razao'), 'situacao': b.get('situacao') or 'ATIVA', 'municipio': b.get('municipio'), 'uf': b.get('uf')})
 
 
+@app.get('/ia', response_class=HTMLResponse)
+def ia_tela(request: Request):
+    """A IA está sendo usada? Há chave, a cota gratuita de hoje acabou, o que ela respondeu hoje e para quê."""
+    return tpl.TemplateResponse(request, 'ia.html', dict(ia=ia_estado(), projetos_sem_ia=[x['nome'] for x in db.listar() if not db.carregar(x['id'])[0].config.usar_ia]))
+
+
 @app.get('/ajuda', response_class=HTMLResponse)
 def ajuda_tela(request: Request):
     return tpl.TemplateResponse(request, 'ajuda.html', dict(REGRAS=REGRAS))
@@ -563,6 +578,8 @@ def pesquisar_tudo(pid: int):
             elif r.subitens:
                 servicos.append(r.item)
         passos = max(1, len(cargos) + 2 * len(mats) + len(sistemas_)); n = 0
+        from orcamento import ia as _ia0
+        uso_ia = _ia0.marca()
         resumo_, a_decidir = {}, []
         for cargo, itens_c in cargos.items():
             if all(servico.rh_pronto(por_item[i]) for i in itens_c):
@@ -603,6 +620,17 @@ def pesquisar_tudo(pid: int):
         for item in servicos:
             resumo_[f'item {item}'] = 'serviço: fica com os 3 fornecedores do serviço (sem pesquisa automática)'
         consultar_cnpjs_que_faltam(db.carregar(pid)[0], ctx)
+        from orcamento import ia as _ia
+        uso = _ia.desde(uso_ia)
+        if not db.carregar(pid)[0].config.usar_ia:
+            ctx.aviso('A IA está desligada na configuração do projeto: nenhuma conferência por IA foi feita nesta pesquisa.')
+        elif not _ia.disponivel():
+            ctx.aviso('Este computador não tem a chave da IA: nenhuma conferência por IA foi feita nesta pesquisa (veja "IA", no alto da tela).')
+        elif uso['sem_resposta']:
+            ctx.aviso(f'IA: {uso["novas"]} resposta(s) nova(s), {uso["guardadas"]} reaproveitada(s) e {uso["sem_resposta"]} pergunta(s) sem resposta '
+                      f'({(_ia.estado().get("falha") or {}).get("motivo") or "serviço indisponível"}). O que dependia delas ficou para você decidir.')
+        resumo_['IA'] = ('desligada no projeto' if not db.carregar(pid)[0].config.usar_ia else 'sem chave neste computador' if not _ia.disponivel()
+                         else f'{uso["novas"]} resposta(s) nova(s), {uso["guardadas"]} reaproveitada(s), {uso["sem_resposta"]} sem resposta')
         if a_decidir:   # a pesquisa completa NUNCA substitui um item (decisão da OSC, 06/10/2026): o que não foi achado como pedido fica para ela decidir
             ctx.aviso(f'{len(a_decidir)} item(ns) não foram achados iguais em 3 lojas. NADA foi substituído: abra cada um e escolha uma opção de substituição '
                       '(quando houver), mude o pedido e pesquise de novo, ou preencha à mão — ' + '; '.join(f'item {i}: {d}' for i, d in a_decidir[:12])

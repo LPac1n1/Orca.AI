@@ -2,6 +2,25 @@
 
 Monta e confere a **Grade Comparativa** e o **Plano de Aplicação** de projetos sociais para o órgão que vai analisá-los. Já vem com as regras estabelecidas pela Secretaria da Justiça e Cidadania de SP (SEJC) (o levantamento está em [../FASE0_SEJC.md](../FASE0_SEJC.md)); as de qualquer outro órgão são cadastradas pela tela "Órgãos". As decisões da OSC e os testes que justificam cada regra estão em [../FASE1B_RESULTADOS.md](../FASE1B_RESULTADOS.md).
 
+## Busca de produtos por etapas, fotos na conferência e IA à vista (08/10/2026) — testes em `tests/test_decidir.py` e `tests/test_ia_visivel.py`
+
+**Etapas (pedido da OSC).** "Buscar o item → achou em 3 lojas, ótimo → senão, o mesmo item de outra marca/especificação/tamanho/cor → senão, itens semelhantes → trazer todas as opções para escolher → o que foi achado igual fica gravado; o resto, em branco, com as opções de troca juntas." A OSC confirmou: a 2ª etapa é OPÇÃO, não grava sozinha.
+
+| Etapa | Como é feita |
+|---|---|
+| 1. O item como foi pedido | A busca de sempre (`cesta.pesquisar`). Só o que `cesta.atende_o_pedido` é gravado |
+| 2. O mesmo item, mais largo | `servico.pedidos_mais_largos`: o pedido sem a marca, sem a especificação e sem as duas (a marca escrita na descrição e a medida no fim dela contam). `servico._etapa_mais_larga` faz UMA segunda busca só com os itens que faltaram e junta o que achou — o mesmo produto nas 3 lojas — às opções do item, com `mais_largo` (o que saiu do pedido) e `nivel=1`. Teste real: "Folha Sulfite Chamex 500 Folhas" (só em 2 lojas) passou a oferecer o papel Report nas 3 |
+| 3. Itens parecidos | Os níveis 1 e 2 do motor (outro tamanho ou variante; mesmo tipo de produto), que já vinham da 1ª busca |
+| 4. Outro tipo de produto | Os produtos da categoria da rubrica, recolhidos no fim do quadro |
+
+Na tela do item, as opções vêm nessa ordem. O teste real mostrou "Lápis de Olhos" como opção para "Lápis Grafite": `identidade.DE_BELEZA` barra produto de beleza quando o pedido não fala disso.
+
+**Fotos.** `lojas.vtex` guarda o endereço da foto de cada anúncio; para as outras lojas, `ia.foto_da_pagina` lê a foto principal da página do produto. `ia.mesmo_produto_com_fotos` manda os nomes e as fotos na MESMA pergunta (`perguntar(..., partes=…)`); com menos de 2 fotos, é a pergunta só pelos nomes. A instrução diz o que é diferença (outra marca, modelo, cor, quantidade) e o que não é (ângulo, fundo, embalagem aberta). A opção guarda `ia.fotos` (quantas foram comparadas), e as telas dizem "comparou os nomes e N fotos". Produto com o mesmo código de barras nas 3 lojas não precisa de foto.
+
+**IA à vista.** `ia.estado()` (sem consultar a internet): `sem_chave`, `pronta`, `parcial` (um modelo esgotou a cota de hoje; o seguinte assume) ou `esgotada`; respostas de hoje por tipo de uso; perguntas sem resposta desde que o sistema abriu, com o motivo da última. `ia.marca()`/`ia.desde()` medem o uso numa tarefa. Telas: indicador no topo (`base.html`), `/ia` (`ia.html`), linha "IA nesta pesquisa" na proposta, aviso e resumo no "Pesquisar tudo", estado na configuração do projeto. O sistema não afirma números de cota: mostra o que aconteceu.
+
+**"Pesquisar tudo".** Segue as mesmas etapas, porque chama as mesmas funções: vagas por título (grupos), produtos por etapas, comprovante pela página. O resumo ganhou a linha da IA.
+
 ## Comprovante dos produtos: a página, não o carrinho (08/10/2026) — testes em `tests/test_comprovante.py`
 
 Pedido da OSC: "Não é preciso colocar o produto no carrinho. O comprovante deve ser a página, para todos os produtos" e, depois, "se o valor total da quantidade não puder ser visto na página (ex.: 20 sucos de uva 1 L), pode usar o carrinho, se for a única maneira".
@@ -334,7 +353,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 259 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 263 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;

@@ -456,7 +456,7 @@ class Motor:
             dist, perdidos = ID.distancia(it['desc'], g, nv, lojas, it['familia'], peso_ean=0)   # EAN confirma a identidade; o preço decide
         ofs = [g['por_loja'][l] for l in lojas]
         n_ean = sum(1 for x in ofs if x.get('ean'))
-        campos = ('loja', 'nome', 'titulo', 'marca', 'ean', 'preco', 'url', 'sku', 'seller', 'vendedor', 'loja_gpa')
+        campos = ('loja', 'nome', 'titulo', 'marca', 'ean', 'preco', 'url', 'sku', 'seller', 'vendedor', 'loja_gpa', 'imagem')
         return dict(nivel=nv, distancia=round(dist, 1), perdidos=perdidos, lojas=list(lojas), ean_em=n_ean, substituto=substituto, misto=misto,
                     confirmacao='mesma especificação, marcas diferentes' if misto
                     else 'EAN nas 3 lojas' if n_ean == 3 and len({x['ean'].lstrip('0') for x in ofs}) == 1 else 'descrição',
@@ -641,7 +641,19 @@ class Motor:
                     e = eans.most_common(1)[0][0]                                     # a IA só compara o anúncio sem EAN com o nome mais completo dos 2
                     com = [x.get('titulo') or x['nome'] for x in o['ofertas'] if x.get('ean') and x['ean'].lstrip('0') == e]
                     nomes = [max(com, key=len)] + [x.get('titulo') or x['nome'] for x in o['ofertas'] if not (x.get('ean') and x['ean'].lstrip('0') == e)]
-                r = ia.mesma_especificacao(o.get('substituto') or d, nomes, self.projeto_id) if o.get('misto') else ia.mesmo_produto(nomes, self.projeto_id)
+                fotos = None
+                if o.get('misto'):
+                    r = ia.mesma_especificacao(o.get('substituto') or d, nomes, self.projeto_id)
+                else:   # os nomes E as fotos dos 3 anúncios, na mesma pergunta (a foto de quem não a traz na busca é lida da página do produto)
+                    por_nome = {(x.get('titulo') or x['nome']): x for x in o['ofertas']}
+                    enderecos = []
+                    for n in nomes:
+                        x = por_nome.get(n) or {}
+                        if not x.get('imagem') and x.get('url'):
+                            x['imagem'] = ia.foto_da_pagina(x['url'])
+                        enderecos.append(x.get('imagem'))
+                    rf = ia.mesmo_produto_com_fotos(nomes, enderecos, self.projeto_id)
+                    r, fotos = (rf[:2], dict(comparadas=rf[2], parecer=rf[3])) if rf else (None, None)
                 if r is None:   # uma resposta ruim não pode desligar a conferência dos outros itens
                     o['ia_sem_resposta'] = True
                     sem_resposta += 1
@@ -651,7 +663,7 @@ class Motor:
                                            'sem a conferência dela — confira os marcados com 🟡.')
                         return escolha
                     continue
-                o['ia'] = dict(mesmo_produto=r[0], motivo=r[1])
+                o['ia'] = dict(mesmo_produto=r[0], motivo=r[1], **({'fotos': fotos['comparadas'], 'fotos_parecer': fotos['parecer']} if fotos and fotos['comparadas'] else {}))
                 if not r[0] and not o.get('codigos_diferentes'):
                     opcoes[d] = [x for x in opcoes[d] if x is not o]; mudou = True
                     self.rejeitadas_ia[d].append(dict(produtos=[x.get('titulo') or x['nome'] for x in o['ofertas']], motivo=r[1], nivel=o['nivel'],

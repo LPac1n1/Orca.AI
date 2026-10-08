@@ -573,11 +573,85 @@ def desfazer_substituicao(s):
     return era
 
 
+def pedidos_mais_largos(s):
+    """2ª etapa da pesquisa de um item (pedido da OSC, 08/10/2026): quando o item não existe igual em 3 lojas, procura-se o MESMO item pedido
+    de forma mais larga — sem a marca, sem a especificação (tamanho, cor, tipo) e sem as duas —, do mais perto do pedido para o mais longe.
+    Devolve [(pedido mais largo, [o que saiu do pedido])]. A marca escrita dentro da descrição e a medida no fim dela ("Suco de Uva 1L")
+    contam como marca e especificação. O que for achado assim é OPÇÃO para a OSC: nada é trocado sem ela escolher."""
+    from .modelo import _juntar
+    if s.descricao_original:
+        desc, marca, esp = s.descricao_original, s.marca_original, (s.especificacao if s.especificacao_original is None else s.especificacao_original)
+    else:
+        desc, marca, esp = s.descricao, s.marca, s.especificacao
+    desc, marca, esp = T.arrumar_item(desc, marca, esp)
+    if not esp:
+        nome, medida = T.separar_medida(desc)
+        if medida and ID.palavras_tipo(nome):
+            desc, esp = nome, medida
+    vistos, out = {ID.sa(pedido_do_subitem(s))}, []
+    for novo, saiu in ((_juntar(desc, None, esp), [f'a marca {marca}'] if marca else None),
+                       (_juntar(desc, marca, None), [f'a especificação {esp}'] if esp else None),
+                       (desc, [f'a marca {marca}', f'a especificação {esp}'] if marca and esp else None)):
+        if saiu and ID.sa(novo) not in vistos and ID.palavras_tipo(novo):
+            vistos.add(ID.sa(novo)); out.append((novo, saiu))
+    return out
+
+
+class _Parte:
+    """O andamento de uma etapa dentro do andamento da tarefa (a 2ª etapa da pesquisa ocupa só o fim da barra)."""
+
+    def __init__(self, ctx, ini, fim):
+        self.ctx, self.ini, self.fim, self.id = ctx, ini, fim, getattr(ctx, 'id', 0)
+
+    def progresso(self, pct, etapa=None):
+        self.ctx.progresso(self.ini + (self.fim - self.ini) * pct / 100, etapa)
+
+    def etapa(self, t): self.ctx.etapa(t)
+    def fonte(self, *a, **k): self.ctx.fonte(*a, **k)
+    def aviso(self, m): self.ctx.aviso(m)
+
+
+async def _etapa_mais_larga(res, subs, lojas, p, pid, ctx, outros, usados):
+    """Acrescenta a res['opcoes'] de cada item que NÃO foi achado como pedido as opções "o mesmo item, de outra marca ou especificação":
+    o mesmo produto nas 3 lojas, achado com o pedido mais largo (pedidos_mais_largos). Devolve quantos itens ganharam opções."""
+    largos = {}
+    for s in subs:
+        pedido = pedido_do_subitem(s)
+        if any(cesta.atende_o_pedido(o) for o in res['opcoes'].get(pedido, [])):
+            continue
+        for novo, saiu in pedidos_mais_largos(s):
+            largos.setdefault(novo, dict(familia=s.familia, alvos=[]))['alvos'].append((pedido, saiu))
+    if not largos:
+        return 0
+    ctx.etapa(f'{len({a[0] for v in largos.values() for a in v["alvos"]})} item(ns) não achado(s) como pedido(s): procurando o mesmo item de outra marca ou especificação')
+    try:
+        res2 = await cesta.pesquisar([dict(desc=d, qtd=1, familia=v['familia'], valor_ref=None) for d, v in largos.items()], lojas, _cep(p), _Parte(ctx, 92, 99),
+                                     'por_item', p.config.usar_ia, pid, None, (), False, outros=list(outros) + [x[0] for v in largos.values() for x in v['alvos']],
+                                     usados=usados)
+    except Exception as e:   # a 2ª etapa é um acréscimo: se falhar, vale o resultado da 1ª
+        ctx.aviso(f'A procura pelo mesmo item de outra marca ou especificação não terminou ({type(e).__name__}); valem as opções da primeira busca.')
+        return 0
+    ganharam = set()
+    for novo, v in largos.items():
+        for o in res2['opcoes'].get(novo, []):
+            if o.get('nivel') or o.get('misto'):   # só o que É o pedido mais largo: o mesmo produto nas 3 lojas
+                continue
+            chave = tuple(sorted((x['loja'], x['url']) for x in o['ofertas']))
+            for pedido, saiu in v['alvos']:
+                ja = {tuple(sorted((x['loja'], x['url']) for x in y['ofertas'])) for y in res['opcoes'].get(pedido, [])}
+                if chave not in ja and sum(1 for y in res['opcoes'].get(pedido, []) if y.get('mais_largo')) < 4:
+                    res['opcoes'].setdefault(pedido, []).append(dict(o, nivel=1, perdidos=list(saiu), mais_largo=dict(pedido=novo, sem=list(saiu)),
+                                                                     distancia=1.0 + 0.5 * len(saiu)))
+                    ganharam.add(pedido)
+    return len(ganharam)
+
+
 async def pesquisar_rubrica(pid, item, ctx, somente=None, sem_lojas=(), respeitar_teto=True):
     """somente: pedidos dos subitens a pesquisar (os outros ficam como estão; o teto desconta o valor deles).
     sem_lojas: lojas que não entram nesta pesquisa (nova pesquisa de um item "em outras lojas").
     respeitar_teto=False: nova pesquisa de um item só — o item não é retirado para caber no teto da rubrica."""
     p, _ = db.carregar(pid)
+    uso_ia = ia.marca()   # para a proposta dizer se a IA foi usada nesta pesquisa (e quantas perguntas ficaram sem resposta)
     r = _rubrica(p, item)
     subs = [s for s in r.subitens if somente is None or pedido_do_subitem(s) in somente]
     itens = [dict(desc=pedido_do_subitem(s), qtd=s.qtd, familia=s.familia, valor_ref=_valor_ref(s)) for s in subs]
@@ -595,6 +669,8 @@ async def pesquisar_rubrica(pid, item, ctx, somente=None, sem_lojas=(), respeita
     res = await cesta.pesquisar(itens, lojas, _cep(p), ctx, p.config.modo_cesta, p.config.usar_ia, pid, L.setor_da_rubrica(r.descricao) if categoria else None,
                                 r.extras if categoria else (), False,   # nunca marcas diferentes: as 3 lojas têm de ter exatamente o mesmo produto
                                 outros=outros, usados=usados)
+    # 2ª etapa: o que não foi achado como pedido é procurado de forma mais larga (outra marca, outra especificação) — vira opção, nunca troca
+    await _etapa_mais_larga(res, subs, lojas, p, pid, ctx, outros, usados)
     ext = None
     if r.teto_mensal and r.extras:
         ctx.etapa('Pesquisando os itens extras da rubrica (para o caso de sobrar muito do teto)')
@@ -609,7 +685,8 @@ async def pesquisar_rubrica(pid, item, ctx, somente=None, sem_lojas=(), respeita
     opc_itens, todas = [], {}
     for it in itens:
         ops = [o for o in res['opcoes'].get(it['desc'], []) if all(usados.get((x['loja'], x['url']), it['desc']) == it['desc'] for x in o['ofertas'])]
-        ops.sort(key=lambda o: (not cesta.atende_o_pedido(o), o.get('nivel') or 0))   # o item como foi pedido primeiro; depois, do mais perto do pedido para o mais longe
+        # o item como foi pedido primeiro; depois, do mais perto do pedido para o mais longe (o mesmo item de outra marca antes do item parecido)
+        ops.sort(key=lambda o: (not cesta.atende_o_pedido(o), o.get('nivel') or 0, not o.get('mais_largo'), o.get('distancia') or 0))
         esc = res['escolha'].get(it['desc'])
         if esc and esc in ops and cesta.atende_o_pedido(esc):  # a escolha do motor vem primeiro
             ops.remove(esc); ops.insert(0, esc)
@@ -654,6 +731,7 @@ async def pesquisar_rubrica(pid, item, ctx, somente=None, sem_lojas=(), respeita
     return dict(pid=pid, item=item, modo=res['modo'], trio=res['trio'], lojas=lojas, teto=teto_r, status_teto=t.get('status'), somente=somente,
                 entendido=res.get('entendido') or {},
                 total=t.get('total'), sobra=t.get('sobra'), linhas=linhas, lojas_incompletas=res['lojas_incompletas'],
+                ia=dict(ia.desde(uso_ia), ligada=bool(p.config.usar_ia), chave=ia.disponivel()),
                 buscas=res['buscas'], falhas=res['falhas'], ir_para=f'/p/{pid}/mat/{item}/proposta/{ctx.id}')
 
 
@@ -1158,6 +1236,8 @@ async def aplicar_proposta(pid, item, proposta, ctx):
         if o['nivel'] == 3:
             just.insert(0, f"troca por produto da categoria da rubrica ({o.get('substituto')}): o item pedido não existe igual em 3 lojas, nem de outra marca, "
                            f"nem parecido, nem da mesma família")
+        elif o.get('mais_largo'):
+            just.insert(0, f"o mesmo item, sem {' e sem '.join(o['mais_largo']['sem'])} (o item como foi pedido não existe igual em 3 lojas)")
         elif o['nivel'] and not o.get('trio_ia'):
             just.insert(0, f"troca por item {'parecido' if o['nivel'] == 1 else 'relacionado'}" + (f" (perdeu: {', '.join(o['perdidos'])})" if o['perdidos'] else ''))
         elif not o['nivel'] and o.get('perdidos'):

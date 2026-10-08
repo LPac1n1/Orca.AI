@@ -156,7 +156,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 259 ao todo. Num clone limpo, 257 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 263 ao todo. Num clone limpo, 261 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -195,6 +195,12 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 ## Últimas mudanças
 
 O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.md](sistema/LEIAME.md).
+
+- **08/10/2026 — busca por etapas, fotos e IA à vista**
+  - **Busca de produtos por etapas.** Primeiro o item como foi pedido; se ele não existe igual em 3 lojas, o sistema procura o mesmo item de outra marca ou especificação (sem a marca, sem a especificação, sem as duas); depois, itens parecidos. Tudo o que for achado aparece junto, como opção, do mais perto do pedido para o mais longe. Nada é trocado sem você escolher.
+  - **A IA também olha as fotos.** A foto de cada anúncio vai junto com os nomes, na mesma pergunta (não gasta a cota a mais). Foto que mostra claramente outro produto derruba a opção; foto de outro ângulo não conta.
+  - **IA à vista.** O indicador "IA", no alto de todas as telas, mostra se ela está ligada, sem chave ou sem cota hoje. A tela "IA" explica a cota gratuita e mostra o uso do dia; a proposta e o "Pesquisar tudo" dizem quantas perguntas ficaram sem resposta.
+  - Produto de beleza com nome de material de escritório ("lápis para olhos") deixou de aparecer como opção.
 
 - **08/10/2026 — comprovante dos produtos**
   - **O comprovante de cada preço é a página do produto**, um PDF por produto, em todas as lojas. A faixa do alto diz a quantidade do plano, o preço unitário e o total. O carrinho da loja só entra quando é a única maneira: a loja cobra outro preço unitário pela quantidade do plano (atacado "a partir de 3 unidades", promoção, limite por pedido), a página não mostra o preço que vale no CEP ou a loja barra a página. Quem preferir o carrinho escolhe na configuração do projeto.

@@ -410,9 +410,16 @@ def troca_ok(desc, nome, nivel, familia=None):
     return True
 
 
+# Produto de beleza com nome de material de escritório ("lápis para olhos", "caneta delineadora", "borracha para sobrancelha"): as farmácias
+# vendem os dois. Só vale quando o PEDIDO fala disso (teste real de 08/10/2026: "Lápis Grafite" recebia "Lápis de Olhos Preto Intenso" como opção).
+DE_BELEZA = re.compile(r'\b(olhos?|sobrancelhas?|labial|labiais|labios|batom|boca|maquiagem|delineador\w*|kajal|unhas?|cilios|cabelos?|facial)\b')
+
+
 def nivel(desc, nome, outros_itens=(), familia=None):
     """Nível do anúncio para o item (0/1/2) ou None. Um substituto nunca é outro item da mesma cesta."""
     if not cabeca_ok(desc, nome, familia) or negado(desc, nome, familia):
+        return None
+    if DE_BELEZA.search(sa(nome)) and not DE_BELEZA.search(sa(desc)):
         return None
     for nv in (0, 1, 2):
         if not compativel(desc, nome, nv, familia):

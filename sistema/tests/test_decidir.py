@@ -485,3 +485,111 @@ def test_item_sem_nenhuma_opcao_diz_o_que_existe_em_2_lojas(cliente, monkeypatch
     for texto in ('1. Substituir', 'Só há produtos de outro tipo, da categoria da rubrica', 'Ver também produtos de outro tipo, da categoria da rubrica (1)', 'Trocar por este', '2. Não substituir'):
         assert texto in quadro, texto
     assert '1. Usar uma destas opções' not in quadro and 'Usar esta opção' not in quadro
+
+
+def test_segunda_etapa_procura_o_mesmo_item_de_outra_marca_e_oferece_como_opcao(cliente, monkeypatch):
+    """Pedido da OSC (08/10/2026): item → achou igual em 3 lojas, ótimo → senão, o MESMO item de outra marca ou especificação → senão, itens
+    parecidos → tudo o que foi achado vira OPÇÃO, junto, para ela escolher. Caso real: "Folha Sulfite Chamex 500 Folhas" só existia em
+    2 lojas e a pesquisa não oferecia nada; sem a marca, o papel Report existia nas 3."""
+    from orcamento import db, servico
+    from orcamento.modelo import Subitem
+    from orcamento.produtos import cesta
+    # os pedidos mais largos, do mais perto do pedido para o mais longe
+    largos = servico.pedidos_mais_largos(Subitem(descricao='Folha Sulfite', marca='Chamex', especificacao='500 Folhas', qtd=1))
+    assert largos == [('Folha Sulfite 500 Folhas', ['a marca Chamex']), ('Folha Sulfite Chamex', ['a especificação 500 Folhas']),
+                      ('Folha Sulfite', ['a marca Chamex', 'a especificação 500 Folhas'])]
+    assert servico.pedidos_mais_largos(Subitem(descricao='Folha Sulfite Chamex 500 Folhas', qtd=1)) == largos        # a marca e a medida escritas na descrição contam
+    assert servico.pedidos_mais_largos(Subitem(descricao='Suco de Uva 1L', qtd=1)) == [('Suco de Uva', ['a especificação 1L'])]
+    assert servico.pedidos_mais_largos(Subitem(descricao='Caneta Esferográfica Azul', qtd=1)) == []                   # sem marca nem especificação: não há o que alargar
+    pid = _projeto(cliente)
+    p = db.carregar(pid)[0]
+    p.rubricas[0].subitens[0].marca = 'Chamex'
+    db.salvar(pid, p)
+    chamex = 'Folha Sulfite Chamex 500 Folhas'
+    base = _resultado_do_motor()
+    report, giz, clips = base['opcoes'][SULFITE][2], base['opcoes'][SULFITE][0], base['opcoes']['Clips 100 Unidades'][0]
+    report = dict(report, codigos_diferentes=False, confirmacao='EAN nas 3 lojas', ia=None)        # sem a marca, o Report existe igual nas 3 lojas
+    pedidos = []
+
+    async def pesquisar(itens, *a, **k):
+        ds = [i['desc'] for i in itens]
+        pedidos.append(ds)
+        if chamex in ds:                                                                             # 1ª etapa: o item como foi pedido
+            return dict(base, escolha={chamex: giz, 'Clips 100 Unidades': clips}, opcoes={chamex: [giz], 'Clips 100 Unidades': [clips]})
+        return dict(base, escolha={}, opcoes={'Folha Sulfite 500 Folhas': [report], 'Folha Sulfite Chamex': [dict(giz, nivel=1)], 'Folha Sulfite': [report]})
+    monkeypatch.setattr(cesta, 'pesquisar', pesquisar)
+    monkeypatch.setattr('playwright.async_api.async_playwright', lambda: _NavegadorFalso())
+    prop = asyncio.run(servico.pesquisar_rubrica(pid, 1, Ctx()))
+    # a 2ª busca só leva o item que faltou, nas 3 formas mais largas (o Clips foi achado como pedido: não é procurado de novo)
+    assert pedidos == [[chamex, 'Clips 100 Unidades'], ['Folha Sulfite 500 Folhas', 'Folha Sulfite Chamex', 'Folha Sulfite']]
+    l = next(x for x in prop['linhas'] if x['desc'] == chamex)
+    assert l['acao'] == 'RETIRADO' and l['opcao_dados'] is None and l['decidir'] == 2                # nada é trocado: o Report é só uma opção
+    ops = db.produtos_do_banco(pid, 1)[chamex]['opcoes']
+    assert [(o['nivel'], bool(o.get('mais_largo')), o['atende']) for o in ops] == [(1, True, False), (3, False, False)]   # o mesmo item de outra marca antes do produto de outro tipo
+    assert ops[0]['mais_largo'] == dict(pedido='Folha Sulfite 500 Folhas', sem=['a marca Chamex']) and ops[0]['perdidos'] == ['a marca Chamex']   # (o mesmo produto achado em "Folha Sulfite" não se repete)
+    assert not cesta.atende_o_pedido(ops[0]) and [x['preco'] for x in ops[0]['ofertas']] == [2670, 2999, 3199]
+    # a tela do item mostra a opção com o que saiu do pedido
+    asyncio.run(servico.aplicar_proposta(pid, 1, dict(prop, linhas=[l]), Ctx()))
+    quadro = cliente.get(f'/p/{pid}/mat/1').text.split('id="decidir0"')[1].split('id="repesquisar0"')[0]
+    for texto in ('O mesmo item, sem a marca Chamex', 'Achado ao procurar "Folha Sulfite 500 Folhas"', 'Papel Sulfite Report 75g A4 500 Folhas Resma', 'Substituir por esta opção',
+                  'primeiro o mesmo item (de outra marca ou especificação)', 'Ver também produtos de outro tipo, da categoria da rubrica (1)'):
+        assert texto in quadro, texto
+
+
+def test_fotos_dos_produtos_vao_junto_com_os_nomes_na_mesma_pergunta(monkeypatch):
+    """Pedido da OSC (08/10/2026): conferir também se a IMAGEM dos produtos é igual. A foto de cada anúncio vai com os nomes, na mesma pergunta
+    à IA (não gasta uma pergunta a mais). Foto que mostra outro produto derruba a opção; sem fotos, vale a pergunta pelos nomes."""
+    from orcamento import ia
+    from orcamento.produtos import cesta
+    assert ia.foto_pequena('https://loja.vteximg.com.br/arquivos/ids/155678/caneta.jpg?v=1') == 'https://loja.vteximg.com.br/arquivos/ids/155678-400-400/caneta.jpg?v=1'
+    assert ia.foto_pequena('https://loja.exemplo/img/caneta.jpg') == 'https://loja.exemplo/img/caneta.jpg'
+    perguntas = []
+
+    def perguntar(tipo, instrucao, dados, projeto_id=None, tentativas=4, forte=False, partes=None):
+        perguntas.append((tipo, dados, partes, instrucao))
+        return dict(mesmo_produto=False, motivo='a foto do anúncio 2 mostra a caneta preta', fotos='diferentes') if partes else dict(mesmo_produto=True, motivo='nomes iguais')
+    monkeypatch.setattr(ia, 'disponivel', lambda: True)
+    monkeypatch.setattr(ia, 'perguntar', perguntar)
+    monkeypatch.setattr(ia, 'foto_da_pagina', lambda url: url.replace('/p', '/foto.jpg') if 'gimba' in url else None)      # a loja que não traz a foto na busca
+    monkeypatch.setattr(ia, 'baixar_foto', lambda url: ('image/jpeg', b'JPEG' + url.encode()) if url else None)
+    m = _motor_caneta()
+    m.usar_ia = True
+    for x in m.ofertas[(CANETA, 0)]:
+        if x['loja'] != 'gimba':
+            x['imagem'] = x['url'].replace('/p', '/foto-da-busca.jpg')
+    opcoes = m._opcoes_por_item(m._grupos())
+    escolha = m._conferir_com_ia(opcoes, m.escolher(opcoes, m.itens))
+    tipo, dados, partes, instrucao = perguntas[0]
+    assert tipo == 'mesmo_produto_fotos' and len(partes) == 2 and all(p['inline_data']['mime_type'] == 'image/jpeg' for p in partes)   # 2 anúncios: o de mesmo código de barras entra uma vez só
+    assert len(dados['fotos']) == 2 and 'foto.jpg' in ' '.join(dados['fotos']) and 'FOTOS dos anúncios' in instrucao and 'o ângulo' in instrucao
+    assert escolha[CANETA] is None and opcoes[CANETA] == [] and m.rejeitadas_ia[CANETA][0]['motivo'].startswith('a foto do anúncio 2')   # a foto derrubou a opção
+    # as fotos são iguais: a opção vale, e fica dito que a IA comparou os nomes e as fotos
+    perguntas.clear()
+    monkeypatch.setattr(ia, 'perguntar', lambda tipo, instrucao, dados, projeto_id=None, tentativas=4, forte=False, partes=None:
+                        perguntas.append(tipo) or dict(mesmo_produto=True, motivo='mesma caneta', fotos='iguais'))
+    m = _motor_caneta()
+    m.usar_ia = True
+    for x in m.ofertas[(CANETA, 0)]:
+        x['imagem'] = x['url'] + '.jpg'
+    opcoes = m._opcoes_por_item(m._grupos())
+    o = m._conferir_com_ia(opcoes, m.escolher(opcoes, m.itens))[CANETA]
+    assert cesta.atende_o_pedido(o) and o['ia'] == dict(mesmo_produto=True, motivo='mesma caneta', fotos=2, fotos_parecer='iguais') and perguntas == ['mesmo_produto_fotos']
+    assert all('imagem' in x for x in o['ofertas'])                                       # o endereço da foto fica guardado na opção
+    # nenhuma loja tem foto: a pergunta é só pelos nomes, como antes
+    perguntas.clear()
+    monkeypatch.setattr(ia, 'foto_da_pagina', lambda url: None)
+    m = _motor_caneta()
+    m.usar_ia = True
+    opcoes = m._opcoes_por_item(m._grupos())
+    o = m._conferir_com_ia(opcoes, m.escolher(opcoes, m.itens))[CANETA]
+    assert perguntas == ['mesmo_produto'] and o['ia'] == dict(mesmo_produto=True, motivo='mesma caneta')
+
+
+def test_produto_de_beleza_nao_e_material_de_escritorio():
+    """Teste real de 08/10/2026: "Lápis Grafite" recebia "Lápis de Olhos Preto Intenso", de farmácia, como opção."""
+    from orcamento.produtos import identidade as ID
+    for pedido, anuncio in (('Lápis Grafite', 'Lápis de Olhos Vult Cor Preto Intenso 1,1g'), ('Lápis Preto', 'Lápis Para Olhos Vult Preto Intenso'),
+                            ('Tesoura', 'Tesoura para Unhas Curva'), ('Lápis Preto', 'Lápis Labial Pencil')):
+        assert ID.nivel(pedido, anuncio, [], None) is None, anuncio
+    assert ID.nivel('Lápis Preto', 'Lápis Preto HB nº2 Faber-Castell', [], None) == 0 and ID.nivel('Tesoura', 'Tesoura Escolar 13cm', [], None) == 0
+    assert ID.nivel('Lápis para Olhos Preto', 'Lápis Para Olhos Vult Preto Intenso', [], None) == 0        # quando é isso que se pede, vale

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icone, selo %}
+{% block titulo %}Inteligência artificial{% endblock %}
+{% block corpo %}
+<header class="cabecalho">
+  <h1>Inteligência artificial</h1>
+  <p class="cabecalho__intro">O sistema usa a IA gratuita do Google (Gemini) só nos casos de dúvida: para confirmar que três anúncios são o mesmo produto,
+    entender o pedido de um item, sugerir títulos de cargo parecidos ou ler os planos de um sistema. Ela nunca decide sozinha o que vai para o orçamento:
+    as regras do sistema conferem cada resposta. Sem a IA, as pesquisas funcionam, mas mais itens ficam para você decidir.</p>
+</header>
+
+<section class="cartao" aria-labelledby="t-estado">
+  <div class="cartao__titulo"><h2 id="t-estado">Situação agora</h2>
+    {% if ia.situacao == 'pronta' %}{{ selo('ok', 'Ligada e pronta') }}{% elif ia.situacao == 'parcial' %}{{ selo('info', 'Ligada: parte da cota de hoje acabou') }}
+    {% elif ia.situacao == 'esgotada' %}{{ selo('alerta', 'A cota gratuita de hoje acabou') }}{% else %}{{ selo('alerta', 'Sem chave neste computador') }}{% endif %}</div>
+  {% if ia.situacao == 'sem_chave' %}
+  <p>Este computador não tem a chave da IA, então <b>nenhuma pesquisa está usando a IA</b>. A chave é gratuita e fica guardada no Windows, nunca dentro do
+    sistema: o passo a passo está no arquivo <code>GEMINI_PASSO_A_PASSO.md</code>, na pasta do sistema.</p>
+  {% elif ia.situacao == 'esgotada' %}
+  <p>A cota gratuita tem um limite de perguntas por dia. O de hoje acabou em todos os modelos que o sistema usa, então <b>as pesquisas de agora seguem sem a IA</b>:
+    o que dependia dela fica como opção para você decidir. A cota volta sozinha amanhã.</p>
+  {% elif ia.situacao == 'parcial' %}
+  <p>A cota gratuita de hoje acabou em {{ ia.esgotados|length }} modelo(s) ({{ ia.esgotados|join(', ') }}). O sistema passou para o modelo seguinte e
+    <b>continua usando a IA</b>.</p>
+  {% else %}
+  <p>A chave foi encontrada neste computador e <b>a IA está sendo usada</b> nas pesquisas dos projetos que a deixam ligada.</p>
+  {% endif %}
+  <dl class="dl">
+    <dt>Respostas da IA hoje</dt><dd><b>{{ ia.hoje }}</b>{% if ia.hoje %} <span class="texto-apoio">(cada resposta fica guardada: a mesma pergunta não gasta a cota de novo)</span>{% endif %}</dd>
+    {% if ia.modelo %}<dt>Modelo em uso</dt><dd>{{ ia.modelo }}</dd>{% endif %}
+    {% if ia.ultima %}<dt>Última resposta</dt><dd>{{ ia.ultima.quando|data_br }} · {{ ia.ultima.tipo }}</dd>{% endif %}
+    {% if ia.sessao %}<dt>Desde que o sistema foi aberto</dt><dd>{{ ia.sessao.novas }} resposta(s) nova(s), {{ ia.sessao.guardadas }} reaproveitada(s) e
+      <b>{{ ia.sessao.sem_resposta }} pergunta(s) sem resposta</b></dd>{% endif %}
+    {% if ia.falha %}<dt>Última pergunta sem resposta</dt><dd>{{ ia.falha.quando|data_br }} · {{ ia.falha.tipo }} · {{ ia.falha.motivo }}</dd>{% endif %}
+  </dl>
+  {% if projetos_sem_ia %}<div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo">A IA está <b>desligada</b> na configuração de:
+    {{ projetos_sem_ia|join(', ') }}. Nesses projetos nenhuma pesquisa usa a IA.</div></div>{% endif %}
+</section>
+
+{% if ia.por_tipo %}
+<section class="cartao secao" aria-labelledby="t-uso">
+  <h2 id="t-uso" class="cartao__titulo">Para que ela foi usada hoje</h2>
+  <div class="tabela-rolagem"><table class="tabela tabela--densa">
+    <thead><tr><th scope="col">Uso</th><th scope="col" class="n">Respostas</th></tr></thead>
+    <tbody>{% for nome, n in ia.por_tipo %}<tr><th scope="row">{{ nome|capitalize }}</th><td class="n">{{ n }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+
+<section class="cartao secao" aria-labelledby="t-cota">
+  <h2 id="t-cota" class="cartao__titulo">Como funciona a cota gratuita</h2>
+  <ul class="lista-simples">
+    <li>O Google limita as perguntas por minuto e por dia. O sistema espera entre uma pergunta e outra para não passar do limite por minuto.</li>
+    <li>Quando a cota do dia acaba num modelo, o sistema passa para o modelo seguinte. Se acabar em todos, segue sem a IA até o dia seguinte.</li>
+    <li>Quando a IA não responde, nada é aprovado no lugar dela: o que dependia da resposta fica para você decidir, e a tarefa avisa.</li>
+    <li>O indicador "IA", no alto de todas as telas, mostra a situação de agora.</li>
+  </ul>
+</section>
+{% endblock %}

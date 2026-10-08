@@ -138,19 +138,22 @@
           {% set ns = namespace(outras=0, perto=0) %}
           {% for o in bk.opcoes %}{% if not atende_o_pedido(o) and o.nivel != 3 %}{% set ns.perto = ns.perto + 1 %}{% endif %}{% endfor %}
           <p class="campo__rotulo">1. {{ 'Usar uma destas opções' if ns.perto else 'Substituir' }}</p>
+          {% if ns.perto %}<p class="texto-apoio">Do mais perto do pedido para o mais longe: primeiro o mesmo item (de outra marca ou especificação), depois os itens parecidos.</p>{% endif %}
           {% if not ns.perto %}<p class="texto-apoio">A pesquisa não achou nenhum produto parecido com o pedido em 3 lojas. Só há produtos de outro tipo, da categoria da rubrica (abaixo).</p>{% endif %}
           <ul class="lista-simples">
           {% for o in bk.opcoes %}{% if not atende_o_pedido(o) and o.nivel != 3 %}
             <li class="linha linha--entre"><span>
               {{ selo('alerta', 'Mesma marca e descrição; códigos de barras diferentes' if o.codigos_diferentes else 'O mesmo produto em 2 lojas; a 3ª não cita um detalhe' if o.detalhe_nao_citado else ('Como pedido, mas sem: ' ~ (o.perdidos|join(', '))) if not o.nivel else
+                                ('O mesmo item, sem ' ~ (o.mais_largo.sem|join(' e sem '))) if o.mais_largo else
                                 ('Parecido: outro tamanho ou variante' if o.nivel == 1 else 'Relacionado: mesmo tipo de produto'), quebra=true) }}
               {% for x in o.ofertas %}<div><span class="texto-apoio">{{ LOJAS[x.loja].nome if x.loja in LOJAS else x.loja }}:</span>
                 {% if x.url %}<a href="{{ x.url }}" target="_blank" rel="noopener noreferrer">{{ (x.titulo or x.nome)[:80] }}<span class="so-leitor"> (abre em outra aba)</span></a>{% else %}{{ (x.titulo or x.nome)[:80] }}{% endif %}
                 — <b>{{ x.preco|brl }}</b></div>{% endfor %}
-              {% if o.nivel and o.perdidos %}<div class="texto-apoio">Sem: {{ o.perdidos|join(', ') }}.</div>{% endif %}
+              {% if o.mais_largo %}<div class="texto-apoio">Achado ao procurar "{{ o.mais_largo.pedido }}": o mesmo produto nas 3 lojas, mas não é exatamente o que você pediu.</div>
+              {% elif o.nivel and o.perdidos %}<div class="texto-apoio">Sem: {{ o.perdidos|join(', ') }}.</div>{% endif %}
               {% if o.codigos_diferentes %}<div class="texto-apoio">As 3 lojas anunciam a mesma marca com a mesma descrição, mas os códigos de barras não são iguais: podem ser linhas diferentes do fabricante. Abra os links e confira.</div>{% endif %}
               {% if o.detalhe_nao_citado %}<div class="texto-apoio">Duas lojas têm o mesmo produto. A terceira anuncia um produto da mesma marca que não contradiz nada dos outros dois, mas com menos (ou mais) detalhes na descrição. Abra os links e confira se é o mesmo.</div>{% endif %}
-              {% if o.ia %}<div class="texto-apoio">IA {{ 'acha que é o mesmo produto' if o.ia.mesmo_produto else 'acha que NÃO é o mesmo produto' }}: {{ o.ia.motivo }}</div>
+              {% if o.ia %}<div class="texto-apoio">IA {{ 'acha que é o mesmo produto' if o.ia.mesmo_produto else 'acha que NÃO é o mesmo produto' }}{% if o.ia.fotos %} (comparou os nomes e {{ o.ia.fotos }} fotos){% endif %}: {{ o.ia.motivo }}</div>
               {% elif o.codigos_diferentes or o.detalhe_nao_citado %}<div class="texto-apoio">A IA não conferiu esta opção (desligada ou sem resposta).</div>{% endif %}</span>
               <button form="trocar{{ i }}_{{ loop.index0 }}" class="btn btn--secundario">{{ 'Substituir por esta opção' if o.nivel else 'Usar esta opção' }}</button></li>
           {% elif not atende_o_pedido(o) %}{% set ns.outras = ns.outras + 1 %}{% endif %}{% endfor %}

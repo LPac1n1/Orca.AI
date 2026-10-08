@@ -28,6 +28,15 @@ def _pdf_das_planilhas_sem_navegador(request, monkeypatch):
     monkeypatch.setattr(pacote_pdf, 'pdf_da_planilha', falso)
 
 
+@pytest.fixture(autouse=True)
+def _fotos_sem_internet(request, monkeypatch):
+    """A conferência por IA leva as fotos dos produtos (lidas das lojas). Nos testes, nenhuma foto é buscada na internet — o teste que
+    confere as fotos põe as suas no lugar."""
+    from orcamento import ia
+    monkeypatch.setattr(ia, 'foto_da_pagina', lambda url: None)
+    monkeypatch.setattr(ia, 'baixar_foto', lambda url: None)
+
+
 PT8 = os.path.join(os.path.dirname(__file__), '..', '..', 'fase0', 'sejc', 'pt8_dados.json')
 
 

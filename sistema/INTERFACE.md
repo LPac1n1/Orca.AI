@@ -299,6 +299,17 @@ Peças comuns das telas de rubrica ficam em `templates/_rubrica.html` (cartão d
 | Apagar as pesquisas (`zerar.html`, `/p/{id}/zerar-pesquisas`) | Topo do projeto; 4 indicadores (pesquisas automáticas, itens que voltam ao pedido, marcas apagadas, feitas à mão); cartão "O que sai", com abre-e-fecha de cargos, itens, itens que voltam ao que foi pedido ("de → para") e quantidades; cartão "O que fica"; cartão "Confirmar" com as opções (marcas que a pesquisa preencheu e vagas confirmadas: marcadas; feito à mão: desmarcada) e os botões "Apagar e pesquisar tudo de novo", "Só apagar" e "Cancelar". O envio pede confirmação na janela de perigo. Com tarefa em andamento, aviso e botões desligados |
 | Ajuda | Dúvida "Quero refazer todas as pesquisas do zero. Como faço?" |
 
+## 14. IA à vista e opções por etapas (08/10/2026)
+
+| Tela | O que tem |
+|---|---|
+| Topo de todas as telas | Item de menu "IA" com um contador: "ligada", "parte da cota", "sem cota hoje" ou "sem chave" (leva a `/ia`) |
+| `/ia` | "Situação agora" (selo e explicação), respostas da IA hoje, modelo em uso, última resposta, perguntas sem resposta desde que o sistema abriu e o motivo da última; aviso com os projetos em que a IA está desligada; tabela "Para que ela foi usada hoje"; "Como funciona a cota gratuita" |
+| Proposta da pesquisa | Linha "IA nesta pesquisa: N respostas novas e M reaproveitadas; K perguntas ficaram sem resposta" (ou "desligada" / "sem chave") |
+| Tarefa "Pesquisar tudo" | No resumo, a linha "IA"; aviso quando a IA está desligada, sem chave ou deixou perguntas sem resposta |
+| Projeto → configuração → "Inteligência artificial" | Selo da cota de hoje e link "Ver o uso da IA hoje" |
+| Rubrica de produtos → quadro de decisão | Opções na ordem das etapas; selo "O mesmo item, sem a marca X" (ou "sem a especificação Y") com a linha "Achado ao procurar …"; "IA acha que é o mesmo produto (comparou os nomes e N fotos)" |
+
 ## 13. Títulos com vagas, empresas para confirmar e limite de horas (08/10/2026)
 
 | Tela | O que tem |

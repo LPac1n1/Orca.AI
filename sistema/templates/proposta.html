@@ -19,6 +19,13 @@
   {% else %}As <b>mesmas 3 lojas</b> para a rubrica inteira: {{ prop.trio|join(', ') }}.{% endif %}
   Foram consultadas {{ prop.lojas|length }} lojas, com {{ prop.buscas }} buscas novas (as já feitas hoje são reaproveitadas){% if prop.falhas %} e {{ prop.falhas }} falhas{% endif %}.</p>
 
+{% if prop.ia %}<p class="texto-apoio">{{ icone('alvo') }}<b>IA nesta pesquisa:</b>
+  {% if not prop.ia.ligada %}desligada na configuração do projeto — nenhuma conferência por IA foi feita.
+  {% elif not prop.ia.chave %}sem chave neste computador — nenhuma conferência por IA foi feita.
+  {% else %}{{ prop.ia.novas }} resposta(s) nova(s) e {{ prop.ia.guardadas }} reaproveitada(s){% if prop.ia.sem_resposta %};
+    <b>{{ prop.ia.sem_resposta }} pergunta(s) ficaram sem resposta</b> (cota gratuita ou serviço indisponível): o que dependia delas ficou para você decidir{% endif %}.
+  {% endif %} <a href="/ia">Ver a situação da IA</a></p>{% endif %}
+
 {% for loja, m in (prop.lojas_incompletas or {}).items() %}
 <div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo"><b>Resultado incompleto em {{ loja }}</b> ({{ m }}): pode haver itens nessa loja que não foram lidos.</div></div>
 {% endfor %}
@@ -54,7 +61,7 @@
           {% if x.url %}<a href="{{ x.url }}" target="_blank" rel="noopener noreferrer">{{ x.nome[:70] }}<span class="so-leitor"> (abre em outra aba)</span></a>{% else %}{{ x.nome[:70] }}{% endif %}
           {% if x.ean %}<span class="codigo">código de barras {{ x.ean }}</span>{% endif %}</div>{% endfor %}
           {% if o.misto %}<div class="texto-apoio">O mesmo produto não existe em 3 lojas: produto igual, de marcas diferentes.</div>{% endif %}
-          {% if o.ia %}<div class="texto-apoio">IA {{ 'confirmou' if o.ia.mesmo_produto else 'recusou' }}: {{ o.ia.motivo }}</div>
+          {% if o.ia %}<div class="texto-apoio">IA {{ 'confirmou' if o.ia.mesmo_produto else 'recusou' }}{% if o.ia.fotos %} (nomes e {{ o.ia.fotos }} fotos){% endif %}: {{ o.ia.motivo }}</div>
           {% elif o.ia_sem_resposta %}<div class="texto-apoio">A IA não respondeu (serviço indisponível no momento). Confira você se é o mesmo produto.</div>{% endif %}
           {% if o.ia_subst %}<div class="texto-apoio">A IA escolheu esta troca: {{ o.ia_subst }}</div>{% endif %}
         {% else %}<span class="texto-apoio">{{ l.motivo }}</span>

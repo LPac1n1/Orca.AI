@@ -203,6 +203,7 @@ async def vtex(c, loja, q=None, ean=None):
             co = s['commertialOffer']
             out.append(dict(nome=p['productName'] if len(p['items']) == 1 else f"{p['productName']} {it.get('name', '')}".strip(), marca=p.get('brand'),
                             ean=it.get('ean'), sku=it['itemId'], seller=s['sellerId'], vendedor=s.get('sellerName'),
+                            imagem=next((im.get('imageUrl') for im in it.get('images') or [] if im.get('imageUrl')), None),
                             preco=round(co.get('Price', 0) * 100), disp=True, simular=True, url=_link_vtex(dom, p)))
             if not ean:
                 break

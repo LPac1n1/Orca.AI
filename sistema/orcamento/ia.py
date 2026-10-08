@@ -100,6 +100,53 @@ def modelo_forte():
 _esgotados = {}   # modelo → dia em que a cota diária gratuita acabou (volta a ser tentado no dia seguinte)
 
 
+# O que aconteceu com as perguntas desde que o sistema foi aberto (para as telas dizerem se a IA está sendo usada — pedido da OSC, 08/10/2026)
+_uso = dict(novas=0, guardadas=0, sem_resposta=0)
+_falha = {}   # a última pergunta que ficou sem resposta: quando, tipo, motivo
+USOS = {'mesmo_produto': 'conferir se 3 anúncios são o mesmo produto', 'mesma_especificacao': 'conferir a especificação de produtos', 'entender_pedidos': 'entender o pedido de cada item',
+        'montar_trio': 'montar 3 produtos equivalentes', 'substituto': 'escolher a opção de troca mais razoável', 'da_categoria': 'escolher um produto da categoria',
+        'plano_sistema': 'ler os planos de um sistema', 'mapa_ferramentas': 'comparar as ferramentas de um sistema', 'titulos_similares': 'sugerir títulos de cargo com a mesma função',
+        'conferir_regra': 'conferir uma regra em texto do órgão', 'propor_regras': 'propor regras a partir de um texto', 'sugerir_itens': 'sugerir itens e quantidades',
+        'empregador': 'avaliar o CNPJ de um empregador', 'mesmo_produto_fotos': 'comparar as fotos dos produtos'}
+
+
+def _sem_resposta(tipo, motivo):
+    _uso['sem_resposta'] += 1
+    _falha.update(quando=db.agora(), tipo=tipo, motivo=motivo)
+    return None
+
+
+def marca():
+    """Fotografia dos contadores, para medir o uso da IA numa tarefa: uso = desde(marca())."""
+    return dict(_uso)
+
+
+def desde(antes):
+    return {k: _uso[k] - (antes or {}).get(k, 0) for k in _uso}
+
+
+def estado():
+    """O estado da IA para as telas, sem consultar a internet: há chave? a cota gratuita de hoje acabou? quanto foi usado hoje?
+    situacao: 'sem_chave' | 'pronta' | 'parcial' (algum modelo já esgotou a cota de hoje; os outros seguem) | 'esgotada' (todos esgotaram)."""
+    hoje = time.strftime('%Y-%m-%d')
+    tem = disponivel()
+    esgotados = sorted(m for m, d in _esgotados.items() if d == hoje)
+    candidatos = [p for p in dict.fromkeys(([_modelo] if _modelo else []) + [p for p in PREFERIDOS if p in (_nomes or [])])]
+    restam = [m for m in candidatos if m not in esgotados]
+    situacao = 'sem_chave' if not tem else 'esgotada' if candidatos and not restam else 'parcial' if esgotados else 'pronta'
+    try:
+        with db.conectar() as c:
+            n_hoje = c.execute('SELECT count(*) FROM ia_log WHERE quando LIKE ?', (hoje + '%',)).fetchone()[0]
+            por_tipo = [(r[0], r[1]) for r in c.execute('SELECT tipo, count(*) FROM ia_log WHERE quando LIKE ? GROUP BY tipo ORDER BY 2 DESC', (hoje + '%',))]
+            ultima = (c.execute('SELECT quando, tipo, modelo FROM ia_log ORDER BY id DESC LIMIT 1').fetchone() or [None, None, None])
+    except Exception:
+        n_hoje, por_tipo, ultima = 0, [], [None, None, None]
+    rotulo = {'sem_chave': 'sem chave', 'pronta': 'pronta', 'parcial': 'pronta (parte da cota de hoje acabou)', 'esgotada': 'cota de hoje esgotada'}[situacao]
+    return dict(chave=tem, situacao=situacao, rotulo=rotulo, modelo=restam[0] if restam else None, esgotados=esgotados, hoje=n_hoje,
+                por_tipo=[(USOS.get(t, t), n) for t, n in por_tipo], ultima=dict(quando=ultima[0], tipo=USOS.get(ultima[1], ultima[1]), modelo=ultima[2]) if ultima[0] else None,
+                sessao=dict(_uso), falha=dict(_falha, tipo=USOS.get(_falha.get('tipo'), _falha.get('tipo'))) if _falha else None)
+
+
 def modelos_para(forte=False):
     """Modelos a tentar, em ordem: o preferido (o mais forte, se pedido) e os seguintes da lista, sem os que já esgotaram a cota de hoje."""
     m = modelo()
@@ -110,9 +157,10 @@ def modelos_para(forte=False):
     return [x for x in dict.fromkeys(lista) if _esgotados.get(x) != hoje]
 
 
-def perguntar(tipo, instrucao, dados, projeto_id=None, tentativas=4, forte=False):
+def perguntar(tipo, instrucao, dados, projeto_id=None, tentativas=4, forte=False, partes=None):
     """Pergunta com resposta JSON; respostas iguais ficam guardadas (não gasta cota de novo). None se indisponível.
-    Cota diária do modelo esgotada, ou modelo sobrecarregado duas vezes seguidas: a pergunta segue no modelo seguinte."""
+    Cota diária do modelo esgotada, ou modelo sobrecarregado duas vezes seguidas: a pergunta segue no modelo seguinte.
+    partes: o que vai junto com o texto na MESMA pergunta (fotos dos produtos); o que as identifica tem de estar em `dados`."""
     global _ultimo
     if not disponivel():
         return None
@@ -121,11 +169,13 @@ def perguntar(tipo, instrucao, dados, projeto_id=None, tentativas=4, forte=False
     with db.conectar() as c:
         row = c.execute('SELECT resposta FROM ia_log WHERE tipo=? AND pergunta LIKE ? ORDER BY id DESC LIMIT 1', (tipo, f'{h}|%')).fetchone()
     if row:
+        _uso['guardadas'] += 1
         return _objeto(json.loads(row['resposta']))
     fila = modelos_para(forte)
     if not fila:
-        return None
-    corpo = {'contents': [{'role': 'user', 'parts': [{'text': instrucao + '\n\nDADOS:\n' + pergunta}]}],
+        return _sem_resposta(tipo, 'a cota gratuita de hoje acabou em todos os modelos' if _modelo else 'o serviço da IA não respondeu (sem internet ou chave recusada)')
+    motivo = 'o serviço da IA não respondeu'
+    corpo = {'contents': [{'role': 'user', 'parts': [{'text': instrucao + '\n\nDADOS:\n' + pergunta}] + list(partes or [])}],
              'generationConfig': {'temperature': 0, 'responseMimeType': 'application/json'}}
     with _cliente() as c:
         for m in fila:
@@ -138,15 +188,19 @@ def perguntar(tipo, instrucao, dados, projeto_id=None, tentativas=4, forte=False
                 try:
                     r = c.post(f'{API}/models/{m}:generateContent', json=corpo)
                 except Exception:
+                    motivo = 'sem conexão com o serviço da IA'
                     time.sleep(5); continue
                 if r.status_code == 429:
                     if 'PerDay' in r.text:   # acabou a cota gratuita de hoje para este modelo
+                        motivo = 'a cota gratuita de hoje acabou'
                         _esgotados[m] = time.strftime('%Y-%m-%d'); break
+                    motivo = 'limite de perguntas por minuto da cota gratuita'
                     sobrecarga += 1   # limite por minuto: espera e tenta de novo; na segunda vez, passa para o modelo seguinte
                     if sobrecarga >= 2 and m != fila[-1]:
                         break
                     time.sleep(15 * (k + 1)); continue
                 if r.status_code >= 500:   # sobrecarga passageira do serviço: tenta de novo; na segunda, passa para o modelo seguinte
+                    motivo = 'o serviço da IA estava sobrecarregado'
                     sobrecarga += 1
                     if sobrecarga >= 2 and m != fila[-1]:
                         break
@@ -159,12 +213,14 @@ def perguntar(tipo, instrucao, dados, projeto_id=None, tentativas=4, forte=False
                     txt = r.json()['candidates'][0]['content']['parts'][0]['text']
                     resp = json.loads(re.sub(r'^```(json)?|```$', '', txt.strip()))
                 except Exception:   # resposta cortada ou fora do formato: pergunta de novo
+                    motivo = 'a resposta da IA veio fora do formato'
                     time.sleep(2); continue
                 with db.conectar() as c2:
                     c2.execute('INSERT INTO ia_log (quando, projeto_id, tipo, modelo, pergunta, resposta) VALUES (?,?,?,?,?,?)',
                                (db.agora(), projeto_id, tipo, m, f'{h}|{pergunta}', json.dumps(resp, ensure_ascii=False)))
+                _uso['novas'] += 1
                 return _objeto(resp)
-    return None
+    return _sem_resposta(tipo, motivo)
 
 
 def _objeto(resp):
@@ -178,6 +234,77 @@ def mesmo_produto(nomes, projeto_id=None):
     """nomes: 2 ou mais anúncios. True/False, ou None se a IA não estiver disponível."""
     r = perguntar('mesmo_produto', MESMO_PRODUTO, {f'anuncio_{i + 1}': n for i, n in enumerate(nomes)}, projeto_id)
     return (bool(r.get('mesmo_produto')), r.get('motivo')) if isinstance(r, dict) and 'mesmo_produto' in r else None
+
+
+# ------------------------------------------------------------------ as FOTOS dos produtos (pedido da OSC, 08/10/2026)
+# "Seria bom verificar se a imagem dos produtos está igual também": a foto de cada anúncio vai junto com os nomes, na MESMA pergunta (não
+# gasta uma pergunta a mais da cota). A foto só serve para NEGAR quando mostra claramente outro produto; foto de outro ângulo não é diferença.
+COM_FOTOS = (' Junto com os nomes vão as FOTOS dos anúncios, na mesma ordem (a foto do anúncio 1, depois a do 2…; "fotos" diz quais anúncios têm foto). '
+             'Use as fotos para conferir: responda false se elas mostram CLARAMENTE produtos diferentes (outra marca ou logotipo, outro modelo, outra cor, '
+             'outro formato, outra quantidade na embalagem, embalagem de outra linha). NÃO são diferenças: o ângulo, o fundo, o tamanho ou a qualidade da foto; '
+             'a mesma embalagem vista de frente e de lado; foto do produto fora da embalagem numa loja e dentro dela na outra; foto que mostra o kit de cores '
+             'quando o anúncio é de uma cor só. Se uma foto for genérica ou ilegível, decida pelos nomes. '
+             'Acrescente ao JSON: "fotos": "iguais" | "diferentes" | "não dá para dizer".')
+_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36'   # o mesmo navegador que o sistema usa nas lojas
+FOTO_MAX = 900_000   # bytes: foto maior que isso não é enviada (a pergunta ficaria pesada)
+
+
+def foto_pequena(url):
+    """O endereço de uma versão pequena da foto, quando a loja oferece (VTEX: .../arquivos/ids/123456-400-400/...)."""
+    return re.sub(r'(/arquivos/ids/\d+)(?:-\d+-\d+)?/', r'\1-400-400/', url or '') if url else url
+
+
+def baixar_foto(url):
+    """(tipo, bytes) da foto de um anúncio, ou None (endereço que não é imagem, foto grande demais, loja que não respondeu)."""
+    import httpx
+    if not url or not re.match(r'https?://', url):
+        return None
+    try:
+        with httpx.Client(timeout=20, follow_redirects=True, headers={'User-Agent': _UA,
+                                                                   'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8'}) as c:
+            r = c.get(foto_pequena(url))
+        tipo = (r.headers.get('content-type') or '').split(';')[0].strip().lower()
+        tipo = {'image/pjpeg': 'image/jpeg', 'image/jpg': 'image/jpeg'}.get(tipo, tipo)   # (há loja que serve o JPEG com o nome antigo do tipo)
+        if r.status_code != 200 or tipo not in ('image/jpeg', 'image/png', 'image/webp') or not 500 < len(r.content) <= FOTO_MAX:
+            return None
+        return tipo, r.content
+    except Exception:
+        return None
+
+
+def foto_da_pagina(url):
+    """O endereço da foto principal do produto, lido da página dele (a foto que a loja indica para quem compartilha o link: og:image)."""
+    import httpx
+    try:
+        with httpx.Client(timeout=20, follow_redirects=True, headers={'User-Agent': _UA,
+                                                                   'Accept': 'text/html'}) as c:
+            r = c.get(url)
+        if r.status_code != 200:
+            return None
+        # (há loja que escreve a marcação sem aspas e com espaço antes do "=": <meta property=og:image content ="https://...">)
+        m = (re.search(r"""<meta[^>]+property\s*=\s*["']?og:image["']?[^>]*?content\s*=\s*["']([^"']+)""", r.text, re.I)
+             or re.search(r"""<meta[^>]+content\s*=\s*["']([^"']+)["'][^>]*?property\s*=\s*["']?og:image""", r.text, re.I))
+        return m.group(1) if m and re.match(r'https?://', m.group(1)) else None
+    except Exception:
+        return None
+
+
+def mesmo_produto_com_fotos(nomes, fotos, projeto_id=None):
+    """Como mesmo_produto, mas com as fotos dos anúncios junto. fotos: um endereço por anúncio (None onde não há). Devolve
+    (mesmo, motivo, fotos comparadas, o que a IA disse das fotos) — ou None se a IA não respondeu. Com menos de 2 fotos baixadas, é a pergunta
+    só pelos nomes (0 fotos comparadas)."""
+    import base64
+    baixadas = [baixar_foto(u) if u else None for u in fotos]
+    if sum(1 for b in baixadas if b) < 2:
+        r = mesmo_produto(nomes, projeto_id)
+        return (r[0], r[1], 0, None) if r else None
+    dados = {f'anuncio_{i + 1}': n for i, n in enumerate(nomes)}
+    dados['fotos'] = [f'anuncio_{i + 1}: {foto_pequena(u)}' for i, (u, b) in enumerate(zip(fotos, baixadas)) if b]   # (os endereços entram na memória da pergunta)
+    partes = [{'inline_data': {'mime_type': b[0], 'data': base64.b64encode(b[1]).decode()}} for b in baixadas if b]
+    r = perguntar('mesmo_produto_fotos', MESMO_PRODUTO.replace('Responda com UM objeto JSON', COM_FOTOS.strip() + ' Responda com UM objeto JSON'), dados, projeto_id, partes=partes)
+    if not (isinstance(r, dict) and 'mesmo_produto' in r):
+        return None
+    return bool(r.get('mesmo_produto')), r.get('motivo'), len(partes), r.get('fotos')
 
 
 def mesma_especificacao(pedido, nomes, projeto_id=None):

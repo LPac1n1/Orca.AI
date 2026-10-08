@@ -333,7 +333,9 @@ Pode levar de 30 minutos a algumas horas. O andamento aparece na tela e você po
       <legend>Inteligência artificial</legend>
       <label class="escolha"><input type="checkbox" name="usar_ia" value="1" {% if p.config.usar_ia %}checked{% endif %}>
         <span class="escolha__texto">Usar a IA gratuita (Gemini) nos casos de dúvida <small>Por exemplo, para confirmar que dois anúncios são o mesmo produto. Cada resposta fica registrada.</small></span></label>
-      <p>{% if ia_ok %}{{ selo('ok', 'Chave encontrada neste computador') }}{% else %}{{ selo('alerta', 'Sem chave: veja o arquivo GEMINI_PASSO_A_PASSO.md') }}{% endif %}</p>
+      <p>{% if ia_ok %}{{ selo('ok', 'Chave encontrada neste computador') }}{% else %}{{ selo('alerta', 'Sem chave: veja o arquivo GEMINI_PASSO_A_PASSO.md') }}{% endif %}
+        {% set ia = ia_estado() %}{% if ia.situacao == 'esgotada' %}{{ selo('alerta', 'A cota gratuita de hoje acabou') }}{% elif ia.situacao == 'parcial' %}{{ selo('info', 'Parte da cota de hoje acabou') }}{% endif %}
+        <a class="texto-apoio" href="/ia">Ver o uso da IA hoje ({{ ia.hoje }} resposta(s))</a></p>
     </fieldset>
 
     <fieldset class="cartao">
