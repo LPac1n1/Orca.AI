@@ -155,6 +155,75 @@ def test_nova_fonte_de_vagas_titulo_no_endereco_e_milhar_escrito_com_ponto():
     assert V.milhar_com_ponto(v, 'qualquer texto')['faixa_min'] == 180000                                 # salário normal: nada muda
 
 
+def test_coleta_consulta_primeiro_quem_a_base_resolve_e_refaz_o_que_o_modo_de_espera_interrompeu(dados, monkeypatch):
+    """Pesquisa completa de 08/10/2026 (na cópia): a consulta ONLINE do CNPJ leva de 2 a 4 minutos por empresa, e o computador entrou em modo
+    de espera três vezes — ao voltar, a consulta em andamento estourava o tempo e a vaga era gravada como erro. Agora: primeiro as empresas que
+    a base da Receita resolve na hora; as outras só enquanto puderem mudar o resultado (as 3 continuam sendo as de MENOR salário entre as
+    válidas); e a consulta interrompida pelo modo de espera é refeita."""
+    import asyncio, time
+    from orcamento import vagas as V, cnpj_busca, tarefas
+    from test_vagas import _pdf_vaga
+
+    class Navegador:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+
+        class chromium:
+            @staticmethod
+            async def launch():
+                class B:
+                    async def close(self): pass
+                return B()
+    monkeypatch.setattr('playwright.async_api.async_playwright', lambda: Navegador())
+    monkeypatch.setattr(V, 'corrigir_banco_pela_pagina', lambda: 0)
+    dinheiro = lambda c: f'{c / 100:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
+    vaga = lambda nome, sal: dict(titulo='Psicólogo', empresa=nome, url=f'https://vagas.exemplo/{nome.lower()}/12345', plataforma='InfoJobs', faixa_min=sal, faixa_max=sal,
+                                  unidade='MONTH', cidade='São Paulo', uf='SP', apta=True, motivo=None)
+    aptas = [vaga('Fox', 200000), vaga('Eco', 190000), vaga('Delta', 180000), vaga('Charlie', 170000), vaga('Bravo', 160000), vaga('Alfa', 150000)]
+    lentas = {'Alfa', 'Eco'}                                                         # a base da Receita não resolve estas: só com consulta online
+
+    async def buscar_brasil(br, cargo, ctx=None, profundo=False, ignorar=(), pct=(0, 50)):
+        return ([] if profundo else list(aptas)), len(aptas)
+    consultas, cnpj = [], {n: f'{i + 11}222333000181'[:14] for i, n in enumerate(('Alfa', 'Bravo', 'Charlie', 'Delta', 'Eco', 'Fox'))}
+
+    async def cnpj_do_empregador(br, api, nome, cidade=None, uf=None, site=None, ctx=None, cnpjs_texto=()):
+        consultas.append(nome)
+        if nome == 'Alfa' and consultas.count('Alfa') == 1:                          # o computador entra em modo de espera no meio desta consulta
+            tarefas._esperas.append((time.time(), 1500.0))
+            raise asyncio.TimeoutError()
+        return dict(status='🟢', cnpj=cnpj[nome], razao_social=nome.upper() + ' LTDA', motivo='teste')
+
+    async def capturar_pdf(br, url, rotulo, empresa=None):
+        sal = next(v['faixa_min'] for v in aptas if v['url'] == url)
+        return _pdf_vaga('Salário R$ ' + dinheiro(sal)), '2026-10-08T10:00:00-03:00'
+
+    async def sem_pausa(desde, pausa=0):
+        return bool(tarefas.esperas(desde))
+    monkeypatch.setattr(V, 'buscar_brasil', buscar_brasil)
+    monkeypatch.setattr(V, 'capturar_pdf', capturar_pdf)
+    monkeypatch.setattr(cnpj_busca, 'cnpj_do_empregador', cnpj_do_empregador)
+    monkeypatch.setattr(cnpj_busca, 'cnpj_pela_base', lambda nome, cidade=None, uf=None: None if nome in lentas else dict(status='🟢', cnpj=cnpj[nome]))
+    monkeypatch.setattr(tarefas, '_esperas', [])
+    monkeypatch.setattr(tarefas, 'depois_da_espera', sem_pausa)
+    res = asyncio.run(V.coletar('Psicólogo'))
+    # 1º as que a base resolve, da de menor salário para a maior, até fechar 3 (Bravo, Charlie, Delta); a Fox (2.000) não melhora: fica sem consulta.
+    # Depois as outras: a Alfa (1.500) pode entrar — é consultada (e refeita, porque o computador "dormiu" na 1ª vez); a Eco (1.900) não melhora.
+    assert consultas == ['Bravo', 'Charlie', 'Delta', 'Alfa', 'Alfa']
+    assert [v['empresa'] for v in V.tres_do_banco('Psicólogo')] == ['Alfa', 'Bravo', 'Charlie'] and res['no_banco'] == 3   # as 3 de menor salário entre as válidas
+    assert not [v for v in V.vagas_do_banco('Psicólogo', so_verdes=False) if 'erro' in (v['cnpj_motivo'] or '')]             # nada gravado como erro por causa do modo de espera
+    # o vigia e o pedido de tela acesa
+    assert tarefas.esperas(time.time() + 10) == [] and len(tarefas.esperas()) == 1 and round(tarefas.esperas()[0][1]) == 1500
+    assert asyncio.run(sem_pausa(time.time() + 10)) is False
+    # mais fontes de vagas: a busca do Trabalha Brasil é por cidade (4 cidades na 1ª volta, outras 4 na volta mais funda)
+    tb = [f for f in V.fontes('Auxiliar Administrativo') if f[0] == 'Trabalha Brasil']
+    assert len(tb) == 4 and tb[0][1] == 'https://www.trabalhabrasil.com.br/vagas-de-emprego-em-sao-paulo-sp/auxiliar-administrativo'
+    assert len([f for f in V.fontes('Auxiliar Administrativo', profundo=True) if f[0] == 'Trabalha Brasil']) == 4
+    import re
+    assert re.search(tb[0][2], 'https://www.trabalhabrasil.com.br/vagas-de-emprego-em-sao-paulo-sp/auxiliar-administrativo/13697134')
+    # o texto que a pessoa vê: sem os números que estão nos blocos de programa da página
+    assert V.texto_visivel('<p>Salário R$ 2.000,00</p><script>{"v": 3000}</script><style>a{}</style> fim').split() == ['Salário', 'R$', '2.000,00', 'fim']
+
+
 def test_grade_com_fornecedor_por_item(dados, tmp_path):
     from openpyxl import load_workbook
     from orcamento.modelo import Projeto, RubricaMaterial, Subitem, Fonte

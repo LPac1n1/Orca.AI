@@ -73,7 +73,7 @@ O `.gitignore` deixa de fora os dados dos projetos e qualquer documento da organ
 
 ## De onde vêm as pesquisas
 
-- **Vagas:** InfoJobs, Catho, Vagas.com, BNE, Empregos.com.br e LinkedIn (páginas públicas).
+- **Vagas:** InfoJobs, Catho, Vagas.com, BNE, Empregos.com.br, Trabalha Brasil e LinkedIn (páginas públicas).
 - **Produtos (24 lojas):** Atacadão, Sam's Club, Tenda Atacado, Giga Atacado, Carrefour, Pão de Açúcar, Extra Mercado, Mambo, Coop, Oba Hortifruti, Americanas, Casa & Video, Telhanorte, Drogaria São Paulo, Drogarias Pacheco, Drogal, Farmácias Pague Menos, Kalunga, Gimba, Lepok, Papelex, Livrarias Curitiba, Bazar Horizonte e Afonso Ruotolo.
 - **Sistemas:** páginas de preços de fornecedores de sistemas de gestão para o terceiro setor.
 - **CNPJ:** dados abertos da Receita Federal e o comprovante oficial emitido por você.
@@ -156,7 +156,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 264 ao todo. Num clone limpo, 262 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 265 ao todo. Num clone limpo, 263 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -195,6 +195,11 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 ## Últimas mudanças
 
 O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.md](sistema/LEIAME.md).
+
+- **09/10/2026 — pesquisa completa mais resistente e mais um site de vagas**
+  - **O modo de espera do computador não derruba mais a pesquisa.** Numa pesquisa completa de teste, o notebook entrou em espera três vezes (até 30 minutos parado) e as consultas em andamento viravam erro. Agora a tela fica acesa enquanto uma tarefa roda, o sistema percebe quando o computador parou, refaz a consulta interrompida e avisa no fim da tarefa. Fechar a tampa continua pondo o computador em espera.
+  - **Vagas: primeiro as empresas que a base da Receita resolve na hora.** A consulta online de CNPJ leva minutos por empresa; ela só é feita para as vagas que ainda podem mudar o resultado. As 3 escolhidas continuam sendo as de menor salário entre as válidas.
+  - **Mais um site de vagas: Trabalha Brasil** (busca por cidade; título, empresa e salário legíveis). Quando a empresa não informa o salário, o site mostra uma faixa estimada: essa não entra. Gupy e Sólides foram sondados e ficaram de fora.
 
 - **08/10/2026 — busca por etapas, fotos e IA à vista**
   - **Busca de produtos por etapas.** Primeiro o item como foi pedido; se ele não existe igual em 3 lojas, o sistema procura o mesmo item de outra marca ou especificação (sem a marca, sem a especificação, sem as duas); depois, itens parecidos. Tudo o que for achado aparece junto, como opção, do mais perto do pedido para o mais longe. Nada é trocado sem você escolher.

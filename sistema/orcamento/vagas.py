@@ -1,6 +1,6 @@
 """Pesquisa salarial por vagas publicadas (v0.3), seguindo as regras da SEJC e as decisões da OSC.
 
-- Vagas de QUALQUER região do Brasil (decisão de 25/09): InfoJobs, Catho, Vagas.com, BNE, Empregos.com.br e LinkedIn (páginas públicas).
+- Vagas de QUALQUER região do Brasil (decisão de 25/09): InfoJobs, Catho, Vagas.com, BNE, Empregos.com.br, Trabalha Brasil e LinkedIn (páginas públicas).
 - Título EXATO: só variações das mesmas palavras do cargo (gênero, número, "(a)"); "Coordenador de Projetos de TI" não vale.
 - Dados do bloco estruturado JobPosting (JSON-LD) da página: título, empresa, faixa salarial, data, cidade/UF, site da empresa.
 - Filtros: empresa identificada (sem confidencial, sem agregador — R15), salário mensal ≥ R$ 1.000; valor considerado = MENOR da faixa (R11).
@@ -433,6 +433,11 @@ def cnpjs_no_texto(descricao):
     return list(dict.fromkeys(re.sub(r'\D', '', x) for x in re.findall(r'\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b', txt)))
 
 
+def texto_visivel(html):
+    """O texto que a pessoa vê na página: sem os blocos de programa e de estilo (onde os números dos dados da vaga também aparecem) e sem as marcações."""
+    return H.unescape(re.sub(r'<[^>]+>', ' ', re.sub(r'(?is)<(script|style|noscript)\b.*?</\1>', ' ', html or '')))
+
+
 PISO_PLAUSIVEL = 10000   # R$ 100,00: abaixo disso não é salário mensal — é erro de leitura do anúncio
 
 
@@ -492,6 +497,9 @@ def sugerir(vagas, n=3):
 
 
 # ------------------------------------------------------------------ busca no Brasil
+CIDADES_TRABALHA_BRASIL = ['sao-paulo-sp', 'rio-de-janeiro-rj', 'belo-horizonte-mg', 'curitiba-pr', 'porto-alegre-rs', 'salvador-ba', 'brasilia-df', 'fortaleza-ce']
+
+
 def fontes(cargo, profundo=False):
     cargo = cargo_para_busca(cargo)
     s = _slug(cargo); q = quote(cargo); L = []
@@ -505,6 +513,11 @@ def fontes(cargo, profundo=False):
         # incluído em 08/10/2026 (pedido da OSC: melhorar a busca): a página da vaga traz título, empresa e salário, e abre sem verificação humana.
         # Sondados e deixados de fora: Indeed e Glassdoor (a página não traz os dados da vaga de forma legível) e Jooble (recusa o acesso)
         L.append(('Empregos.com.br', f'https://www.empregos.com.br/vagas/{s}', r'empregos\.com\.br/vaga/\d+'))
+    # Trabalha Brasil (incluído em 08/10/2026, depois de nova sondagem pedida pela OSC): a busca é por CIDADE; a página da vaga traz título,
+    # empresa e salário (6 de 6 na amostra) e abre sem verificação humana. Gupy (quase nunca informa salário) e Sólides (a lista de vagas não é
+    # legível sem o aplicativo do site) ficaram de fora.
+    for cid in (CIDADES_TRABALHA_BRASIL[4:] if profundo else CIDADES_TRABALHA_BRASIL[:4]):
+        L.append(('Trabalha Brasil', f'https://www.trabalhabrasil.com.br/vagas-de-emprego-em-{cid}/{s}', r'trabalhabrasil\.com\.br/vagas-de-emprego-em-[^/]+/[^/?#]+/\d+'))
     for st in ((75, 100, 125) if profundo else (0, 25, 50)):
         L.append(('LinkedIn', f'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={q}&location={quote("Brasil")}&start={st}',
                   r'linkedin\.com/jobs/view/[^?#]+'))
@@ -592,7 +605,12 @@ async def buscar_brasil(br, cargo, ctx=None, profundo=False, ignorar=(), pct=(0,
             v['faixa_min'] = None
         elif exib:
             v['faixa_min'], v['faixa_max'], v['salario_da'] = exib[0], exib[1], 'página'
-        milhar_com_ponto(v, re.sub(r'<[^>]+>', ' ', html))
+        texto = texto_visivel(html)
+        milhar_com_ponto(v, texto)
+        if plat == 'Trabalha Brasil' and v.get('faixa_min') and not v.get('salario_da') and not salario_no_texto(texto, v['faixa_min']):
+            # quando a empresa não informa o salário ("a combinar"), este site põe nos dados da vaga uma faixa ESTIMADA para o cargo (a mesma
+            # faixa em vagas de empresas diferentes): só vale o salário que a página da vaga mostra
+            v['faixa_min'] = v['faixa_max'] = None
         v['motivo'] = avaliar(v, cargo); v['apta'] = v['motivo'] is None
         return v
     res = [v for v in await asyncio.gather(*[detalhe(p, u) for p, u in cands]) if v]
@@ -998,7 +1016,9 @@ async def coletar(cargo, ctx=None, alvo=3, parar=None, faixa=None):
     faixa: o cargo tem faixa salarial pretendida — as vagas de salário mais perto dela (primeiro as que chegam nela) são conferidas antes."""
     import httpx
     from playwright.async_api import async_playwright
-    from .cnpj_busca import Api, cnpj_do_empregador
+    import time
+    from . import tarefas
+    from .cnpj_busca import Api, cnpj_do_empregador, cnpj_pela_base
     lidas, tentadas, verdes, urls = 0, 0, 0, set()
     corrigir_banco_pela_pagina()
     async with async_playwright() as pw, httpx.AsyncClient(timeout=20, headers={'User-Agent': 'orcamento-osc/0.3'}) as c:
@@ -1015,9 +1035,24 @@ async def coletar(cargo, ctx=None, alvo=3, parar=None, faixa=None):
                 # menores salários primeiro; a Catho por último: sem login, a página dela esconde as informações da empresa (não serve para a SEJC)
                 aptas.sort(key=lambda v: (v['plataforma'] == 'Catho' and not sessao_ok(),
                                           ((v['faixa_min'] or 0) < faixa, abs((v['faixa_min'] or 0) - faixa)) if faixa else (v['faixa_min'] or 10 ** 9)))
-                for i, v in enumerate(aptas):
-                    if (parar() if parar else len(tres_do_banco(cargo)) >= alvo):
-                        break
+                # Primeiro as empresas que a base da Receita resolve NA HORA (a consulta online leva minutos por empresa); depois as outras, e só
+                # enquanto puderem mudar o resultado: sem faixa, uma vaga de salário igual ou maior que o das 3 já confirmadas não entra em nenhum
+                # caso, então não é consultada. As 3 escolhidas continuam sendo as de MENOR salário entre as válidas (teste real de 08/10/2026:
+                # 11 empresas consultadas online para um cargo, 2 a 4 minutos cada, e só 1 confirmada).
+                rapidas, lentas = [], []
+                for v in aptas:
+                    try:
+                        na_hora = bool(v.get('cnpjs_texto')) or cnpj_pela_base(v['empresa'], v.get('cidade'), v.get('uf')) is not None
+                    except Exception:
+                        na_hora = False
+                    (rapidas if na_hora else lentas).append(v)
+                for i, v in enumerate(rapidas + lentas):
+                    tres = tres_do_banco(cargo)
+                    if parar:
+                        if parar():
+                            break
+                    elif len(tres) >= alvo and (v['faixa_min'] or 0) >= max(t['faixa_min'] or 0 for t in tres):
+                        continue   # não melhora o resultado: fica sem consulta
                     e = norm(v['empresa'])
                     if e in empresas_vistas:
                         continue
@@ -1025,21 +1060,32 @@ async def coletar(cargo, ctx=None, alvo=3, parar=None, faixa=None):
                     if ctx:
                         ctx.progresso((45 if not profundo else 80) + (25 if not profundo else 15) * i / max(1, len(aptas)),
                                       f'Conferindo o CNPJ de "{v["empresa"]}" ({i + 1}/{len(aptas)} vagas aptas)')
-                    try:
-                        k = await asyncio.wait_for(cnpj_do_empregador(br, api, v['empresa'], v.get('cidade'), v.get('uf'), v.get('site_empresa'), ctx,
-                                                                      cnpjs_texto=v.get('cnpjs_texto') or ()), 240)
-                    except Exception as ex:
-                        k = dict(status='🔴', cnpj=None, motivo=f'erro {type(ex).__name__}')
+                    for volta in (0, 1):
+                        inicio = time.time()
+                        try:
+                            k = await asyncio.wait_for(cnpj_do_empregador(br, api, v['empresa'], v.get('cidade'), v.get('uf'), v.get('site_empresa'), ctx,
+                                                                          cnpjs_texto=v.get('cnpjs_texto') or ()), 240)
+                            break
+                        except Exception as ex:
+                            k = dict(status='🔴', cnpj=None, motivo=f'erro {type(ex).__name__}')
+                            if volta or not await tarefas.depois_da_espera(inicio):   # o computador entrou em modo de espera no meio: a consulta é refeita
+                                break
                     tentadas += 1
                     pdf = None
                     if k.get('status') == '🟢':
                         verdes += 1
-                        try:
-                            pdf, _ = await asyncio.wait_for(capturar_pdf(br, v['url'], f"{cargo} | {v['empresa']} | {v['plataforma']}", v['empresa']), 90)
-                        except VagaEncerrada as ex:
-                            pdf = None; k = dict(k, status='🔴', motivo=str(ex)); verdes -= 1
-                        except Exception:
-                            pdf = None
+                        for volta in (0, 1):
+                            inicio = time.time()
+                            try:
+                                pdf, _ = await asyncio.wait_for(capturar_pdf(br, v['url'], f"{cargo} | {v['empresa']} | {v['plataforma']}", v['empresa']), 90)
+                                break
+                            except VagaEncerrada as ex:
+                                pdf = None; k = dict(k, status='🔴', motivo=str(ex)); verdes -= 1
+                                break
+                            except Exception:
+                                pdf = None
+                                if volta or not await tarefas.depois_da_espera(inicio):
+                                    break
                         if pdf and _pdf_bytes_a_combinar(pdf, v.get('faixa_min')):   # a página diz "salário a combinar" (os dados da vaga não dizem)
                             k = dict(k, status='🔴', motivo='a página da vaga diz "salário a combinar"'); verdes -= 1
                         elif pdf:

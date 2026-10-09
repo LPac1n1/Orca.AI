@@ -152,9 +152,12 @@ class Motor:
             if loja in self.bloqueadas:
                 return []
             self.buscas_loja[loja] += 1
-            for tentativa in range(2):
+            from .. import tarefas
+            tentativa, refeita = 0, False
+            while tentativa < 2:
                 if tentativa:
                     await self._vez(loja)
+                inicio = time.time()
                 try:
                     plat = L.LOJAS[loja]['plataforma']
                     co = (L.vtex(self.c, loja, q) if plat == 'vtex' else L.tenda(self.c, q, self.filial) if plat == 'tenda' else L.gimba(self.c, q) if plat == 'gimba'
@@ -168,8 +171,12 @@ class Motor:
                     self._bloquear(loja, str(e))
                     return []
                 except Exception as e:
+                    if not refeita and await tarefas.depois_da_espera(inicio):   # o computador entrou em modo de espera no meio da busca: não é falha da loja
+                        refeita = True
+                        continue
                     self.falhas_loja[loja] += 1
                     self._fonte(loja, 'repetindo' if tentativa == 0 else 'falhou', f'{type(e).__name__ if not isinstance(e, asyncio.TimeoutError) else "sem resposta"}')
+                    tentativa += 1
             return []
 
     def _bloquear(self, loja, motivo):

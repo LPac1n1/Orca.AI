@@ -2,6 +2,16 @@
 
 Monta e confere a **Grade Comparativa** e o **Plano de Aplicação** de projetos sociais para o órgão que vai analisá-los. Já vem com as regras estabelecidas pela Secretaria da Justiça e Cidadania de SP (SEJC) (o levantamento está em [../FASE0_SEJC.md](../FASE0_SEJC.md)); as de qualquer outro órgão são cadastradas pela tela "Órgãos". As decisões da OSC e os testes que justificam cada regra estão em [../FASE1B_RESULTADOS.md](../FASE1B_RESULTADOS.md).
 
+## Pesquisa completa de ponta a ponta: modo de espera, ordem das consultas e Trabalha Brasil (09/10/2026) — teste em `tests/test_v03.py`
+
+A OSC pediu: "rode o pesquisar tudo e resolva o que tiver para resolver". A pesquisa completa foi rodada do zero numa CÓPIA dos dados (cache, bloqueios e sessão numa pasta temporária; base da Receita só para leitura).
+
+| O que apareceu | O que foi feito |
+|---|---|
+| A 1ª rodada ficou 74 minutos no primeiro cargo. O registro do Windows mostrou o computador entrando em **modo de espera** 3 vezes (até 30 min parado); ao voltar, a consulta em andamento estourava o tempo e a vaga era gravada com "erro TimeoutError" | `tarefas._acordado` pede também a TELA acesa (em notebook na bateria, o pedido de "sistema acordado" sozinho deixa de valer 5 minutos depois de a tela apagar). `tarefas._vigiar` percebe a espera pelo salto do relógio; `tarefas.depois_da_espera` faz a consulta interrompida ser refeita (CNPJ e página da vaga em `vagas.coletar`; busca nas lojas em `cesta._buscar`); a tarefa avisa no fim quantas vezes e por quanto tempo o computador parou |
+| 11 empresas consultadas ONLINE para um cargo (2 a 4 minutos cada), 1 confirmada | `vagas.coletar`: primeiro as empresas que a base da Receita resolve na hora (`cnpj_pela_base`) ou que escreveram o CNPJ na vaga; as outras só enquanto puderem mudar o resultado — sem faixa pretendida, vaga de salário igual ou maior que o das 3 já confirmadas não é consultada. As 3 continuam sendo as de menor salário entre as válidas |
+| Nova sondagem pedida: Trabalha Brasil, Gupy, Sólides | **Trabalha Brasil entrou**: a busca é por cidade (`CIDADES_TRABALHA_BRASIL`: 4 na 1ª volta, 4 na volta funda); na amostra, 6 de 6 vagas com título, empresa e salário, sem verificação humana. Quando a empresa não informa o salário, o site põe nos dados uma faixa ESTIMADA (a mesma em empresas diferentes): só vale o salário que a página mostra (`vagas.texto_visivel`). Teste real: 27 vagas aptas de Auxiliar Administrativo em 2 cidades; 8 de Psicólogo. Gupy (quase nunca informa salário) e Sólides (a lista de vagas não é legível sem o aplicativo do site) ficaram de fora |
+
 ## Busca de produtos por etapas, fotos na conferência e IA à vista (08/10/2026) — testes em `tests/test_decidir.py` e `tests/test_ia_visivel.py`
 
 **Etapas (pedido da OSC).** "Buscar o item → achou em 3 lojas, ótimo → senão, o mesmo item de outra marca/especificação/tamanho/cor → senão, itens semelhantes → trazer todas as opções para escolher → o que foi achado igual fica gravado; o resto, em branco, com as opções de troca juntas." A OSC confirmou: a 2ª etapa é OPÇÃO, não grava sozinha.
@@ -329,7 +339,7 @@ As telas foram refeitas para que qualquer pessoa consiga usar sem treinamento. D
 | **Comprovante conferido antes de valer** | Cada PDF é conferido: página de erro da loja, produto indisponível ou preço que não aparece = nova tentativa. Se continuar, entra uma **loja reserva** com o mesmo produto; se nenhuma servir, a **próxima opção** do item (sem piorar o item e dentro do teto, com IA nos casos 🟡). Tudo fica na justificativa do subitem |
 | **Estoque do Tenda no CEP** | O Tenda tem estoque por filial: o sistema descobre a filial que atende o CEP e só usa produto com estoque nela |
 | **Loja que pede CAPTCHA** | Se uma loja pedir verificação humana, o sistema **não tenta resolver**: a loja sai daquela tarefa, com aviso, e os itens vão para as lojas reserva. Um bloqueio nunca é confundido com "produto não existe". Há intervalo mínimo entre acessos à mesma loja |
-| **Vagas do Brasil inteiro, título exato** | InfoJobs, Catho, Vagas.com, BNE, Empregos.com.br e LinkedIn. Só entra título igual ao cargo (variações de gênero e número); sem empresa confidencial nem agregador; menor valor da faixa; fica de fora a vaga cujo texto diz um salário diferente do informado no anúncio |
+| **Vagas do Brasil inteiro, título exato** | InfoJobs, Catho, Vagas.com, BNE, Empregos.com.br, Trabalha Brasil e LinkedIn. Só entra título igual ao cargo (variações de gênero e número); sem empresa confidencial nem agregador; menor valor da faixa; fica de fora a vaga cujo texto diz um salário diferente do informado no anúncio |
 | **CNPJ do empregador automático** | Primeiro a **base oficial da Receita** (nome único no Brasil ou no município da vaga); depois internet + site oficial. Travas: empresa estrangeira, outra UF e homônimos. Na dúvida, o sistema não escolhe e passa para a próxima vaga |
 | **Banco de vagas** | Cada vaga boa fica guardada, com PDF, por 180 dias. Coleta diária automática para os cargos com menos de 3 vagas |
 | **Base da Receita local** | Atualização mensal automática (~6,4 GB de download), fora do OneDrive, em `%LOCALAPPDATA%\OrcamentoOSC\receita` |
@@ -355,7 +365,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 264 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 265 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;

@@ -24,15 +24,56 @@ class Cancelada(BaseException):
 
 
 def _acordado(ligar):
-    """Impede a suspensão do Windows enquanto houver tarefa rodando (não altera nenhuma configuração do sistema)."""
+    """Pede ao Windows para não entrar em modo de espera enquanto houver tarefa rodando (é um pedido do programa, como o de um tocador de
+    vídeo: não altera nenhuma configuração do sistema). Pede também a TELA acesa: em notebook na bateria, o pedido de "sistema acordado"
+    sozinho deixa de valer 5 minutos depois de a tela apagar — foi o que parou a pesquisa completa de 08/10/2026 três vezes, por até 30 minutos.
+    Fechar a tampa ou apertar o botão de energia continua pondo o computador em espera (isso o programa não impede)."""
     if sys.platform != 'win32':
         return
     try:
         import ctypes
-        ES_CONTINUOUS, ES_SYSTEM_REQUIRED = 0x80000000, 0x00000001
-        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | (ES_SYSTEM_REQUIRED if ligar else 0))
+        ES_CONTINUOUS, ES_SYSTEM_REQUIRED, ES_DISPLAY_REQUIRED = 0x80000000, 0x00000001, 0x00000002
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ((ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED) if ligar else 0))
     except Exception:
         pass
+
+
+# ------------------------------------------------------------------ o computador entrou em modo de espera no meio de uma tarefa?
+_esperas = []        # [(quando voltou — time.time(), quantos segundos ficou parado)]
+_vigia_ligado = False
+
+
+def _vigiar():
+    """Percebe o modo de espera pelo salto do relógio: uma volta de 2 segundos que demorou mais de 30 é o computador que ficou parado."""
+    import time
+    antes = time.time()
+    while True:
+        time.sleep(2)
+        agora = time.time()
+        if agora - antes > 30:
+            _esperas.append((agora, agora - antes))
+        antes = agora
+
+
+def ligar_vigia():
+    global _vigia_ligado
+    if not _vigia_ligado:
+        _vigia_ligado = True
+        threading.Thread(target=_vigiar, daemon=True, name='vigia-espera').start()
+
+
+def esperas(desde=None):
+    """As vezes em que o computador ficou em modo de espera desde `desde` (time.time()): [(quando voltou, segundos parado)]. Quem estava no
+    meio de uma consulta quando isso aconteceu refaz a consulta em vez de registrar erro (a consulta não falhou: o computador parou)."""
+    return [(q, s) for q, s in _esperas if desde is None or q >= desde]
+
+
+async def depois_da_espera(desde, pausa=20):
+    """True se o computador ficou em modo de espera desde `desde` — e aí aguarda a rede voltar (alguns segundos) antes de devolver."""
+    if not esperas(desde):
+        return False
+    await asyncio.sleep(pausa)
+    return True
 
 
 class Contexto:
@@ -99,8 +140,11 @@ def iniciar(tipo, titulo, funcao, projeto_id=None):
     tid = criar(tipo, titulo, projeto_id)
 
     def rodar():
+        import time
         with _trava:
             _ativas.add(tid); _acordado(True)
+        ligar_vigia()
+        comecou = time.time()
         ctx = Contexto(tid)
         with db.conectar() as c:
             c.execute('UPDATE tarefa SET estado=? WHERE id=?', ('rodando', tid))
@@ -117,6 +161,14 @@ def iniciar(tipo, titulo, funcao, projeto_id=None):
         except Exception as e:
             estado, erro, res = 'falhou', f'erro inesperado ({type(e).__name__}: {e})', None
             traceback.print_exc()
+        paradas = esperas(comecou)
+        if paradas:
+            try:
+                ctx.aviso(f'O computador entrou em modo de espera {len(paradas)} vez(es) durante esta tarefa (ao todo, {round(sum(s for _, s in paradas) / 60)} min parado). '
+                          'As consultas que estavam em andamento foram refeitas quando ele voltou. Para a pesquisa não parar, deixe o notebook na tomada e com a '
+                          'tampa aberta: a tela fica acesa enquanto a tarefa roda.')
+            except Exception:
+                pass
         try:
             ctx._gravar(forcar=True)  # grava o último estado das fontes e avisos
         except Cancelada:
