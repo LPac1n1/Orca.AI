@@ -1639,7 +1639,8 @@ def usar_titulo(p, pid, r, titulo):
     aceito = next((t for t in similares_do_cargo(r) if V.chave_cargo(t) == V.chave_cargo(titulo or '')), None)
     if not proprio and not aceito:
         raise ValueError(f'"{titulo}" não é um título similar aceito para este cargo')
-    tres = V.tres_do_titulo(r.cargo if proprio else aceito, r.faixa_pretendida)
+    from .calculo import media_para_a_faixa
+    tres = V.tres_do_titulo(r.cargo if proprio else aceito, media_para_a_faixa(r, p.config))
     if not proprio and len(tres) < 3:
         raise ValueError(f'o título "{aceito}" não tem 3 vagas válidas, de empresas diferentes, no banco de vagas')
     r.titulo_em_uso = None if proprio else aceito
@@ -1848,7 +1849,8 @@ def usar_vagas_do_banco(p, pid, r):
     """As (até) 3 vagas do banco para o cargo, todas do TÍTULO EM USO — o do cargo ou o título similar que a OSC escolheu (copia os PDFs
     para o projeto)."""
     from . import vagas as V
-    return [_pesquisa_da_vaga(pid, v) for v in V.tres_do_titulo(titulo_em_uso(r), r.faixa_pretendida)]
+    from .calculo import media_para_a_faixa
+    return [_pesquisa_da_vaga(pid, v) for v in V.tres_do_titulo(titulo_em_uso(r), media_para_a_faixa(r, p.config))]
 
 
 def pesquisa_completa(q):
@@ -1922,18 +1924,18 @@ def aplicar_vagas(p, pid, r):
     return novas, (replicar_pesquisas(p, r) if novas or mudou else [])
 
 
-def _proxima_vaga(r, k, fora=()):
+def _proxima_vaga(r, k, fora=(), alvo=None):
     """A próxima vaga válida do banco para a pesquisa k, do TÍTULO EM USO, da de menor salário para a maior; de empresa diferente das
     outras duas pesquisas e que não seja uma das vagas em `fora`."""
     from . import vagas as V
     usadas = {q.evidencia.url for j, q in enumerate(r.pesquisas) if j != k and q.evidencia and q.evidencia.url} | set(fora)
     raizes = {_raiz(q.cnpj) for j, q in enumerate(r.pesquisas) if j != k and q.cnpj}
     validas = [v for v in V.candidatas(titulo_em_uso(r)) if v['url'] not in usadas and _raiz(v['cnpj']) not in raizes]
-    if r.faixa_pretendida and validas:   # com faixa pretendida: a de menor salário que deixa a média das 3 chegar na faixa
+    if r.faixa_pretendida and validas:   # com faixa pretendida: a de menor salário que deixa a média das 3 chegar na faixa (alvo: a média necessária)
         from .regras import media
         outras = [(q.valor if q.valor is not None else q.faixa_min) for j, q in enumerate(r.pesquisas) if j != k]
         if len(outras) == 2 and None not in outras:
-            chegam = [v for v in validas if v.get('faixa_min') and media(outras + [v['faixa_min']]) >= r.faixa_pretendida]
+            chegam = [v for v in validas if v.get('faixa_min') and media(outras + [v['faixa_min']]) >= (alvo or r.faixa_pretendida)]
             if chegam:
                 return chegam[0]
     return validas[0] if validas else None
@@ -1949,12 +1951,14 @@ async def outra_vaga(pid, item, k, ctx):
     while len(r.pesquisas) < 3:
         r.pesquisas.append(PesquisaSalarial())
     atual = r.pesquisas[k].evidencia.url if r.pesquisas[k].evidencia else None
-    v = _proxima_vaga(r, k, [atual] if atual else [])
+    from .calculo import media_para_a_faixa
+    alvo = media_para_a_faixa(r, p.config)
+    v = _proxima_vaga(r, k, [atual] if atual else [], alvo)
     if v is None:
         ctx.progresso(5, f'Não há outra vaga válida no banco para "{titulo_em_uso(r)}": buscando nos sites')
-        tem_outra = lambda: _proxima_vaga(r, k, [atual] if atual else []) is not None
+        tem_outra = lambda: _proxima_vaga(r, k, [atual] if atual else [], alvo) is not None
         await V.coletar(titulo_em_uso(r), ctx, parar=tem_outra)   # só o título em uso: vaga de outro título não entra junto
-        v = _proxima_vaga(r, k, [atual] if atual else [])
+        v = _proxima_vaga(r, k, [atual] if atual else [], alvo)
     volta = f'/p/{pid}/rh/{item}#pesquisa{k}'
     ctx.progresso(100, 'Concluído')
     if v is None:
@@ -2034,7 +2038,8 @@ async def vagas_do_cargo(pid, item, ctx):
     from . import vagas as V
     p, _ = db.carregar(pid)
     r = _rubrica(p, item)
-    similares, faixa = similares_do_cargo(r), r.faixa_pretendida
+    from .calculo import media_para_a_faixa
+    similares, faixa = similares_do_cargo(r), media_para_a_faixa(r, p.config)   # a média que as vagas precisam ter para o valor chegar na faixa
     # com faixa pretendida, a busca de um título só para quando ele tem 3 vagas cuja média chega nela (ou quando as páginas acabam)
     pronto = lambda t: (lambda: V.alcanca_a_faixa(V.tres_do_titulo(t, faixa), faixa)) if faixa else None
     completo = lambda t: V.alcanca_a_faixa(V.tres_do_titulo(t, faixa), faixa)
@@ -2079,10 +2084,10 @@ async def vagas_do_cargo(pid, item, ctx):
         from .calculo import media_rh, horas_pela_faixa
         from .regras import brl
         h = horas_pela_faixa(r, p.config)
-        if media_rh(r) is not None and media_rh(r) < r.faixa_pretendida:
-            ctx.aviso(f'As vagas confirmadas de "{r.cargo}" não chegam na faixa pretendida de {brl(r.faixa_pretendida)}: a média das 3 de maior alcance é '
-                      f'{brl(media_rh(r))}. O cargo ficou com a jornada inteira ({h[0]} h) e {brl(h[1])} por mês. Aceite títulos similares, confirme vagas '
-                      f'"em dúvida" de salário maior ou reduza a faixa.')
+        if media_rh(r) is not None and h and media_rh(r) < media_para_a_faixa(r, p.config):
+            ctx.aviso(f'As vagas confirmadas de "{r.cargo}" não chegam na faixa pretendida de {brl(r.faixa_pretendida)}: a média das 3 é {brl(media_rh(r))} e, '
+                      f'com o máximo de {h[0]} h por mês, o valor fica em {brl(h[1])} (para chegar na faixa, a média precisaria ser de {brl(media_para_a_faixa(r, p.config))}). '
+                      f'Use vagas de salário maior (ou de outro título, em "Títulos com vagas"), reduza a faixa ou aumente o máximo de horas na configuração do projeto.')
         elif h:
             ctx.aviso(f'"{r.cargo}": faixa pretendida de {brl(r.faixa_pretendida)} → {h[0]} h por mês, {brl(h[1])} (média das 3 vagas: {brl(media_rh(r))}).')
     res['no_banco'] = len(novas)

@@ -513,3 +513,31 @@ def test_horas_por_mes_nunca_passam_do_limite_do_projeto(cliente):
     p.config.horas_max_mes = 130
     db.salvar(pid, p)
     assert not [a for a in verificar(db.carregar(pid)[0]) if a.regra == 'S12']
+
+
+def test_com_o_limite_de_horas_as_vagas_sao_escolhidas_pela_media_que_chega_na_faixa(cliente):
+    """Pesquisa completa de 09/10/2026: "Auxiliar de Serviços Gerais", faixa de R$ 1.000 — as 3 vagas de menor salário tinham média de R$ 1.673,67 e,
+    com o máximo de 90 h, o valor ficou em R$ 684,90. Com o limite de horas, a média que as vagas precisam ter é faixa × horas do mês ÷ máximo de
+    horas (R$ 2.444,45 para 220 h e 90 h): é com ela que as vagas são procuradas e escolhidas."""
+    from orcamento import db, vagas as V
+    from orcamento.calculo import media_para_a_faixa, media_rh, verificar
+    from orcamento.modelo import RubricaRH, Config
+    r = RubricaRH(item=1, cargo='Auxiliar Administrativo', horas_mes=40, meses=10, faixa_pretendida=100000)
+    assert media_para_a_faixa(r, Config()) == 244445 and media_para_a_faixa(r, Config(horas_max_mes=220)) == 100000      # sem o limite, a média é a própria faixa
+    assert media_para_a_faixa(RubricaRH(item=1, cargo='Assistente Social', horas_mes=40, meses=10, faixa_pretendida=100000), Config()) == 166667   # 150 h no mês
+    assert media_para_a_faixa(RubricaRH(item=1, cargo='Psicólogo', horas_mes=40, meses=10), Config()) is None
+    pid = _novo(cliente)
+    cliente.post(f'/p/{pid}/rubrica', data={'tipo': 'rh', 'nome': 'Auxiliar Administrativo', 'faixa_pretendida': '1.000,00', 'meses': '10'})
+    for empresa, cnpj, sal in (('Alfa', '11111111000111', 150000), ('Beta', '22222222000122', 160000), ('Gama', '33333333000133', 170000),
+                               ('Delta', '44444444000144', 260000), ('Epsilon', '55555555000155', 270000), ('Zeta', '66666666000166', 280000)):
+        _vaga_no_banco(V, 'Auxiliar Administrativo', empresa, cnpj, sal)
+    assert [v['empresa'] for v in V.tres_do_titulo('Auxiliar Administrativo', 100000)] == ['Alfa', 'Beta', 'Gama']          # pela faixa sozinha: média de 1.600
+    assert [v['empresa'] for v in V.tres_do_titulo('Auxiliar Administrativo', 244445)] == ['Delta', 'Epsilon', 'Zeta']       # pela média necessária: 2.700
+    pag = cliente.get(f'/p/{pid}/rh/1').text
+    assert 'a média das 3 precisa ser de pelo menos R$ 2.444,45' in pag
+    cliente.post(f'/p/{pid}/rh/1/vagas/banco')
+    p = db.carregar(pid)[0]
+    r = p.rubricas[0]
+    assert [q.nome for q in r.pesquisas] == ['DELTA', 'EPSILON', 'ZETA'] and media_rh(r) == 270000
+    assert r.horas_mes <= 90 and abs(r.valor_mensal_plano - 100000) <= 1227                                              # chega na faixa (a menos de uma hora de diferença), dentro das 90 h
+    assert not [a for a in verificar(p) if a.regra in ('S09', 'S12') and a.gravidade != 'info']

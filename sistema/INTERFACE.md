@@ -319,6 +319,7 @@ Peças comuns das telas de rubrica ficam em `templates/_rubrica.html` (cartão d
 | Cargo → banco de vagas | Vaga de outro título: "De outro título (X): para usar, escolha esse título em Títulos com vagas", no lugar dos botões 1-2-3 |
 | Cargo → banco de vagas → "Confirmar a empresa" | Lista "Empresas ativas com esse nome na base da Receita": razão social, nome fantasia, CNPJ, cidade/UF, selo "mesma cidade da vaga" ou "mesmo estado da vaga" e botão "É esta"; o campo de CNPJ continua para digitar |
 | Projeto → configuração → "Mão de obra" | Campo "Máximo de horas por mês de um cargo" (padrão 90) |
+| Cargo → "2. As 3 pesquisas de salário" (09/10/2026) | Quando o máximo de horas é menor que as horas do mês do cargo, o texto da faixa pretendida diz a média que as 3 vagas precisam ter: "sem passar do máximo de horas do cargo (para isso, a média das 3 precisa ser de pelo menos R$ X)". "Títulos com vagas" e o botão do banco usam essa média |
 | Projeto → configuração → "Pesquisa de produtos" | Escolha "Comprovante de cada preço": a página do produto (padrão) ou o carrinho da loja. O texto do bloco diz que o sistema não troca itens sozinho |
 | Apagar as pesquisas | O texto diz que saem todas as vagas guardadas dos cargos, inclusive as descartadas |
 

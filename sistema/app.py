@@ -838,12 +838,14 @@ def rh_form(request: Request, pid: int, item: int, msg: str = '', ok: str = '', 
                 x['candidatos'] = []
     banco.sort(key=lambda x: (x['em_uso'] is None, x['cnpj_status'] != '🟢', x['cnpj_status'] != '🟡', x['faixa_min'] or 10 ** 9))
     opcoes_similares = list(dict.fromkeys(V.sugestoes_similares(r.cargo) + similares))
-    tres = V.tres_do_titulo(titulo_uso, r.faixa_pretendida)
-    grupos = V.grupos_de_titulos(r.cargo, similares, r.faixa_pretendida)
+    from orcamento.calculo import media_para_a_faixa
+    alvo_media = media_para_a_faixa(r, p.config)   # a média que as 3 vagas precisam ter para o valor chegar na faixa sem passar do máximo de horas
+    tres = V.tres_do_titulo(titulo_uso, alvo_media)
+    grupos = V.grupos_de_titulos(r.cargo, similares, alvo_media)
     for g in grupos:
         g['em_uso'] = V.chave_cargo(g['titulo']) == V.chave_cargo(titulo_uso)
         g['media'] = (sum(x['faixa_min'] for x in g['vagas']) // len(g['vagas'])) if g['vagas'] else None
-    return tpl.TemplateResponse(request, 'rh.html', dict(contexto(p, pid, v), r=r, banco=banco[:80], tres=tres, tres_alcanca=V.alcanca_a_faixa(tres, r.faixa_pretendida),
+    return tpl.TemplateResponse(request, 'rh.html', dict(contexto(p, pid, v), r=r, banco=banco[:80], tres=tres, tres_alcanca=V.alcanca_a_faixa(tres, alvo_media), alvo_media=alvo_media,
                                                          grupos=grupos, titulo_uso=titulo_uso, titulos_misturados=servico.titulos_misturados(r),
                                                          horas_pela_faixa=horas_pela_faixa(r, p.config),
                                                          msg=msg, ok=ok, novo=novo, similares=similares, opcoes_similares=opcoes_similares,

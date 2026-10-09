@@ -46,6 +46,18 @@ def horas_pela_faixa(r: RubricaRH, cfg):
     return h, vh * h
 
 
+def media_para_a_faixa(r: RubricaRH, cfg):
+    """A média salarial das 3 vagas a partir da qual o valor mensal do cargo CHEGA na faixa pretendida sem passar do máximo de horas:
+    faixa × horas do mês ÷ máximo de horas do cargo. Com o limite de 90 h (decisão da OSC, 06/10/2026) e 220 h no mês, uma faixa de R$ 1.000
+    pede vagas com média de R$ 2.444,45 — com média de R$ 1.673,67, as 90 h dão só R$ 684,90 (pesquisa completa de 09/10/2026). É com esta
+    média, e não com a faixa, que as vagas são procuradas e escolhidas. None se o cargo não tem faixa."""
+    if not r.faixa_pretendida:
+        return None
+    div, _ = divisor_horas(r.cargo, cfg.divisor_horas)
+    hmax = horas_maximas(r.cargo, cfg)
+    return -(-r.faixa_pretendida * div // hmax)   # para cima
+
+
 def nivelar_pela_faixa(r: RubricaRH, cfg):
     """Põe no cargo as horas e o valor mensal que chegam na faixa pretendida. False se o cargo não tem faixa (ou faltam pesquisas)."""
     x = horas_pela_faixa(r, cfg)
