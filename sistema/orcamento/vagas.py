@@ -24,6 +24,13 @@ PARADAS = {'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'a', 'o', 'para', 'recibo'
 CONFIDENCIAL = ('confidencial', 'sigilos', 'nao divulgad', 'não divulgad', '****')
 AGREGADORES = ('oemprego', 'vagas brasil', 'emprego ligado', 'trabalha brasil', 'jooble', 'talent.com', 'indeed', 'catho', 'infojobs', 'bne ', 'vagas.com', 'empregos.com')
 VALIDADE_DIAS = 180
+# "Empresa localizada no bairro X", "Empresa do ramo alimentício", "Empresa nacional": não é o nome de ninguém — é a empresa que não quis se
+# identificar, descrita de outro jeito (pesquisa completa de 09/10/2026: o sistema gastava minutos procurando o CNPJ de "Empresa Localizada No
+# Bairro…", e uma "Empresa nacional" chegou a casar com uma empresa de verdade que tem esse nome)
+EMPRESA_SEM_NOME = re.compile(r'^(?:uma\s+|nossa\s+|grande\s+|renomada\s+)?(?:empresa|industria|loja|escritorio|clinica|instituicao|cliente|companhia)\s+'
+                              r'(?:localizad[ao]|situad[ao]|d[oe]\s+ramo|no\s+ramo|d[oe]\s+segmento|no\s+segmento|d[oe]\s+setor|d[ae]\s+area|de\s+(?:pequeno|medio|grande)\s+porte|'
+                              r'nacional|multinacional|familiar|parceir[ao]|em\s+expansao|lider|renomad[ao]|conceituad[ao]|solid[ao]|tradicional|privad[ao]|contrata)\b'
+                              r'|^(?:nosso|nossa)\s+client|^empresa$|^cliente$')
 
 
 def _slug(s):
@@ -466,7 +473,7 @@ def avaliar(v, cargo):
     if not titulo_exato(v['titulo'], cargo, v.get('cidade'), v.get('uf')):
         return f'título "{v["titulo"]}" não é exatamente o cargo'
     e = norm(v['empresa'])
-    if not v['empresa'] or any(k in e for k in CONFIDENCIAL):
+    if not v['empresa'] or any(k in e for k in CONFIDENCIAL) or EMPRESA_SEM_NOME.search(e):
         return 'empresa confidencial/não identificada'
     if any(k in e for k in AGREGADORES):
         return 'publicada por agregador, não pela empresa (R15)'

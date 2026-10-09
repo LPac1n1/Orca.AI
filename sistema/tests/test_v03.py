@@ -224,6 +224,17 @@ def test_coleta_consulta_primeiro_quem_a_base_resolve_e_refaz_o_que_o_modo_de_es
     assert V.texto_visivel('<p>Salário R$ 2.000,00</p><script>{"v": 3000}</script><style>a{}</style> fim').split() == ['Salário', 'R$', '2.000,00', 'fim']
 
 
+def test_empresa_descrita_em_vez_de_nomeada_nao_e_empresa_identificada():
+    """Pesquisa completa de 09/10/2026: "Empresa Localizada No Bairro Campina Do Siqueira" passou como empresa e o sistema gastou minutos atrás do
+    CNPJ dela; antes, uma "Empresa nacional" tinha casado com uma empresa de verdade. É empresa que não se identificou."""
+    base = dict(titulo='Auxiliar Administrativo', faixa_min=200000, faixa_max=200000, unidade='MONTH')
+    for nome in ('Empresa Localizada No Bairro Campina Do Siqueira', 'Empresa nacional', 'Empresa do ramo alimentício', 'Empresa de grande porte', 'Nosso cliente',
+                 'Indústria do segmento metalúrgico', 'Empresa', 'Clínica localizada na zona sul', 'Empresa multinacional'):
+        assert avaliar(dict(base, empresa=nome), 'Auxiliar administrativo') == 'empresa confidencial/não identificada', nome
+    for nome in ('Empresa Brasileira de Correios e Telégrafos', 'Clínica Santa Clara', 'Loja Exemplo Ltda', 'Nacional Gás', 'Companhia de Saneamento Exemplo', 'Empresa Júnior Exemplo'):
+        assert avaliar(dict(base, empresa=nome), 'Auxiliar administrativo') is None, nome
+
+
 def test_grade_com_fornecedor_por_item(dados, tmp_path):
     from openpyxl import load_workbook
     from orcamento.modelo import Projeto, RubricaMaterial, Subitem, Fonte

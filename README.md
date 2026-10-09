@@ -156,7 +156,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 266 ao todo. Num clone limpo, 264 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 267 ao todo. Num clone limpo, 265 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -199,6 +199,7 @@ O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.m
 - **09/10/2026 — pesquisa completa mais resistente e mais um site de vagas**
   - **O modo de espera do computador não derruba mais a pesquisa.** Numa pesquisa completa de teste, o notebook entrou em espera três vezes (até 30 minutos parado) e as consultas em andamento viravam erro. Agora a tela fica acesa enquanto uma tarefa roda, o sistema percebe quando o computador parou, refaz a consulta interrompida e avisa no fim da tarefa. Fechar a tampa continua pondo o computador em espera.
   - **Vagas: primeiro as empresas que a base da Receita resolve na hora.** A consulta online de CNPJ leva minutos por empresa; ela só é feita para as vagas que ainda podem mudar o resultado. As 3 escolhidas continuam sendo as de menor salário entre as válidas.
+  - **Conferência de CNPJ na internet cerca de 5 vezes mais rápida** (média de 31 segundos por empresa, contra 2 a 4 minutos): cada CNPJ achado nos buscadores é conferido na base da Receita do próprio computador, e as buscas correm ao mesmo tempo. "Empresa localizada no bairro…" e "Empresa do ramo…" passam a contar como empresa não identificada.
   - **Usar 2 lojas e completar a 3ª à mão.** Quando o produto pedido existe em só 2 lojas, a tela do item mostra as duas e o botão "Usar estas 2 lojas e completar a 3ª à mão": o sistema guarda os 2 comprovantes e grava as 2 pesquisas; a terceira você preenche com o mesmo produto em outra loja (inclusive numa que o sistema não consegue ler). O item só fica pronto com as 3.
   - **Mais um site de vagas: Trabalha Brasil** (busca por cidade; título, empresa e salário legíveis). Quando a empresa não informa o salário, o site mostra uma faixa estimada: essa não entra. Gupy e Sólides foram sondados e ficaram de fora.
 

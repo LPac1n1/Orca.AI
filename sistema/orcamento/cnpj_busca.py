@@ -216,12 +216,23 @@ class Api:
         self.c, self.memo = c, {}
 
     async def dados(self, d):
+        """Os dados cadastrais do CNPJ. Primeiro a base da Receita deste computador, que responde na hora e só tem empresas ATIVAS (pesquisa
+        completa de 09/10/2026: cada empresa levava de 2 a 4 minutos, quase tudo em consultas de CNPJ a serviços da internet, 8 por buscador).
+        Os serviços públicos ficam para o CNPJ que não está na base (empresa baixada, inapta ou aberta depois da última atualização)."""
         if d in self.memo:
+            return self.memo[d]
+        try:
+            b = cnpj_base.por_cnpj(d)
+        except Exception:
+            b = None
+        if b:
+            self.memo[d] = dict(razao_social=b.get('razao'), nome_fantasia=b.get('fantasia'), municipio=b.get('municipio'), uf=b.get('uf'),
+                                descricao_situacao_cadastral='ATIVA', origem='base da Receita')
             return self.memo[d]
         for u in (f'https://minhareceita.org/{d}', f'https://brasilapi.com.br/api/cnpj/v1/{d}'):
             for _ in range(2):
                 try:
-                    r = await self.c.get(u)
+                    r = await self.c.get(u, timeout=8)
                     if r.status_code == 200:
                         self.memo[d] = r.json(); return self.memo[d]
                     if r.status_code == 404:
@@ -264,17 +275,15 @@ async def _do_site(api, nome, links, confiaveis=()):
     import httpx
     bases = [re.match(r'https?://[^/]+', u).group(0) for u in confiaveis if u and re.match(r'https?://', u) and not NAO_OFICIAIS.search(u)]
     bases += [re.match(r'https?://[^/]+', u).group(0) for u in links if site_parece_oficial(u, nome)][:2]
+    caminhos = ('', '/contato', '/fale-conosco', '/sobre', '/quem-somos', '/politica-de-privacidade')
     for base in list(dict.fromkeys(bases))[:3]:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers={'User-Agent': UA}) as c:
-            for caminho in ('', '/contato', '/fale-conosco', '/sobre', '/quem-somos', '/politica-de-privacidade'):
-                try:
-                    r = await c.get(base + caminho)
-                except Exception:
-                    continue
-                if r.status_code != 200:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True, headers={'User-Agent': UA}) as c:
+            paginas = await asyncio.gather(*[c.get(base + caminho) for caminho in caminhos], return_exceptions=True)
+            for caminho, r in zip(caminhos, paginas):
+                if isinstance(r, BaseException) or r.status_code != 200:
                     continue
                 achados = []
-                for x in dict.fromkeys(re.sub(r'\D', '', y) for y in CNPJ_RE.findall(re.sub(r'<[^>]+>', ' ', r.text))):
+                for x in dict.fromkeys(re.sub(r'\D', '', y) for y in CNPJ_RE.findall(re.sub(r'<[^>]+>', ' ', r.text[:600_000]))):
                     if dv_ok(x):
                         j = await api.dados(x)
                         if j and confere(nome, j):
@@ -286,17 +295,23 @@ async def _do_site(api, nome, links, confiaveis=()):
 
 async def _online(br, api, nome, cidade, uf, site, ctx=None):
     tentativas, confirmados, links_vistos = [], {}, []
-    for i, (fonte, tpl) in enumerate(BUSCADORES):
-        if i == 2 and confirmados:
-            break
+
+    async def consultar(fonte, tpl):
         espera = INTERVALO_BUSCADOR - (time.monotonic() - _ultimo_uso.get(fonte, 0))
         if espera > 0:
             await asyncio.sleep(espera)
         _ultimo_uso[fonte] = time.monotonic()
         try:
-            t, links = await asyncio.wait_for(_pagina(br, tpl(f'CNPJ "{nome}"')), 50)
-        except asyncio.TimeoutError:
-            t, links = '', []
+            return (fonte,) + tuple(await asyncio.wait_for(_pagina(br, tpl(f'CNPJ "{nome}"')), 50))
+        except Exception:
+            return fonte, '', []
+    respostas = list(await asyncio.gather(*[consultar(f, t) for f, t in BUSCADORES[:2]]))   # os dois primeiros ao mesmo tempo
+    for i in range(3):
+        if i == 2:
+            if confirmados:
+                break
+            respostas.append(await consultar(*BUSCADORES[2]))
+        fonte, t, links = respostas[i]
         links_vistos += links
         if not t or (any(k in sa(t) for k in BLOQ) and not CNPJ_RE.search(t)):
             tentativas.append(f'{fonte}: sem resposta/bloqueado')
