@@ -215,6 +215,36 @@ def test_marca_que_a_osc_trocou_depois_da_pesquisa_nao_e_apagada(cliente):
     assert res['marcas'] == [] and p.rubricas[2].subitens[1].marca == 'Melitta' and p.rubricas[2].subitens[1].precos == [None] * 3
 
 
+def test_pesquisa_automatica_sem_comprovante_nao_e_tratada_como_feita_a_mao(cliente):
+    """Pesquisa completa de 09/10/2026: dois itens sobreviveram ao "apagar e refazer". Eram pesquisas AUTOMÁTICAS cujo comprovante não pôde ser
+    guardado: sem arquivo, estavam gravadas com a origem "manual", e o item inteiro ficava como "feito à mão" (um deles com um preço errado de
+    R$ 1,98). Quem diz se a pesquisa é da busca é o histórico: o link entrou numa versão gravada pela pesquisa automática."""
+    from orcamento import db, zerar
+    from orcamento.modelo import Evidencia, Fonte
+    pid = _montar(cliente)
+    p = db.carregar(pid)[0]
+    s = p.rubricas[2].subitens[5]   # Açúcar 1kg, ainda sem pesquisa: a busca acha, mas o comprovante de 2 das 3 lojas não pôde ser guardado
+    s.fontes = [Fonte(nome=f'LOJA {k}', cnpj=CNPJS[k], data_pesquisa='2026-10-06',
+                      evidencia=Evidencia(url=f'https://loja{k}.exemplo/acucar') if k < 2 else _ev('navegador', 'https://loja2.exemplo/acucar')) for k in range(3)]
+    s.precos, s.produtos, s.confirmacao, s.valor_plano = [198, 1499, 1649], ['Açúcar A'] * 3, 'EAN nas 3 lojas', 198
+    db.salvar(pid, p, autor='sistema (pesquisa automática)', motivo='pesquisa')
+    p = db.carregar(pid)[0]
+    assert p.rubricas[2].subitens[5].fontes[0].evidencia.origem == 'manual'                                            # como ficava gravado
+    assert zerar.urls_da_pesquisa(pid) >= {'https://loja0.exemplo/acucar', 'https://loja1.exemplo/acucar'}
+    res = zerar.zerar(p, pid)
+    assert p.rubricas[2].subitens[5].precos == [None] * 3 and not p.rubricas[2].subitens[5].fontes                     # sai com as outras
+    assert not [m for m in res['mantidos'] if 'Açúcar' in m]
+    # o link que a OSC digitou (versão gravada por ela) continua sendo dela: o item fica
+    p = db.carregar(pid)[0]
+    s = p.rubricas[2].subitens[5]
+    s.fontes = [Fonte(nome=f'LOJA {k}', cnpj=CNPJS[k], data_pesquisa='2026-10-06', evidencia=Evidencia(url=f'https://outra{k}.exemplo/acucar')) for k in range(3)]
+    s.precos = [500, 600, 700]
+    db.salvar(pid, p, motivo='digitado pela OSC')
+    p = db.carregar(pid)[0]
+    res = zerar.zerar(p, pid)
+    assert p.rubricas[2].subitens[5].precos == [500, 600, 700] and [m for m in res['mantidos'] if 'Açúcar' in m]
+
+
 def test_pesquisas_em_branco_nao_sao_a_mesma_empresa(cliente):
     """Depois de zerar, o item que ficou com uma cotação feita à mão e duas em branco não pode acusar "a mesma empresa em mais de uma
     pesquisa" (as duas em branco eram comparadas como iguais). Empresa repetida de verdade continua sendo apontada."""

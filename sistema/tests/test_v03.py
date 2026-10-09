@@ -300,6 +300,23 @@ def test_cnpj_de_outro_estado_so_e_confirmado_com_estabelecimento_no_estado_ou_r
                     'é a única empresa ativa com esse nome na base da Receita"}'))
     r = asyncio.run(cnpj_busca.cnpj_do_empregador(None, None, 'Zetaplak', 'São Paulo', 'SP'))
     assert r['status'] == '🟡' and cnpj_busca.SEM_ESTABELECIMENTO in r['motivo']
+    # e as vagas já guardadas no banco com a empresa confirmada pela regra antiga também: a que não passa volta para "em dúvida"
+    from orcamento import vagas as V
+    antiga = 'base da Receita: única empresa ativa com esse nome no Brasil; sede em BA, vaga em SP: é a única empresa ativa com esse nome na base da Receita'
+    with db.conectar() as cx:
+        for url, empresa, cnpj, razao, motivo in (('https://vagas.exemplo/1', 'Zetaplak', '77777777000177', 'MARIA TESTE DE SOUZA', antiga),
+                                                  ('https://vagas.exemplo/2', 'Omega Model', '88888888000269', 'AGENCIA NORTE SUL DE MODELOS LTDA', antiga),
+                                                  ('https://vagas.exemplo/3', 'Zetaplak', '77777777000177', 'MARIA TESTE DE SOUZA', V.CONFIRMADA_PELA_OSC + ' ' + antiga)):
+            cx.execute('INSERT INTO vaga_banco (url, cargo_chave, cargo, titulo, empresa, cidade, uf, plataforma, coletada_em, valida_ate, cnpj, cnpj_status, cnpj_motivo, razao) '
+                       'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (url, 'psicologo', 'Psicólogo', 'Psicólogo', empresa, 'São Paulo', 'SP', 'InfoJobs', db.agora(), '2099-01-01',
+                                                              cnpj, '🟢', motivo, razao))
+    assert V.reconferir_lugar_no_banco() == 1
+    with db.conectar() as cx:
+        st = {r['url'][-1]: (r['cnpj_status'], r['cnpj_motivo']) for r in cx.execute('SELECT url, cnpj_status, cnpj_motivo FROM vaga_banco')}
+    assert st['1'][0] == '🟡' and cnpj_busca.SEM_ESTABELECIMENTO in st['1'][1]            # só o nome fantasia, sem estabelecimento em SP
+    assert st['2'][0] == '🟢' and 'a empresa tem estabelecimento em SP' in st['2'][1]      # a empresa existe no estado da vaga: continua confirmada, com o motivo novo
+    assert st['3'][0] == '🟢' and st['3'][1].startswith(V.CONFIRMADA_PELA_OSC)             # confirmada pela OSC: não é tocada
+    assert V.reconferir_lugar_no_banco() == 0                                             # uma vez conferida, não muda de novo
 
 
 def test_empresa_achada_na_internet_e_a_unica_com_o_nome_na_cidade_da_vaga(dados, monkeypatch):

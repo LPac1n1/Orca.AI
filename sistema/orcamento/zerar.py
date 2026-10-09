@@ -31,9 +31,38 @@ def tem_dado(f, preco=None):
     return bool(preco or f.nome or f.cnpj or ev.arquivo or ev.url)
 
 
-def a_mao(f, preco=None):
-    """Pesquisa que a OSC fez à mão (digitou os dados ou anexou o PDF), e não a que a busca automática gravou."""
+def a_mao(f, preco=None, da_busca=()):
+    """Pesquisa que a OSC fez à mão (digitou os dados ou anexou o PDF), e não a que a busca automática gravou. da_busca: os links que
+    entraram no projeto pela pesquisa automática (urls_da_pesquisa) — a pesquisa sem arquivo com um desses links é da busca."""
+    if not f.evidencia.arquivo and f.evidencia.url and f.evidencia.url in da_busca:
+        return False
     return tem_dado(f, preco) and f.evidencia.origem not in AUTOMATICAS
+
+
+def urls_da_pesquisa(pid):
+    """Os links de pesquisa que entraram no projeto numa versão gravada pela PESQUISA AUTOMÁTICA (quem diz é o histórico). Servem para
+    reconhecer a pesquisa automática cujo comprovante não pôde ser guardado: sem arquivo, ela ficava gravada com a origem "manual", o "apagar e
+    refazer" a tomava por feita à mão e o item inteiro ficava. Na pesquisa completa de 09/10/2026, dois itens sobreviveram assim ao apagar — um
+    deles uma troca antiga, com um preço errado de R$ 1,98. O link que a OSC digitou (versão gravada por ela) continua sendo dela."""
+    import json
+    with db.conectar() as c:
+        versoes = c.execute('SELECT autor, json FROM versao WHERE projeto_id=? ORDER BY numero', (pid,)).fetchall()
+    antes, out = set(), set()
+    for v in versoes:
+        try:
+            j = json.loads(v['json'])
+        except ValueError:
+            continue
+        agora = set()
+        for r in j.get('rubricas') or []:
+            for f in list(r.get('fontes') or []) + [f for s in r.get('subitens') or [] for f in s.get('fontes') or []]:
+                u = (f.get('evidencia') or {}).get('url')
+                if u:
+                    agora.add(u)
+        if 'pesquisa automática' in (v['autor'] or ''):
+            out |= agora - antes
+        antes = agora
+    return out
 
 
 def _n(texto):
@@ -93,6 +122,7 @@ def zerar(p, pid=None, com_a_mao=False, com_marcas=True, com_confirmadas=True):
     vagas cuja empresa a OSC confirmou."""
     from . import servico, vagas as V
     marcas_sis = marcas_da_pesquisa(pid, p) if pid is not None else set()
+    da_busca = urls_da_pesquisa(pid) if pid is not None else set()
     da_osc = vagas_confirmadas_pela_osc() if pid is not None else set()
     res = dict(cargos=[], itens=[], automaticas=0, a_mao=0, a_mao_mantidas=0, confirmadas=0, confirmadas_mantidas=0, voltam=[], marcas=[], quantidades=[],
                mantidos=[], pedidos=[], rubricas_inteiras=[], chaves_de_vaga=[], itens_tocados=[], com_confirmadas=com_confirmadas)
@@ -124,8 +154,8 @@ def zerar(p, pid=None, com_a_mao=False, com_marcas=True, com_confirmadas=True):
         for i, s in enumerate(r.subitens):
             fs = (list(fontes_do_subitem(r, s)) + [Fonte(), Fonte(), Fonte()])[:3]
             precos = (list(s.precos or []) + [None, None, None])[:3]
-            auto = [k for k in range(3) if tem_dado(fs[k], precos[k]) and not a_mao(fs[k], precos[k])]
-            mao = [k for k in range(3) if a_mao(fs[k], precos[k])]
+            auto = [k for k in range(3) if tem_dado(fs[k], precos[k]) and not a_mao(fs[k], precos[k], da_busca)]
+            mao = [k for k in range(3) if a_mao(fs[k], precos[k], da_busca)]
             res['automaticas'] += len(auto); res['a_mao'] += len(mao)
             nome = f'Item {r.item} – {r.descricao} / {descricao_completa(s)}'
             pesquisado = bool(auto or mao or s.valor_plano or s.nivel or s.descricao_original)

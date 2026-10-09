@@ -1288,7 +1288,7 @@ async def aplicar_proposta(pid, item, proposta, ctx):
         fontes, precos, produtos, eans = [], [], [], []
         for x in o['ofertas']:
             v = comp.get((x['loja'], x['url'])) or {}
-            ev = v.get('ev') or Evidencia(url=x['url'])
+            ev = v.get('ev') or Evidencia(url=x['url'], origem='navegador')   # sem arquivo (o comprovante falhou), mas é da pesquisa automática — não "manual"
             ev = ev.model_copy(update=dict(url=url_limpa(ev.url)))
             if v.get('problema') and ev.arquivo:   # o PDF fica guardado para consulta, mas a pesquisa continua pendente
                 ev = ev.model_copy(update=dict(problema=v['problema']))

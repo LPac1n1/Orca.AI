@@ -328,6 +328,31 @@ def corrigir_banco_pela_pagina():
     return n
 
 
+def reconferir_lugar_no_banco():
+    """Vagas guardadas com a empresa confirmada pela regra de 08/10/2026 ("única empresa ativa com esse nome", mesmo com o CNPJ em outro
+    estado): conferidas de novo com a regra do lugar (cnpj_busca.conferir_local), sem internet. A que não passa volta para "em dúvida", com a
+    empresa indicada para a OSC confirmar. O que a OSC confirmou à mão não é tocado. Devolve quantas deixaram de estar confirmadas."""
+    from . import cnpj_base, db
+    from .cnpj_busca import UNICA_ANTIGA, conferir_local
+    with db.conectar() as c:
+        linhas = [dict(r) for r in c.execute("SELECT url, empresa, cidade, uf, cnpj, cnpj_motivo, razao FROM vaga_banco WHERE cnpj_status='🟢' AND cnpj_motivo LIKE ?",
+                                             ('%' + UNICA_ANTIGA + '%',))]
+    n = 0
+    for v in linhas:
+        m = v['cnpj_motivo'] or ''
+        if m.startswith(CONFIRMADA_PELA_OSC) or '; sede em ' not in m or 'razão social' in m:
+            continue
+        b = cnpj_base.por_cnpj(v['cnpj'])
+        if not b:
+            continue
+        r = conferir_local(dict(status='🟢', cnpj=v['cnpj'], razao_social=v['razao'] or b['razao'], municipio=b['municipio'], uf=b['uf'],
+                                fonte='base da Receita (dados abertos)', motivo=m.split('; sede em ')[0]), v['cidade'], v['uf'], v['empresa'])
+        with db.conectar() as c:
+            c.execute('UPDATE vaga_banco SET cnpj_status=?, cnpj_motivo=? WHERE url=?', (r['status'], r['motivo'], v['url']))
+        n += r['status'] != '🟢'
+    return n
+
+
 def _pdf_bytes_a_combinar(pdf, centavos=None):
     try:
         import pymupdf
@@ -777,6 +802,10 @@ def vagas_do_banco(cargo, so_validas=True, so_verdes=True, descartadas=False):
         _banco_corrigido = True
         try:
             corrigir_banco_pela_pagina()
+        except Exception:
+            pass
+        try:
+            reconferir_lugar_no_banco()
         except Exception:
             pass
     q = 'SELECT * FROM vaga_banco WHERE cargo_chave=?' + ('' if descartadas else ' AND descartada_em IS NULL')
