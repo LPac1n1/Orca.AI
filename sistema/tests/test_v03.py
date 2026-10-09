@@ -298,7 +298,14 @@ def test_empresa_achada_na_internet_e_a_unica_com_o_nome_na_cidade_da_vaga(dados
     r = cnpj_busca.conferir_homonimos(achado, 'Alfa Beta Serviços', 'Campinas')
     assert r['status'] == '🟢' and 'uma só em Campinas' in r['motivo']                       # a homônima fica em Niterói: em Campinas só há esta
     assert cnpj_busca.conferir_homonimos(achado, 'Alfa Beta Serviços')['status'] == '🟡'       # sem a cidade da vaga não dá para afirmar
-    assert cnpj_busca.conferir_homonimos(achado, 'Alfa Beta Serviços', 'São Paulo')['status'] == '🟡'   # "São Paulo" pode ser só o estado
+    # "São Paulo" pode ser a cidade ou o estado: a homônima fica no Rio, e no estado de São Paulo só existe esta (regra de 09/10/2026)
+    r = cnpj_busca.conferir_homonimos(achado, 'Alfa Beta Serviços', 'São Paulo')
+    assert r['status'] == '🟢' and cnpj_busca.UMA_NO_ESTADO + ' (SP)' in r['motivo']
+    assert cnpj_busca.conferir_homonimos(achado, 'Alfa Beta Serviços', 'Santos', 'SP')['status'] == '🟢'            # outra cidade do mesmo estado: continua sendo a única nele
+    assert cnpj_busca.conferir_homonimos(achado, 'Alfa Beta Serviços', 'Niterói', 'RJ')['status'] == '🟡'           # no Rio fica a homônima
+    r = cnpj_busca.cnpj_pela_base('Alfa Beta Serviços', None, 'SP')                                                 # a base resolve sozinha pelo estado
+    assert r['cnpj'] == '55555555000155' and r['motivo'] == 'base da Receita: 2 empresas com esse nome no Brasil, uma só no estado da vaga (SP)'
+    assert cnpj_busca.cnpj_pela_base('Alfa Beta Serviços') is None and cnpj_busca.cnpj_pela_base('Confiança RH', 'Rio de Janeiro', 'RJ') is None   # sem lugar; duas no estado
     assert cnpj_busca.conferir_homonimos(dict(achado, municipio='SANTOS'), 'Alfa Beta Serviços', 'Campinas')['status'] == '🟡'   # o CNPJ achado nem é da cidade da vaga
     # as duas "Confiança RH" ficam em Niterói: continua em dúvida
     r = cnpj_busca.conferir_homonimos(dict(status='🟢', cnpj='12802628000190', municipio='NITEROI', uf='RJ', motivo='nome confere', fonte='Yahoo'), 'Confiança RH', 'Niterói')
