@@ -235,6 +235,43 @@ def test_empresa_descrita_em_vez_de_nomeada_nao_e_empresa_identificada():
         assert avaliar(dict(base, empresa=nome), 'Auxiliar administrativo') is None, nome
 
 
+def test_empresa_achada_na_internet_e_a_unica_com_o_nome_na_cidade_da_vaga(dados, monkeypatch):
+    """Pesquisa completa de 09/10/2026: de 11 empresas de um cargo, 1 teve o CNPJ confirmado; várias paravam em homônimas de OUTRAS cidades. A base
+    da Receita já confirmava sozinha "N empresas com esse nome no Brasil, uma só na cidade da vaga"; agora o CNPJ achado na internet também."""
+    import asyncio, sqlite3
+    from orcamento import cnpj_base, cnpj_busca, db
+    arq = os.path.join(dados, 'cnpj_teste.sqlite'); _base_exemplo(arq)
+    c = sqlite3.connect(arq)
+    c.executescript("""INSERT INTO municipio VALUES ('6291','CAMPINAS');
+        INSERT INTO empresa VALUES ('55555555','ALFA BETA SERVICOS LTDA'),('66666666','ALFA BETA SERVICOS E COMERCIO LTDA');
+        INSERT INTO estab VALUES ('55555555000155','55555555',1,'','SP','6291','8111700'),('66666666000166','66666666',1,'ALFA BETA SERVICOS','RJ','5865','8111700');
+        INSERT INTO nomes(nome, cnpj) VALUES (' | ALFA BETA SERVICOS LTDA','55555555000155'),('ALFA BETA SERVICOS | ALFA BETA SERVICOS E COMERCIO LTDA','66666666000166');""")
+    c.commit(); c.close()
+    monkeypatch.setattr(cnpj_base, 'BASE', arq)
+    achado = dict(status='🟢', cnpj='55555555000155', municipio='CAMPINAS', uf='SP', motivo='nome confere', fonte='Yahoo')
+    r = cnpj_busca.conferir_homonimos(achado, 'Alfa Beta Serviços', 'Campinas')
+    assert r['status'] == '🟢' and 'uma só em Campinas' in r['motivo']                       # a homônima fica em Niterói: em Campinas só há esta
+    assert cnpj_busca.conferir_homonimos(achado, 'Alfa Beta Serviços')['status'] == '🟡'       # sem a cidade da vaga não dá para afirmar
+    assert cnpj_busca.conferir_homonimos(achado, 'Alfa Beta Serviços', 'São Paulo')['status'] == '🟡'   # "São Paulo" pode ser só o estado
+    assert cnpj_busca.conferir_homonimos(dict(achado, municipio='SANTOS'), 'Alfa Beta Serviços', 'Campinas')['status'] == '🟡'   # o CNPJ achado nem é da cidade da vaga
+    # as duas "Confiança RH" ficam em Niterói: continua em dúvida
+    r = cnpj_busca.conferir_homonimos(dict(status='🟢', cnpj='12802628000190', municipio='NITEROI', uf='RJ', motivo='nome confere', fonte='Yahoo'), 'Confiança RH', 'Niterói')
+    assert r['status'] == '🟡' and 'mais 1 empresa' in r['motivo']
+    # a dúvida guardada (memória de 30 dias) é conferida de novo com a regra da cidade, sem internet
+    with db.conectar() as cx:
+        cx.execute('INSERT OR REPLACE INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)',
+                   ('alfa beta servicos|campinas|sp', db.agora(), '{"status": "🟡", "cnpj": "55555555000155", "uf": "SP", "municipio": "CAMPINAS", "fonte": "Yahoo", '
+                                                                 '"motivo": "nome confere; base da Receita: mais 1 empresa(s) ativa(s) com esse nome (NITEROI/RJ)"}'))
+    r = asyncio.run(cnpj_busca.cnpj_do_empregador(None, None, 'Alfa Beta Serviços', 'Campinas', 'SP'))
+    assert r['status'] == '🟢' and r['motivo'].startswith('nome confere; base da Receita: 2 empresas ativas com esse nome no Brasil, uma só em Campinas')
+    # os dados do CNPJ vêm primeiro da base deste computador (na hora): os serviços da internet só para quem não está nela
+    class SemInternet:
+        async def get(self, *a, **k): raise AssertionError('não era para consultar a internet')
+    api = cnpj_busca.Api(SemInternet())
+    j = asyncio.run(api.dados('55555555000155'))
+    assert (j['razao_social'], j['municipio'], j['descricao_situacao_cadastral'], j['origem']) == ('ALFA BETA SERVICOS LTDA', 'CAMPINAS', 'ATIVA', 'base da Receita')
+
+
 def test_grade_com_fornecedor_por_item(dados, tmp_path):
     from openpyxl import load_workbook
     from orcamento.modelo import Projeto, RubricaMaterial, Subitem, Fonte

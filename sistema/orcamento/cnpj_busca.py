@@ -164,13 +164,30 @@ def homonimos_na_base(nome):
     return raizes
 
 
-def conferir_homonimos(r, nome):
+def so_ela_na_cidade(r, nome, cidade):
+    """A empresa do CNPJ achado fica na cidade da vaga e nenhuma OUTRA empresa ativa com esse nome tem estabelecimento nessa cidade? É o mesmo
+    critério com que a base da Receita já confirma sozinha ("N empresas com esse nome no Brasil, uma só em São Paulo"); aqui vale também para o
+    CNPJ achado na internet (pesquisa completa de 09/10/2026: 1 de 11 empresas confirmada; várias paravam em homônimas de outros estados).
+    Só com a CIDADE da vaga: quando o anúncio só diz o estado, não dá para afirmar."""
+    cid = sa(cidade) if cidade and not uf_da_vaga(cidade, None) else None
+    if not cid or sa(r.get('municipio')) != cid or not cnpj_base.situacao().get('existe'):
+        return False
+    raiz = re.sub(r'\D', '', r['cnpj'])[:8]
+    for e in cnpj_base.buscar(nome, limite=2000):
+        if e['cnpj'][:8] != raiz and sa(e['municipio']) == cid and confere(nome, {'razao_social': e['razao'], 'nome_fantasia': e['fantasia']}) >= 1:
+            return False
+    return True
+
+
+def conferir_homonimos(r, nome, cidade=None):
     if r.get('status') != '🟢' or not r.get('cnpj') or str(r.get('fonte', '')).startswith('site oficial'):
         return r
     h = homonimos_na_base(nome)
     if h is None:
         return dict(r, aviso='base da Receita indisponível: homônimos não conferidos')
     outros = [v for k, v in h.items() if k != r['cnpj'][:8]]
+    if outros and so_ela_na_cidade(r, nome, cidade):
+        return dict(r, motivo=f"{r['motivo']}; base da Receita: {len(outros) + 1} empresas ativas com esse nome no Brasil, uma só em {cidade}")
     if outros:
         return dict(r, status='🟡', motivo=f"{r['motivo']}; base da Receita: mais {len(outros)} empresa(s) ativa(s) com esse nome "
                     f"({', '.join(str(o['municipio']) + '/' + str(o['uf']) for o in outros[:3])})")
@@ -344,7 +361,9 @@ async def _online(br, api, nome, cidade, uf, site, ctx=None):
     if len(escolha) > 1 and (cidade or uf):
         no_local = {r: v for r, v in escolha.items() if _local(v['j'], cidade, uf)}
         if len(no_local) == 1:
-            escolha, criterio, desempate = no_local, criterio + f' + única na UF da vaga entre {len(escolha)} homônimas (conferir)', True
+            na_cidade = bool(cidade and not uf_da_vaga(cidade, None))   # o anúncio diz a cidade (e não só o estado): é o critério da base da Receita
+            escolha, criterio, desempate = (no_local, criterio + (f' + única em {cidade} entre {len(escolha)} empresas com esse nome' if na_cidade
+                                                                 else f' + única na UF da vaga entre {len(escolha)} homônimas (conferir)'), not na_cidade)
     if len(escolha) > 1:
         return dict(status='🟡', cnpj=None, fonte=None, candidatos=cands, motivo=f'{len(escolha)} empresas diferentes com esse nome (homônimas)')
     v = next(iter(escolha.values())); j = v['j']
@@ -368,8 +387,15 @@ async def cnpj_do_empregador(br, api, nome, cidade=None, uf=None, site=None, ctx
         r = json.loads(row['json'])
         if r.get('status') == '🟡' and OUTRA_UF in (r.get('motivo') or '') and r.get('cnpj'):
             # dúvida guardada só por a sede ser em outro estado: conferida de novo com a regra atual (sem consultar nada na internet)
-            r = conferir_homonimos(conferir_local(dict(r, status='🟢', motivo=r['motivo'].split('; CNPJ em')[0]), cidade, uf, nome), nome)
+            r = conferir_homonimos(conferir_local(dict(r, status='🟢', motivo=r['motivo'].split('; CNPJ em')[0]), cidade, uf, nome), nome, cidade)
             if r.get('status') == '🟢':
+                with db.conectar() as c:
+                    c.execute('INSERT OR REPLACE INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)', (chave, row['consultado_em'], json.dumps(r, ensure_ascii=False)))
+        elif r.get('status') == '🟡' and '; base da Receita: mais ' in (r.get('motivo') or '') and r.get('cnpj'):
+            # dúvida guardada por haver homônimas: conferida de novo com a regra da cidade (sem consultar a internet)
+            r2 = conferir_homonimos(dict(r, status='🟢', motivo=r['motivo'].split('; base da Receita: mais ')[0]), nome, cidade)
+            if r2.get('status') == '🟢':
+                r = r2
                 with db.conectar() as c:
                     c.execute('INSERT OR REPLACE INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)', (chave, row['consultado_em'], json.dumps(r, ensure_ascii=False)))
         return r
@@ -377,7 +403,7 @@ async def cnpj_do_empregador(br, api, nome, cidade=None, uf=None, site=None, ctx
     if b:
         r = conferir_local(b, cidade, uf, nome)
     else:
-        r = conferir_homonimos(conferir_local(await _online(br, api, nome, cidade, uf, site, ctx), cidade, uf, nome), nome)
+        r = conferir_homonimos(conferir_local(await _online(br, api, nome, cidade, uf, site, ctx), cidade, uf, nome), nome, cidade)
     with db.conectar() as c:
         c.execute('INSERT OR REPLACE INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)', (chave, db.agora(), json.dumps(r, ensure_ascii=False)))
     return r

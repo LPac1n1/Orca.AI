@@ -538,6 +538,7 @@ def titulo_do_endereco(url):
 
 
 INTERVALO_PLATAFORMA = 3.0   # segundos entre acessos à mesma plataforma de vagas
+MAX_POR_PLATAFORMA = 25      # vagas lidas por site em cada volta da busca de um cargo
 
 
 async def buscar_brasil(br, cargo, ctx=None, profundo=False, ignorar=(), pct=(0, 50)):
@@ -586,6 +587,11 @@ async def buscar_brasil(br, cargo, ctx=None, profundo=False, ignorar=(), pct=(0,
     # o título costuma estar no texto do link; há site em que o link só diz "Mais detalhes" e o título está no próprio endereço
     # (empregos.com.br/vaga/123/auxiliar-administrativo-em-atibaia-sp): vale o que conferir
     cands = [(p, u) for u, (p, t) in vistos.items() if u not in ignorar and (not t or titulo_confere(t.split('\n')[0], cargo) or titulo_confere(t, cargo) or titulo_confere(titulo_do_endereco(u), cargo))]
+    # No máximo MAX_POR_PLATAFORMA vagas lidas por site em cada volta (na ordem em que o site as mostra): cada leitura espera o intervalo do
+    # site, e um site com 60 candidatas segurava a volta inteira por mais de 3 minutos (pesquisa completa de 09/10/2026: 7 min só lendo as
+    # vagas de um cargo). As que ficam de fora entram na volta mais funda, se ainda faltar vaga, e nas coletas diárias.
+    por_site = {}
+    cands = [(p, u) for p, u in cands if por_site.setdefault(p, []).append(u) is None and len(por_site[p]) <= MAX_POR_PLATAFORMA]
     feitas, total = 0, len(cands)
 
     async def detalhe(plat, u):
