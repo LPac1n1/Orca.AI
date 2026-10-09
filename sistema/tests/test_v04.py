@@ -290,6 +290,44 @@ def test_limite_de_acessos_nao_e_captcha(monkeypatch, tmp_path):
     assert set(m.bloqueadas) == {'afonsoruotolo', 'kalunga'}                       # as duas ficam fora desta pesquisa
 
 
+def test_no_limite_de_acessos_a_loja_descansa_e_vai_mais_devagar_antes_de_sair(monkeypatch, tmp_path):
+    """Pesquisa completa de 09/10/2026: uma papelaria respondeu "muitos acessos" (429) aos 2 minutos e ficou de fora o resto do dia — e fez falta
+    (5 de 8 itens de papelaria sem 3 lojas). O 429 é um pedido para ir mais devagar: o sistema para de acessar a loja por um tempo, passa a
+    espaçar os acessos e tenta de novo; só se o limite voltar depois disso é que a loja fica de fora até amanhã."""
+    import asyncio
+    import time
+    from orcamento import db
+    monkeypatch.setattr(db, 'PASTA_LOCAL', str(tmp_path))
+    monkeypatch.setattr(cesta, 'PAUSA_429', 0.3)
+    monkeypatch.setitem(cesta.INTERVALO, 'nuvemshop', 0.05)
+    respostas, horas = [], []
+
+    async def loja_falsa(c, loja, q):
+        horas.append(time.monotonic())
+        r = respostas.pop(0)
+        if r == 429:
+            raise cesta.L.Bloqueada('a loja limitou o número de acessos (429)')
+        return r
+    monkeypatch.setattr(cesta.L, 'nuvemshop', loja_falsa)
+
+    async def rodar(m, consultas):
+        m.sem, m.c, m.br = asyncio.Semaphore(3), None, None
+        return [await m._buscar('afonsoruotolo', q) for q in consultas]
+    achado = [dict(loja='afonsoruotolo', nome='Clips 2/0 100 un', preco=479, url='https://loja.exemplo/clips')]
+    # 1) o limite aparece uma vez: a loja descansa, a consulta é refeita e a loja continua na pesquisa, mais devagar
+    m = cesta.Motor([dict(desc='Clips 100 Unidades', qtd=1, familia='clips')], ['afonsoruotolo', 'gimba'], '03977-015')
+    respostas[:] = [429, achado, achado]
+    r = asyncio.run(rodar(m, ['clips 100 unidades', 'clips niquelado']))
+    assert r == [achado, achado] and 'afonsoruotolo' not in m.bloqueadas and 'afonsoruotolo' not in db.lojas_bloqueadas()
+    assert horas[1] - horas[0] >= 0.3                                                # esperou a pausa antes de tentar de novo
+    assert horas[2] - horas[1] >= 0.05 * cesta.MAIS_DEVAGAR - 0.01                   # e passou a espaçar mais os acessos
+    # 2) o limite volta depois da pausa: aí sim a loja fica de fora até amanhã (e não por 30 dias, como no CAPTCHA)
+    m = cesta.Motor([dict(desc='Clips 100 Unidades', qtd=1, familia='clips')], ['afonsoruotolo', 'gimba'], '03977-015')
+    respostas[:] = [429, 429]; horas.clear()
+    assert asyncio.run(rodar(m, ['clips galvanizado'])) == [[]]
+    assert 'afonsoruotolo' in m.bloqueadas and db.lojas_bloqueadas()['afonsoruotolo']['ate'] == (__import__('datetime').date.today() + __import__('datetime').timedelta(days=1)).isoformat()
+
+
 def test_loja_que_barrou_nao_e_mais_acessada():
     """Teste real de 02/10/2026: a Kalunga pediu CAPTCHA no meio da pesquisa e, mesmo assim, anúncios dela entraram na proposta e o sistema
     voltou à loja para os comprovantes. Agora os anúncios dela saem das opções e os comprovantes não voltam à loja."""

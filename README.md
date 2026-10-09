@@ -156,7 +156,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 272 ao todo. Num clone limpo, 270 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 273 ao todo. Num clone limpo, 271 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -200,6 +200,7 @@ O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.m
   - **O modo de espera do computador não derruba mais a pesquisa.** Numa pesquisa completa de teste, o notebook entrou em espera três vezes (até 30 minutos parado) e as consultas em andamento viravam erro. Agora a tela fica acesa enquanto uma tarefa roda, o sistema percebe quando o computador parou, refaz a consulta interrompida e avisa no fim da tarefa. Fechar a tampa continua pondo o computador em espera.
   - **Vagas: primeiro as empresas que a base da Receita resolve na hora.** A consulta online de CNPJ leva minutos por empresa; ela só é feita para as vagas que ainda podem mudar o resultado. As 3 escolhidas continuam sendo as de menor salário entre as válidas.
   - **Conferência de CNPJ na internet cerca de 5 vezes mais rápida** (média de 31 segundos por empresa, contra 2 a 4 minutos): cada CNPJ achado nos buscadores é conferido na base da Receita do próprio computador, e as buscas correm ao mesmo tempo. "Empresa localizada no bairro…" e "Empresa do ramo…" passam a contar como empresa não identificada.
+  - **Loja que limita os acessos: o sistema desacelera antes de desistir dela.** Quando a loja responde "muitos acessos" (429), o sistema fica 90 segundos sem acessá-la, passa a espaçar os acessos 3 vezes mais e tenta de novo. Só se o limite voltar é que ela fica de fora até o dia seguinte. Na pesquisa de teste, uma papelaria saiu aos 2 minutos e fez falta.
   - **"Apagar e refazer" não deixa mais para trás a pesquisa automática sem comprovante.** A pesquisa automática cujo comprovante não pôde ser guardado ficava registrada como "feita à mão", e o item inteiro sobrevivia ao apagar (na pesquisa de teste, dois itens ficaram assim, um deles com um preço claramente errado). Agora o histórico diz quem pôs cada pesquisa no projeto; o que você digitou ou anexou continua preservado.
   - **Vagas guardadas são conferidas de novo com a regra do lugar.** A vaga que estava confirmada só pelo nome, com o CNPJ em outro estado, volta para "em dúvida" (com a empresa indicada); o que você confirmou à mão não é tocado.
   - **Aviso de notebook fora da tomada.** Uma pesquisa completa de teste parou no meio porque a bateria acabou e o computador hibernou por 8 horas. Isso o sistema não tem como impedir; agora ele avisa no começo de toda pesquisa longa quando o notebook está na bateria, com a carga que resta.

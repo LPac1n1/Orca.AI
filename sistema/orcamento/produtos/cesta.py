@@ -23,6 +23,8 @@ from . import lojas as L
 LIMITE_BUSCA, LIMITE_PAGINA, K_EAN, K_PONTE, N_OPCOES = 75, 60, 8, 6, 5
 # intervalo mínimo (s) entre acessos à MESMA loja: páginas abertas no navegador disparam o anti-robô se vierem em rajada
 INTERVALO = dict(render=4.0, tenda=0.7, gimba=1.0, nuvemshop=2.5, vtex=0.3, gpa=0.3)
+PAUSA_429 = 90       # segundos sem acessar a loja que respondeu "muitos acessos" (429), antes de tentar de novo
+MAIS_DEVAGAR = 3     # depois disso, o intervalo entre os acessos a essa loja fica 3 vezes maior até o fim da tarefa
 MAX_CATEGORIA = 12   # produtos da categoria procurados quando um item não existe igual em 3 lojas
 CODIGOS_DIFERENTES = 'descrição; códigos de barras diferentes'   # mesma marca e descrição nas 3 lojas, mas os códigos de barras não são iguais
 DETALHE_NAO_CITADO = 'descrição; um anúncio não cita um detalhe'   # o mesmo produto em 2 lojas e, na 3ª, um anúncio menos detalhado da mesma marca
@@ -78,6 +80,7 @@ class Motor:
         self.rejeitadas_ia = defaultdict(list)    # item -> opções que a IA disse NÃO serem o mesmo produto (com o motivo)
         self.indisp_hoje = set()                  # 'loja|url' que o comprovante de hoje achou indisponível (não volta a ser escolhido)
         self._travas, self._prox = {}, {}         # ritmo de acesso por loja
+        self._pausas = {}                         # loja -> quando respondeu "muitos acessos" (429): descansa e passa a ser acessada mais devagar
         self.grupos_categoria = {}                # produto da categoria da rubrica -> grupos (último degrau das trocas)
         self.brutos = defaultdict(list)           # item -> todos os anúncios achados nas buscas dele (para a IA montar o trio)
         # o que se digita na busca das lojas: o pedido na forma das lojas (tipo do produto na frente); a IA pode acrescentar outras formas
@@ -134,10 +137,25 @@ class Motor:
         """Espera a vez de acessar a loja (intervalo mínimo entre acessos, para não parecer um robô em rajada)."""
         trava = self._travas.setdefault(loja, asyncio.Lock())
         async with trava:
-            espera = self._prox.get(loja, 0) - time.monotonic()
-            if espera > 0:
+            while True:   # (a pausa do 429 pode chegar enquanto se espera: confere de novo antes de acessar)
+                espera = self._prox.get(loja, 0) - time.monotonic()
+                if espera <= 0:
+                    break
                 await asyncio.sleep(espera)
-            self._prox[loja] = time.monotonic() + INTERVALO.get(L.LOJAS[loja]['plataforma'], 1.0)
+            self._prox[loja] = time.monotonic() + INTERVALO.get(L.LOJAS[loja]['plataforma'], 1.0) * (MAIS_DEVAGAR if loja in self._pausas else 1)
+
+    def _descansar(self, loja, comecou):
+        """A loja respondeu "muitos acessos" (429): é um pedido para ir mais devagar, não um bloqueio. Na primeira vez o sistema fica PAUSA_429
+        segundos sem acessá-la e passa a espaçar os acessos (MAIS_DEVAGAR); se o limite voltar num acesso feito DEPOIS da pausa, a loja fica de
+        fora até amanhã. Na pesquisa completa de 09/10/2026, uma papelaria saiu assim aos 2 minutos e fez falta: 5 de 8 itens de papelaria
+        ficaram sem 3 lojas. Devolve True quando vale tentar o acesso de novo. `comecou`: time.monotonic() do acesso que levou o 429."""
+        pausa = self._pausas.get(loja)
+        if pausa is None:
+            self._pausas[loja] = time.monotonic()
+            self._prox[loja] = max(self._prox.get(loja, 0), time.monotonic() + PAUSA_429)
+            self._fonte(loja, 'repetindo', f'a loja limitou os acessos: pausa de {PAUSA_429} s e ritmo mais lento')
+            return True
+        return comecou < pausa + PAUSA_429   # acesso que já estava a caminho quando a pausa começou: espera a vez e tenta de novo
 
     async def _buscar(self, loja, q):
         q = L.consulta(q)
@@ -153,11 +171,11 @@ class Motor:
                 return []
             self.buscas_loja[loja] += 1
             from .. import tarefas
-            tentativa, refeita = 0, False
+            tentativa, refeita, descansou = 0, False, False
             while tentativa < 2:
-                if tentativa:
+                if tentativa or descansou:
                     await self._vez(loja)
-                inicio = time.time()
+                inicio, comecou = time.time(), time.monotonic()
                 try:
                     plat = L.LOJAS[loja]['plataforma']
                     co = (L.vtex(self.c, loja, q) if plat == 'vtex' else L.tenda(self.c, q, self.filial) if plat == 'tenda' else L.gimba(self.c, q) if plat == 'gimba'
@@ -168,6 +186,9 @@ class Motor:
                     self._fonte(loja, 'ok', f'{self.buscas_loja[loja]} buscas')
                     return out
                 except L.Bloqueada as e:
+                    if '(429)' in str(e) and not descansou and self._descansar(loja, comecou):
+                        descansou = True
+                        continue
                     self._bloquear(loja, str(e))
                     return []
                 except Exception as e:
