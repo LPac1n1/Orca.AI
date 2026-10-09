@@ -38,6 +38,38 @@ def _acordado(ligar):
         pass
 
 
+LONGAS = {'tudo', 'vagas', 'vagas_diaria', 'produtos', 'base_receita'}   # tarefas que podem levar de vários minutos a algumas horas
+
+
+def na_bateria():
+    """(True, carga em %) quando o computador está FORA da tomada; None quando está na tomada, não tem bateria ou não dá para saber. Só lê o
+    estado de energia. Na pesquisa completa de 09/10/2026 o notebook estava na bateria: ela acabou no meio dos produtos, o Windows hibernou
+    (motivo "Battery" no registro do sistema) e a tarefa ficou 8 horas parada — o pedido de "manter acordado" não vale contra bateria no fim."""
+    if sys.platform != 'win32':
+        return None
+    try:
+        import ctypes
+
+        class Energia(ctypes.Structure):
+            _fields_ = [('na_tomada', ctypes.c_ubyte), ('estado', ctypes.c_ubyte), ('carga', ctypes.c_ubyte), ('economia', ctypes.c_ubyte),
+                        ('segundos', ctypes.c_ulong), ('segundos_cheia', ctypes.c_ulong)]
+        e = Energia()
+        if not ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(e)) or e.na_tomada != 0:   # 1 = na tomada; 255 = desconhecido
+            return None
+        return True, (e.carga if e.carga <= 100 else None)
+    except Exception:
+        return None
+
+
+def aviso_da_bateria(tipo):
+    """O aviso para o começo de uma tarefa longa, quando o notebook está fora da tomada (None se não há o que avisar)."""
+    bat = na_bateria() if tipo in LONGAS else None
+    if not bat:
+        return None
+    return ('O notebook está fora da tomada' + (f' (bateria em {bat[1]}%)' if bat[1] is not None else '') + '. Esta tarefa pode demorar: se a bateria '
+            'acabar, o computador desliga e a pesquisa para no meio. Ligue o notebook na tomada.')
+
+
 # ------------------------------------------------------------------ o computador entrou em modo de espera no meio de uma tarefa?
 _esperas = []        # [(quando voltou — time.time(), quantos segundos ficou parado)]
 _vigia_ligado = False
@@ -148,6 +180,12 @@ def iniciar(tipo, titulo, funcao, projeto_id=None):
         ctx = Contexto(tid)
         with db.conectar() as c:
             c.execute('UPDATE tarefa SET estado=? WHERE id=?', ('rodando', tid))
+        try:
+            fora_da_tomada = aviso_da_bateria(tipo)
+            if fora_da_tomada:
+                ctx.aviso(fora_da_tomada)
+        except Exception:
+            pass
         try:
             r = funcao(ctx)
             if asyncio.iscoroutine(r):

@@ -155,6 +155,27 @@ def test_nova_fonte_de_vagas_titulo_no_endereco_e_milhar_escrito_com_ponto():
     assert V.milhar_com_ponto(v, 'qualquer texto')['faixa_min'] == 180000                                 # salário normal: nada muda
 
 
+def test_tarefa_longa_avisa_quando_o_notebook_esta_fora_da_tomada(dados, monkeypatch):
+    """Pesquisa completa de 09/10/2026: o notebook estava na bateria, ela acabou no meio dos produtos e a tarefa ficou 8 horas parada. O sistema
+    não tem como impedir isso; o que ele faz é avisar no COMEÇO da tarefa longa, enquanto dá tempo de ligar na tomada."""
+    from orcamento import tarefas
+
+    def espera(tid):
+        for _ in range(50):
+            if tarefas.ler(tid)['estado'] == 'concluída':
+                break
+            time.sleep(0.1)
+        return tarefas.ler(tid)
+    monkeypatch.setattr(tarefas, 'na_bateria', lambda: (True, 38))
+    t = espera(tarefas.iniciar('tudo', 'pesquisa longa', lambda ctx: dict(ok=True)))
+    assert [a for a in t['avisos'] if 'fora da tomada (bateria em 38%)' in a and 'Ligue o notebook na tomada' in a]
+    assert not espera(tarefas.iniciar('troca', 'tarefa curta', lambda ctx: dict(ok=True)))['avisos']        # tarefa curta: sem aviso
+    monkeypatch.setattr(tarefas, 'na_bateria', lambda: None)                                                # na tomada (ou computador sem bateria)
+    assert not espera(tarefas.iniciar('tudo', 'pesquisa longa', lambda ctx: dict(ok=True)))['avisos']
+    monkeypatch.undo()
+    assert tarefas.na_bateria() is None or (tarefas.na_bateria()[0] is True and (tarefas.na_bateria()[1] is None or 0 <= tarefas.na_bateria()[1] <= 100))
+
+
 def test_coleta_consulta_primeiro_quem_a_base_resolve_e_refaz_o_que_o_modo_de_espera_interrompeu(dados, monkeypatch):
     """Pesquisa completa de 08/10/2026 (na cópia): a consulta ONLINE do CNPJ leva de 2 a 4 minutos por empresa, e o computador entrou em modo
     de espera três vezes — ao voltar, a consulta em andamento estourava o tempo e a vaga era gravada como erro. Agora: primeiro as empresas que
