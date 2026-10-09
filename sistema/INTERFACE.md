@@ -308,6 +308,7 @@ Peças comuns das telas de rubrica ficam em `templates/_rubrica.html` (cartão d
 | Proposta da pesquisa | Linha "IA nesta pesquisa: N respostas novas e M reaproveitadas; K perguntas ficaram sem resposta" (ou "desligada" / "sem chave") |
 | Tarefa "Pesquisar tudo" | No resumo, a linha "IA"; aviso quando a IA está desligada, sem chave ou deixou perguntas sem resposta |
 | Projeto → configuração → "Inteligência artificial" | Selo da cota de hoje e link "Ver o uso da IA hoje" |
+| Rubrica de produtos → item não achado em 3 lojas | Bloco "O produto pedido existe em 2 lojas": o produto, as 2 lojas com link e preço, e o botão "Usar estas 2 lojas e completar a 3ª à mão" (pede confirmação). Depois de usar: aviso "Falta a 3ª pesquisa" no item, com o que preencher |
 | Rubrica de produtos → quadro de decisão | Opções na ordem das etapas; selo "O mesmo item, sem a marca X" (ou "sem a especificação Y") com a linha "Achado ao procurar …"; "IA acha que é o mesmo produto (comparou os nomes e N fotos)" |
 
 ## 13. Títulos com vagas, empresas para confirmar e limite de horas (08/10/2026)

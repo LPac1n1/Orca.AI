@@ -536,6 +536,73 @@ def rh_pronto(r):
 AGUARDA_DECISAO = 'aguardando a sua decisão'   # como começa a justificativa do item que a pesquisa não achou igual e não substituiu
 NAO_ACHADO = 'não achado igual em 3 lojas'    # idem, quando a pesquisa também não tem nenhuma opção de substituição para mostrar
 PERTO, FALTA_A_TERCEIRA = ' O mais perto do pedido: ', ' — falta a 3ª loja.'   # o produto que existe, como pedido, em só 2 lojas
+DUAS_LOJAS = 'duas pesquisas feitas pelo sistema'   # como começa a justificativa do item com 2 lojas achadas e a 3ª pesquisa por conta da OSC
+_SUFIXO_2_LOJAS = ' |em 2 lojas|'                  # no banco de produtos: os produtos achados, como pedidos, em só 2 lojas (guardados à parte das opções)
+
+
+def chave_das_duas_lojas(pedido):
+    return pedido + _SUFIXO_2_LOJAS
+
+
+def em_duas_lojas(pid, item, pedido):
+    """Os produtos que a última pesquisa achou, como pedidos, em só 2 lojas: [dict(produto, ofertas=[2])] (lista vazia se não há)."""
+    return (db.produtos_do_banco(pid, item).get(chave_das_duas_lojas(pedido)) or {}).get('opcoes') or []
+
+
+async def usar_duas_lojas(pid, item, desc, idx, ctx):
+    """Pedido da OSC (08/10/2026): o item existe, como pedido, em só 2 lojas — ela aceita essas 2 e completa a 3ª à mão (por exemplo, com uma
+    loja que o sistema não consegue ler). O sistema guarda o comprovante das 2 e grava as 2 pesquisas; a 3ª fica em branco, para ela preencher
+    em "Detalhes e comprovante". Nada é inventado: o item só fica pronto quando a 3ª pesquisa for preenchida e comprovada por ela."""
+    from playwright.async_api import async_playwright
+    achados = em_duas_lojas(pid, item, desc)
+    if idx >= len(achados):
+        raise ValueError('o produto em 2 lojas não está mais guardado: pesquise o item de novo')
+    q = achados[idx]
+    p, _ = db.carregar(pid)
+    r = _rubrica(p, item)
+    s = next((x for x in r.subitens if pedido_do_subitem(x) == desc), None)
+    if s is None:
+        raise ValueError(f'o item "{desc}" não está mais na rubrica')
+    cep, hoje = _cep(p), dt.date.today().isoformat()
+    ctx.progresso(5, 'Guardando os comprovantes das 2 lojas')
+    comp = {}
+    async with async_playwright() as pw:
+        br = await pw.chromium.launch()
+        try:
+            for n, x in enumerate(q['ofertas']):
+                ctx.progresso(10 + 40 * n, f'Comprovante de {L.LOJAS[x["loja"]]["nome"]}')
+                comp.update(await _comprovar(br, pid, item, x['loja'], [(dict(desc=desc, qtd=s.qtd), x)], cep, ctx, sufixo=f'_{_nome_arquivo(desc)}_2lojas{n + 1}'))
+        finally:
+            await br.close()
+    ruins = [(x, comp.get((x['loja'], x['url']), {})) for x in q['ofertas'] if not comp.get((x['loja'], x['url']), {}).get('ev') or comp[(x['loja'], x['url'])].get('problema')]
+    volta = f'/p/{pid}/mat/{item}#sub{r.subitens.index(s)}'
+    if ruins:
+        ctx.aviso('Não foi possível guardar o comprovante de ' + '; '.join(f'{L.LOJAS[x["loja"]]["nome"]} ({c.get("problema") or "sem PDF"})' for x, c in ruins)
+                  + '. O item ficou como estava: pesquise de novo ou preencha as pesquisas à mão.')
+        ctx.progresso(100, 'Concluído')
+        return dict(versao=None, ir_para=volta)
+    p, _ = db.carregar(pid)   # guardar os comprovantes demora: relê o projeto
+    r = _rubrica(p, item)
+    s = next((x for x in r.subitens if pedido_do_subitem(x) == desc), None)
+    if s is None:
+        raise ValueError(f'o item "{desc}" não está mais na rubrica')
+    ofs = sorted(q['ofertas'], key=lambda x: comp[(x['loja'], x['url'])].get('preco') or x['preco'])
+    precos = [comp[(x['loja'], x['url'])].get('preco') or x['preco'] for x in ofs]
+    s.fontes = [_fonte_loja(x['loja'], hoje, comp[(x['loja'], x['url'])]['ev']) for x in ofs] + [Fonte()]
+    s.precos = precos + [None]
+    s.produtos = [x.get('titulo') or x['nome'] for x in ofs] + [None]
+    s.eans = [x.get('ean') for x in ofs] + [None]
+    s.nivel, s.valor_plano = 0, None
+    mesmos = len({(x.get('ean') or '').lstrip('0') for x in ofs if x.get('ean')}) == 1 and all(x.get('ean') for x in ofs)
+    s.confirmacao = 'EAN em 2 lojas; 3ª pesquisa à mão' if mesmos else 'descrição em 2 lojas; 3ª pesquisa à mão'
+    s.justificativa = (f'{DUAS_LOJAS}, por escolha da OSC em {dt.date.today():%d/%m/%Y}: o produto pedido só foi achado em 2 lojas ('
+                       + ' e '.join(L.LOJAS[x['loja']]['nome'] for x in ofs) + '); a 3ª pesquisa é preenchida à mão pela OSC, com o MESMO produto, em "Detalhes e comprovante"')
+    ver = db.salvar(pid, p, autor='sistema (pesquisa automática)', tarefa=ctx.id,
+                    motivo=f'item {item}: "{desc}" com 2 pesquisas do sistema ({", ".join(L.LOJAS[x["loja"]]["nome"] for x in ofs)}); a 3ª fica para a OSC preencher à mão')
+    ctx.aviso(f'"{desc}": 2 pesquisas gravadas, com comprovante ({", ".join(L.LOJAS[x["loja"]]["nome"] + " " + _reais(pr) for x, pr in zip(ofs, precos))}). '
+              'Falta a 3ª: abra "Pesquisa 3 → Detalhes e comprovante", informe a empresa, o CNPJ e o preço do MESMO produto em outra loja e anexe o PDF.')
+    ctx.progresso(100, 'Concluído')
+    return dict(versao=ver, ir_para=volta)
 
 
 def aguarda_decisao(s, opcoes):
@@ -698,6 +765,8 @@ async def pesquisar_rubrica(pid, item, ctx, somente=None, sem_lojas=(), respeita
                   for d in (r.extras if ext else [])]
     for d, ops in todas.items():   # banco de produtos: TODAS as opções ficam guardadas — as do pedido, para trocar de produto; as outras, para decidir
         db.produtos_guardar(pid, item, d, ops)
+        # e, à parte, os produtos achados COMO PEDIDOS em só 2 lojas (para a OSC poder usar as 2 e completar a 3ª à mão); nada, se o item foi achado
+        db.produtos_guardar(pid, item, chave_das_duas_lojas(d), [] if any(o['atende'] for o in ops) else (res.get('quase') or {}).get(d, []))
     if any(ops and not any(o['atende'] for o in ops) for ops in todas.values()):
         opc_extras = []   # há item à espera de decisão: a "sobra" do teto é só aparente, então nenhum item extra é acrescentado agora
     teto_r = r.teto_mensal if respeitar_teto else None
@@ -1209,7 +1278,9 @@ async def aplicar_proposta(pid, item, proposta, ctx):
                     continue
                 if id(s) in repetiam:   # estava repetindo outro item e a nova pesquisa não achou nada: volta a ser o que a OSC pediu, sem pesquisas
                     voltar_ao_pedido(s)
-                s.justificativa = l.get('motivo'); tratados[l['desc']] = s   # não achado em 3 lojas: fica, com pendência, para decisão
+                if not (s.justificativa or '').startswith(DUAS_LOJAS):   # (item com as 2 pesquisas do sistema e a 3ª à mão: continua como está)
+                    s.justificativa = l.get('motivo')
+                tratados[l['desc']] = s   # não achado em 3 lojas: fica, com pendência, para decisão
             continue
         o = l['opcao_dados']
         if s is None:  # item extra acrescentado

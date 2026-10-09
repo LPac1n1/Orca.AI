@@ -471,9 +471,10 @@ def test_item_sem_nenhuma_opcao_diz_o_que_existe_em_2_lojas(cliente, monkeypatch
     assert r10 and 'o sistema não substituiu nada' in r10[0] and 'mude o pedido' in r10[0] and 'opções de substituição' not in r10[0]
     pag = cliente.get(f'/p/{pid}/mat/1').text
     quadro = pag.split('id="decidir0"')[1].split('id="repesquisar0"')[0]
-    for texto in ('O sistema não achou "Folha Sulfite 500 Folhas" igual em 3 lojas', '<b>Nada foi substituído</b>', '<b>O mais perto do pedido</b>', 'Livrarias Curitiba R$ 26,70',
-                  'Falta a 3ª loja', 'Salvar o que mudei e pesquisar este item de novo', 'value="repesquisar-0"'):
+    for texto in ('O sistema não achou "Folha Sulfite 500 Folhas" igual em 3 lojas', '<b>Nada foi substituído</b>', 'O produto pedido existe em 2 lojas', 'Livrarias Curitiba:',
+                  '<b>R$ 26,70</b>', 'Usar estas 2 lojas e completar a 3ª à mão', 'form="duas0_0"', 'Salvar o que mudei e pesquisar este item de novo', 'value="repesquisar-0"'):
         assert texto in quadro, texto
+    assert f'id="duas0_0" method="post" action="/p/{pid}/mat/1/duas-lojas"' in pag
     assert '1. Usar uma destas opções' not in quadro and 'id="decidir1"' not in pag
     # quando a pesquisa só tem produtos de OUTRO tipo (categoria da rubrica), o quadro diz isso em vez de mostrar uma lista vazia
     giz = dict(_resultado_do_motor()['opcoes'][SULFITE][0], atende=False, precos=[299, 449, 699])
@@ -593,3 +594,70 @@ def test_produto_de_beleza_nao_e_material_de_escritorio():
         assert ID.nivel(pedido, anuncio, [], None) is None, anuncio
     assert ID.nivel('Lápis Preto', 'Lápis Preto HB nº2 Faber-Castell', [], None) == 0 and ID.nivel('Tesoura', 'Tesoura Escolar 13cm', [], None) == 0
     assert ID.nivel('Lápis para Olhos Preto', 'Lápis Para Olhos Vult Preto Intenso', [], None) == 0        # quando é isso que se pede, vale
+
+
+
+def test_usar_as_2_lojas_e_completar_a_terceira_a_mao(cliente, monkeypatch):
+    """Pedido da OSC (08/10/2026): quando o produto pedido existe em só 2 lojas, ela pode usar essas 2 — o sistema guarda os comprovantes e grava
+    as 2 pesquisas — e completar a 3ª à mão. Nada é inventado: o item só fica pronto com a 3ª preenchida e comprovada por ela."""
+    from orcamento import db, servico, zerar
+    from orcamento.calculo import verificar
+    from orcamento.modelo import Evidencia
+    from orcamento.produtos import cesta
+    pid = _projeto(cliente)
+    m = _motor()
+    quase = m._quase(m._grupos(), {SULFITE: []})[SULFITE]
+    assert set(quase[0]['ofertas'][0]) >= {'loja', 'nome', 'preco', 'url', 'ean', 'sku', 'seller'}                 # o bastante para guardar o comprovante depois
+    res = _resultado_do_motor()
+
+    async def pesquisar(itens, *a, **k):
+        return dict(res, escolha={SULFITE: None, 'Clips 100 Unidades': res['escolha']['Clips 100 Unidades']}, opcoes={SULFITE: [], 'Clips 100 Unidades': res['opcoes']['Clips 100 Unidades']},
+                    quase={SULFITE: quase[:2]})
+    monkeypatch.setattr(cesta, 'pesquisar', pesquisar)
+    monkeypatch.setattr('playwright.async_api.async_playwright', lambda: _NavegadorFalso())
+    prop = asyncio.run(servico.pesquisar_rubrica(pid, 1, Ctx()))
+    l = next(x for x in prop['linhas'] if x['desc'] == SULFITE)
+    asyncio.run(servico.aplicar_proposta(pid, 1, dict(prop, linhas=[l]), Ctx()))
+    assert len(servico.em_duas_lojas(pid, 1, SULFITE)) == 2 and servico.em_duas_lojas(pid, 1, 'Clips 100 Unidades') == []   # (o Clips foi achado em 3: nada a guardar)
+    pedidos_comprovados = []
+
+    async def comprovar(br, pid_, item, loja, pares, cep, ctx, sufixo='', bloqueadas=None, modo=None):
+        pedidos_comprovados.append((loja, [(lin['desc'], lin['qtd']) for lin, _ in pares]))
+        sha, rel = db.guardar_arquivo(pid_, f'produto_{loja}{sufixo}.pdf', b'%PDF-1.4 ' + loja.encode())
+        return {(loja, x['url']): dict(ev=Evidencia(arquivo=rel, sha256=sha, url=x['url'], capturado_em='2026-10-08T10:00:00-03:00', origem='navegador'), preco=None, problema=None)
+                for _, x in pares}
+    monkeypatch.setattr(servico, '_comprovar', comprovar)
+    ctx = Ctx()
+    out = asyncio.run(servico.usar_duas_lojas(pid, 1, SULFITE, 0, ctx))
+    assert pedidos_comprovados == [('livrariascuritiba', [(SULFITE, 2)]), ('samsclub', [(SULFITE, 2)])] and out['ir_para'].endswith('#sub0')
+    p = db.carregar(pid)[0]
+    s = p.rubricas[0].subitens[0]
+    assert s.precos == [2670, 3198, None] and [f.plataforma for f in s.fontes[:2]] == ['Livrarias Curitiba', "Sam's Club"] and len(s.fontes) == 3 and not s.fontes[2].nome
+    assert all(f.evidencia.arquivo for f in s.fontes[:2]) and s.produtos[2] is None and s.valor_plano is None and (s.descricao, s.especificacao, s.nivel) == ('Folha Sulfite', '500 Folhas', 0)
+    assert s.justificativa.startswith(servico.DUAS_LOJAS) and s.confirmacao == 'EAN em 2 lojas; 3ª pesquisa à mão' and not servico.subitem_pronto(s)
+    assert 'Falta a 3ª' in ctx.avisos[0] and 'R$ 26,70' in ctx.avisos[0]
+    r10 = [a.mensagem for a in verificar(p) if a.regra == 'R10' and 'Folha Sulfite' in a.item]
+    assert len(r10) == 1 and r10[0].startswith('falta a 3ª pesquisa') and 'MESMO produto' in r10[0]
+    pag = cliente.get(f'/p/{pid}/mat/1').text
+    assert '<b>Falta a 3ª pesquisa.</b>' in pag and 'id="decidir0"' not in pag and 'form="duas0_0"' not in pag             # o quadro some; fica o aviso do que falta
+    # uma nova pesquisa que continua sem achar 3 lojas não desfaz as 2 pesquisas nem o motivo
+    asyncio.run(servico.aplicar_proposta(pid, 1, dict(prop, linhas=[l]), Ctx()))
+    s = db.carregar(pid)[0].rubricas[0].subitens[0]
+    assert s.precos == [2670, 3198, None] and s.justificativa.startswith(servico.DUAS_LOJAS)
+    # comprovante que falha: o item fica como estava
+    p = db.carregar(pid)[0]
+    p.rubricas[0].subitens[0].precos, p.rubricas[0].subitens[0].fontes, p.rubricas[0].subitens[0].justificativa = [None] * 3, [], None
+    db.salvar(pid, p)
+
+    async def falha(br, pid_, item, loja, pares, cep, ctx, sufixo='', bloqueadas=None, modo=None):
+        return {(loja, x['url']): dict(ev=None, preco=None, problema='a página diz que o produto está indisponível') for _, x in pares}
+    monkeypatch.setattr(servico, '_comprovar', falha)
+    ctx = Ctx()
+    assert asyncio.run(servico.usar_duas_lojas(pid, 1, SULFITE, 1, ctx))['versao'] is None and 'O item ficou como estava' in ctx.avisos[0]
+    assert db.carregar(pid)[0].rubricas[0].subitens[0].precos == [None] * 3
+    # "apagar e refazer" também tira do banco os produtos guardados em 2 lojas (e eles não contam como "opções de produto")
+    antes = set(db.produtos_do_banco(pid, 1))
+    assert antes == {SULFITE, 'Clips 100 Unidades', servico.chave_das_duas_lojas(SULFITE), servico.chave_das_duas_lojas('Clips 100 Unidades')}
+    assert zerar.contar_bancos(pid, dict(rubricas_inteiras=[1], pedidos=[], chaves_de_vaga=[], com_confirmadas=True))[0] == 2
+    zerar.zerar_bancos(pid, dict(rubricas_inteiras=[], pedidos=[(1, SULFITE)], chaves_de_vaga=[], com_confirmadas=True))
+    assert set(db.produtos_do_banco(pid, 1)) == {'Clips 100 Unidades', servico.chave_das_duas_lojas('Clips 100 Unidades')}

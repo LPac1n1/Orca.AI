@@ -244,6 +244,9 @@ def verificar(p: Projeto, cnpj_status: dict | None = None, hoje: dt.date | None 
                 if None in s.precos or len(s.precos) != 3:
                     espera = (s.justificativa or '').startswith('aguardando a sua decisão')
                     nada = (s.justificativa or '').startswith('não achado igual em 3 lojas')
+                    if (s.justificativa or '').startswith('duas pesquisas feitas pelo sistema') and len([x for x in s.precos if x]) == 2:
+                        A.append(Alerta('R10', 'erro', rs, 'falta a 3ª pesquisa: o sistema gravou 2 lojas com o produto pedido; preencha a 3ª à mão, com o MESMO produto em '
+                                        'outra loja (empresa, CNPJ, preço e o PDF), em "Pesquisa 3 → Detalhes e comprovante"')); continue
                     A.append(Alerta('R10', 'erro', rs, 'o item pedido não foi achado igual em 3 lojas e o sistema não substituiu nada: abra o item e escolha uma das '
                                     'opções de substituição, mude o pedido e pesquise de novo, ou preencha as 3 pesquisas à mão' if espera else
                                     'o item pedido não foi achado igual em 3 lojas e o sistema não substituiu nada: abra o item, mude o pedido (a descrição, a '

@@ -124,6 +124,10 @@
         {% set bk = banco.get(pedido_do_subitem(s)) %}
         {% set espera = aguarda_decisao(s, bk.opcoes if bk else []) %}
         {% set perto = perto_do_pedido(s) %}
+        {% set duas = ((banco.get(chave_das_duas_lojas(pedido_do_subitem(s))) or {}).opcoes or []) if not (s.precos|select|list) else [] %}
+        {% if (s.justificativa or '').startswith(DUAS_LOJAS) and (s.precos|select|list|length) == 2 %}<div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo">
+          <b>Falta a 3ª pesquisa.</b> As 2 primeiras foram gravadas pelo sistema, com comprovante. Abra a pesquisa em branco, em "Detalhes e comprovante", e informe a
+          empresa, o CNPJ, o preço do <b>mesmo produto</b> em outra loja e o PDF da página. O item só fica pronto com as 3.</div></div>{% endif %}
         {% if s.descricao_original and pedido_do_subitem(s) != descricao_completa(s) %}<div class="aviso aviso--alerta" role="status">{{ icone('alerta') }}<div class="aviso__corpo">
           <b>Este item está substituído.</b> Você pediu <b>{{ pedido_do_subitem(s) }}</b>; o que está orçado é <b>{{ descricao_completa(s) }}</b>.
           Se não é o que você quer, desfaça: o item volta a ser o que foi pedido, sem pesquisas.
@@ -133,7 +137,18 @@
           <h4 class="cartao__titulo">{{ icone('alerta') }}O sistema não achou "{{ pedido_do_subitem(s) }}" igual em 3 lojas</h4>
           <p><b>Nada foi substituído.</b> Na pesquisa de {{ bk.pesquisado_em|data_br(false) }}, o sistema não encontrou o mesmo produto, como foi pedido, em 3 lojas de
             empresas diferentes, com estoque e entrega no CEP do projeto. Você decide:</p>
-          {% if perto %}<p><b>O mais perto do pedido</b> — o mesmo produto, mas em só 2 lojas: {{ perto }}. Falta a 3ª loja: se você achar esse produto em outra
+          {% if duas %}
+          <p class="campo__rotulo">O produto pedido existe em 2 lojas</p>
+          <p class="texto-apoio">Falta a terceira. Você pode <b>usar estas 2</b> — o sistema guarda os comprovantes e grava as 2 pesquisas — e completar a 3ª à mão,
+            com o mesmo produto em outra loja (inclusive numa que o sistema não consegue ler).</p>
+          <ul class="lista-simples">{% for q in duas %}
+            <li class="linha linha--entre"><span><b>{{ q.produto[:90] }}</b>
+              {% for x in q.ofertas %}<div><span class="texto-apoio">{{ LOJAS[x.loja].nome if x.loja in LOJAS else x.loja }}:</span>
+                {% if x.url %}<a href="{{ x.url }}" target="_blank" rel="noopener noreferrer">{{ (x.titulo or x.nome)[:80] }}<span class="so-leitor"> (abre em outra aba)</span></a>{% else %}{{ (x.titulo or x.nome)[:80] }}{% endif %}
+                — <b>{{ x.preco|brl }}</b></div>{% endfor %}</span>
+              <button form="duas{{ i }}_{{ loop.index0 }}" class="btn btn--secundario" data-aguarde="Iniciando…">Usar estas 2 lojas e completar a 3ª à mão</button></li>{% endfor %}
+          </ul>
+          {% elif perto %}<p><b>O mais perto do pedido</b> — o mesmo produto, mas em só 2 lojas: {{ perto }}. Falta a 3ª loja: se você achar esse produto em outra
             loja, preencha as pesquisas à mão, em "Detalhes e comprovante".</p>{% endif %}
           {% set ns = namespace(outras=0, perto=0) %}
           {% for o in bk.opcoes %}{% if not atende_o_pedido(o) and o.nivel != 3 %}{% set ns.perto = ns.perto + 1 %}{% endif %}{% endfor %}
@@ -178,7 +193,18 @@
           <h4 class="cartao__titulo">{{ icone('alerta') }}O sistema não achou "{{ pedido_do_subitem(s) }}" igual em 3 lojas</h4>
           <p><b>Nada foi substituído</b>, e a pesquisa também não tem opção de substituição para mostrar. O sistema só aceita o mesmo produto, como foi pedido, em 3 lojas
             de empresas diferentes, com estoque e entrega no CEP do projeto.</p>
-          {% if perto %}<p><b>O mais perto do pedido</b> — o mesmo produto, mas em só 2 lojas: {{ perto }}. Falta a 3ª loja: se você achar esse produto em outra
+          {% if duas %}
+          <p class="campo__rotulo">O produto pedido existe em 2 lojas</p>
+          <p class="texto-apoio">Falta a terceira. Você pode <b>usar estas 2</b> — o sistema guarda os comprovantes e grava as 2 pesquisas — e completar a 3ª à mão,
+            com o mesmo produto em outra loja (inclusive numa que o sistema não consegue ler).</p>
+          <ul class="lista-simples">{% for q in duas %}
+            <li class="linha linha--entre"><span><b>{{ q.produto[:90] }}</b>
+              {% for x in q.ofertas %}<div><span class="texto-apoio">{{ LOJAS[x.loja].nome if x.loja in LOJAS else x.loja }}:</span>
+                {% if x.url %}<a href="{{ x.url }}" target="_blank" rel="noopener noreferrer">{{ (x.titulo or x.nome)[:80] }}<span class="so-leitor"> (abre em outra aba)</span></a>{% else %}{{ (x.titulo or x.nome)[:80] }}{% endif %}
+                — <b>{{ x.preco|brl }}</b></div>{% endfor %}</span>
+              <button form="duas{{ i }}_{{ loop.index0 }}" class="btn btn--secundario" data-aguarde="Iniciando…">Usar estas 2 lojas e completar a 3ª à mão</button></li>{% endfor %}
+          </ul>
+          {% elif perto %}<p><b>O mais perto do pedido</b> — o mesmo produto, mas em só 2 lojas: {{ perto }}. Falta a 3ª loja: se você achar esse produto em outra
             loja, preencha as pesquisas à mão, em "Detalhes e comprovante".</p>{% endif %}
           <p class="texto-apoio">Mude a <b>descrição</b>, a <b>marca</b> ou a <b>especificação</b> acima (por exemplo: tire a marca, escreva a marca do produto que
             existe em mais lojas, troque o tamanho ou escreva o nome de outro jeito) e pesquise de novo: o que você escrever é salvo e vira o novo pedido.
@@ -300,6 +326,11 @@
   </div>
 </details>
 
+{% for s in r.subitens %}{% set i = loop.index0 %}{% for q in ((banco.get(chave_das_duas_lojas(pedido_do_subitem(s))) or {}).opcoes or []) %}
+<form id="duas{{ i }}_{{ loop.index0 }}" method="post" action="/p/{{ pid }}/mat/{{ r.item }}/duas-lojas" data-confirmar="Usar estas 2 lojas?"
+      data-confirmar-texto="O sistema guarda o comprovante das 2 lojas (pode levar alguns minutos) e grava as 2 pesquisas. A 3ª fica em branco, para você preencher à mão com o mesmo produto em outra loja." data-confirmar-botao="Usar as 2 lojas">
+  <input type="hidden" name="desc" value="{{ pedido_do_subitem(s) }}"><input type="hidden" name="opcao" value="{{ loop.index0 }}"></form>
+{% endfor %}{% endfor %}
 {% for s in r.subitens %}{% set i = loop.index0 %}{% set bk = banco.get(pedido_do_subitem(s)) %}{% if bk %}{% for o in bk.opcoes %}
 <form id="trocar{{ i }}_{{ loop.index0 }}" method="post" action="/p/{{ pid }}/mat/{{ r.item }}/trocar" data-confirmar="Trocar o produto deste item?"
       data-confirmar-texto="O sistema gera os comprovantes da opção escolhida (pode levar alguns minutos) e grava uma nova versão. A versão atual continua no histórico." data-confirmar-botao="Trocar produto">

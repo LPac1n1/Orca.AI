@@ -204,7 +204,8 @@ def _onde_vagas(chaves, com_confirmadas):
 def contar_bancos(pid, res):
     """O que zerar_bancos vai tirar: (opções de produto guardadas, vagas guardadas destes cargos)."""
     with db.conectar() as c:
-        prods = sum(c.execute('SELECT count(*) FROM produto_banco WHERE projeto_id=? AND item=?', (pid, item)).fetchone()[0] for item in res['rubricas_inteiras'])
+        prods = sum(c.execute("SELECT count(*) FROM produto_banco WHERE projeto_id=? AND item=? AND descricao NOT LIKE '% |em 2 lojas|'", (pid, item)).fetchone()[0]
+                    for item in res['rubricas_inteiras'])
         prods += sum(c.execute('SELECT count(*) FROM produto_banco WHERE projeto_id=? AND item=? AND descricao=?', (pid, item, d)).fetchone()[0]
                      for item, d in res['pedidos'] if item not in res['rubricas_inteiras'])
         vagas = 0
@@ -222,7 +223,7 @@ def zerar_bancos(pid, res):
         for item in res['rubricas_inteiras']:
             c.execute('DELETE FROM produto_banco WHERE projeto_id=? AND item=?', (pid, item))
         for item, d in res['pedidos']:
-            c.execute('DELETE FROM produto_banco WHERE projeto_id=? AND item=? AND descricao=?', (pid, item, d))
+            c.execute('DELETE FROM produto_banco WHERE projeto_id=? AND item=? AND descricao IN (?, ?)', (pid, item, d, d + ' |em 2 lojas|'))
         if res['chaves_de_vaga']:
             from .cnpj_busca import sa
             q, args = _onde_vagas(res['chaves_de_vaga'], res['com_confirmadas'])

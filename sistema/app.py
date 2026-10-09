@@ -1116,7 +1116,8 @@ def mat_form(request: Request, pid: int, item: int, leitura: str = '', novo: str
     return tpl.TemplateResponse(request, TELA_DO_TIPO.get(tipo, 'mat.html'),
                                 dict(contexto(p, pid, v), r=r, tipo=tipo, palavras_padrao=palavras_padrao, leitura=leitura, novo=novo,
                                      banco=db.produtos_do_banco(pid, item), sistemas=sistemas_mod, atende_o_pedido=cesta_atende,
-                                     aguarda_decisao=servico.aguarda_decisao, nao_achado=servico.nao_achado, perto_do_pedido=servico.perto_do_pedido, **(extra or {})))
+                                     aguarda_decisao=servico.aguarda_decisao, nao_achado=servico.nao_achado, perto_do_pedido=servico.perto_do_pedido,
+                                     chave_das_duas_lojas=servico.chave_das_duas_lojas, DUAS_LOJAS=servico.DUAS_LOJAS, **(extra or {})))
 
 
 @app.post('/p/{pid}/mat/{item}/sugerir', response_class=HTMLResponse)
@@ -1410,6 +1411,15 @@ async def mat_trocar(request: Request, pid: int, item: int):
     f = await request.form()
     desc, idx = f['desc'], int(f['opcao'])
     tid = tarefas.iniciar('troca', f'Trocar produto: {desc}', lambda ctx: servico.trocar_produto(pid, item, desc, idx, ctx), pid)
+    return RedirectResponse(f'/tarefa/{tid}', status_code=303)
+
+
+@app.post('/p/{pid}/mat/{item}/duas-lojas')
+async def mat_duas_lojas(request: Request, pid: int, item: int):
+    """A OSC aceita as 2 lojas em que o produto pedido foi achado: o sistema guarda os 2 comprovantes e grava as 2 pesquisas; a 3ª fica para ela."""
+    f = await request.form()
+    desc, idx = f['desc'], int(f.get('opcao') or 0)
+    tid = tarefas.iniciar('duas_lojas', f'Usar 2 lojas: {desc}', lambda ctx: servico.usar_duas_lojas(pid, item, desc, idx, ctx), pid)
     return RedirectResponse(f'/tarefa/{tid}', status_code=303)
 
 

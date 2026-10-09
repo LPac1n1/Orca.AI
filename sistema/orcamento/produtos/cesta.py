@@ -585,8 +585,9 @@ class Motor:
                     ofs = [g['por_loja'][l] for l in duas]
                     if ofs[1]['preco'] > 3 * ofs[0]['preco']:   # um custa mais que o triplo do outro: não devem ser o mesmo produto (lápis × kit de lápis)
                         continue
+                    campos = ('loja', 'titulo', 'marca', 'ean', 'preco', 'url', 'sku', 'seller', 'vendedor', 'loja_gpa', 'imagem')   # o bastante para guardar o comprovante depois
                     achados.append(dict(produto=max((x.get('titulo') or x['nome'] for x in ofs), key=len),
-                                        ofertas=[dict(loja=x['loja'], nome=x.get('titulo') or x['nome'], preco=x['preco'], url=x.get('url'), ean=x.get('ean')) for x in ofs]))
+                                        ofertas=[dict({k: x.get(k) for k in campos}, nome=x.get('titulo') or x['nome']) for x in ofs]))
             achados.sort(key=lambda q: sum(x['preco'] for x in q['ofertas']))
             if achados:
                 out[it['desc']] = achados[:N_QUASE]

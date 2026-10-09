@@ -10,6 +10,7 @@ A OSC pediu: "rode o pesquisar tudo e resolva o que tiver para resolver". A pesq
 |---|---|
 | A 1ª rodada ficou 74 minutos no primeiro cargo. O registro do Windows mostrou o computador entrando em **modo de espera** 3 vezes (até 30 min parado); ao voltar, a consulta em andamento estourava o tempo e a vaga era gravada com "erro TimeoutError" | `tarefas._acordado` pede também a TELA acesa (em notebook na bateria, o pedido de "sistema acordado" sozinho deixa de valer 5 minutos depois de a tela apagar). `tarefas._vigiar` percebe a espera pelo salto do relógio; `tarefas.depois_da_espera` faz a consulta interrompida ser refeita (CNPJ e página da vaga em `vagas.coletar`; busca nas lojas em `cesta._buscar`); a tarefa avisa no fim quantas vezes e por quanto tempo o computador parou |
 | 11 empresas consultadas ONLINE para um cargo (2 a 4 minutos cada), 1 confirmada | `vagas.coletar`: primeiro as empresas que a base da Receita resolve na hora (`cnpj_pela_base`) ou que escreveram o CNPJ na vaga; as outras só enquanto puderem mudar o resultado — sem faixa pretendida, vaga de salário igual ou maior que o das 3 já confirmadas não é consultada. As 3 continuam sendo as de menor salário entre as válidas |
+| A OSC aceitou a proposta "usar as 2 lojas achadas e completar a 3ª à mão" | `cesta._quase` guarda os dados completos das 2 ofertas; `servico.pesquisar_rubrica` grava-as no banco de produtos, numa linha à parte (`chave_das_duas_lojas`); `servico.usar_duas_lojas` (rota `/p/{id}/mat/{item}/duas-lojas`) guarda os 2 comprovantes e grava as 2 pesquisas, com a 3ª em branco e a justificativa começando por `DUAS_LOJAS`. Nada é inventado: a verificação aponta "falta a 3ª pesquisa" (R10) até a OSC preencher. Uma nova pesquisa que continue sem achar 3 lojas não desfaz as 2. "Apagar e refazer" tira também essas linhas do banco. Teste: `tests/test_decidir.py` |
 | Nova sondagem pedida: Trabalha Brasil, Gupy, Sólides | **Trabalha Brasil entrou**: a busca é por cidade (`CIDADES_TRABALHA_BRASIL`: 4 na 1ª volta, 4 na volta funda); na amostra, 6 de 6 vagas com título, empresa e salário, sem verificação humana. Quando a empresa não informa o salário, o site põe nos dados uma faixa ESTIMADA (a mesma em empresas diferentes): só vale o salário que a página mostra (`vagas.texto_visivel`). Teste real: 27 vagas aptas de Auxiliar Administrativo em 2 cidades; 8 de Psicólogo. Gupy (quase nunca informa salário) e Sólides (a lista de vagas não é legível sem o aplicativo do site) ficaram de fora |
 
 ## Busca de produtos por etapas, fotos na conferência e IA à vista (08/10/2026) — testes em `tests/test_decidir.py` e `tests/test_ia_visivel.py`
@@ -365,7 +366,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 265 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 266 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;
