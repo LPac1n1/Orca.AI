@@ -94,12 +94,26 @@ def _local(j, cidade, uf):
 
 
 OUTRA_UF = 'pode ser filial ou homônima'
+SEM_ESTABELECIMENTO = 'a empresa não tem estabelecimento no estado da vaga e o anúncio não traz a razão social dela (confirme se é ela)'
+UNICA_ANTIGA = 'é a única empresa ativa com esse nome na base da Receita'   # como a regra de 08/10/2026 escrevia (confirmava também pelo nome fantasia)
+
+
+def nome_formal(nome, razao):
+    """O anúncio traz a RAZÃO SOCIAL da empresa (as mesmas palavras, pelo menos 2 que a distinguem)? Toda empresa tem a razão social na base da
+    Receita: se o anúncio usa esse nome e só uma empresa ativa o tem, é ela. Com o nome fantasia não dá para afirmar o mesmo — muita empresa
+    usa um nome comercial que não está no cadastro, e ele pode coincidir com o nome fantasia de outra, em outro estado."""
+    a, b = ' '.join(limpa(nome)), ' '.join(limpa(razao))
+    return bool(b) and len(a.split()) >= 2 and fuzz.token_sort_ratio(a, b) >= 92
 
 
 def conferir_local(r, cidade, uf, nome=None):
-    """Trava do lugar. Empresa com sede num estado e vaga em outro é o normal (a vaga diz onde é o TRABALHO): isso só é dúvida quando existe
-    OUTRA empresa ativa com o mesmo nome. Não é dúvida quando o CNPJ é o publicado no site oficial da empresa, nem quando ela é a única
-    com esse nome na base da Receita (ajuste de 08/10/2026: 10 das 31 vagas "em dúvida" do banco estavam assim, sem haver homônima)."""
+    """Trava do lugar. Empresa com sede num estado e vaga em outro é comum (a vaga diz onde é o TRABALHO), mas o nome sozinho não basta:
+    na pesquisa completa de 09/10/2026, de 6 empresas confirmadas assim, 2 eram outra empresa (um anúncio de São Paulo recebeu o CNPJ de
+    uma gráfica do interior da Bahia que tem esse nome fantasia). O CNPJ de outro estado só é confirmado sozinho quando:
+    · é o publicado no site oficial da empresa ou o escrito na própria vaga; ou
+    · a empresa tem estabelecimento ativo no estado da vaga (todos os estabelecimentos dela, não só os que levam o nome); ou
+    · o anúncio traz a razão social dela e nenhuma outra empresa ativa tem esse nome.
+    Fora disso fica "em dúvida", com a empresa indicada para a OSC confirmar com um clique."""
     if not r.get('cnpj'):
         return r
     if sa(r.get('municipio')) == 'exterior':
@@ -108,9 +122,15 @@ def conferir_local(r, cidade, uf, nome=None):
     if r['status'] == '🟢' and u and (r.get('uf') or '').upper() != u:
         if str(r.get('fonte', '')).startswith(('site oficial', 'texto da vaga')):
             return dict(r, motivo=f"{r['motivo']}; sede em {r.get('uf')}, vaga em {u}")
+        raiz = re.sub(r'\D', '', r['cnpj'])[:8]
+        if any((e['uf'] or '').upper() == u for e in cnpj_base.estabelecimentos(raiz)):
+            return dict(r, motivo=f"{r['motivo']}; CNPJ de {r.get('uf')}, e a empresa tem estabelecimento em {u}, o estado da vaga")
         h = homonimos_na_base(nome) if nome else None
-        if h is not None and not [k for k in h if k != re.sub(r'\D', '', r['cnpj'])[:8]]:
-            return dict(r, motivo=f"{r['motivo']}; sede em {r.get('uf')}, vaga em {u}: é a única empresa ativa com esse nome na base da Receita")
+        if h is not None and not [k for k in h if k != raiz]:
+            razao = r.get('razao_social') or (cnpj_base.por_cnpj(r['cnpj']) or {}).get('razao')
+            if nome_formal(nome, razao):
+                return dict(r, motivo=f"{r['motivo']}; sede em {r.get('uf')}, vaga em {u}: o anúncio traz a razão social da única empresa ativa com esse nome na base da Receita")
+            return dict(r, status='🟡', motivo=f"{r['motivo']}; CNPJ em {r.get('uf')}, vaga em {u}: {SEM_ESTABELECIMENTO}")
         return dict(r, status='🟡', motivo=f"{r['motivo']}; CNPJ em {r.get('uf')}, vaga em {u}: {OUTRA_UF}")
     return r
 
@@ -208,11 +228,24 @@ def cnpj_pela_base(nome, cidade=None, uf=None):
             d['forca'] = max(d['forca'], f); d['estabs'].append(r)
     if not por_raiz:
         return None
-    cid = sa(cidade) if cidade and not uf_da_vaga(cidade, None) else None
+    cid, u = (sa(cidade) if cidade and not uf_da_vaga(cidade, None) else None), uf_da_vaga(cidade, uf)
 
     def escolher(raiz, criterio):
-        ests = por_raiz[raiz]['estabs']
-        e = next((x for x in ests if cid and sa(x['municipio']) == cid), None) or next((x for x in ests if x['matriz']), ests[0])
+        """O estabelecimento da empresa que vai para o orçamento: o da cidade da vaga; senão o do estado da vaga, quando dá para apontar um
+        (o que leva o nome, a matriz ou o único); senão a matriz. Olha TODOS os estabelecimentos ativos da empresa, e não só os que levam o
+        nome do anúncio: a matriz ou a unidade da cidade podem ter outro nome fantasia."""
+        ests = por_raiz[raiz]['estabs']                        # os que levam o nome procurado
+        todos = cnpj_base.estabelecimentos(raiz) or ests
+        com_nome = {x['cnpj'] for x in ests}
+
+        def um(grupo):   # entre os que levam o nome (se houver): a matriz, ou o único
+            g = [x for x in grupo if x['cnpj'] in com_nome] or grupo
+            return next((x for x in g if x['matriz']), None) or (g[0] if len(g) == 1 else None)
+        amplo = sa(cidade) if cidade else None   # "São Paulo" pode ser a cidade ou o estado: um estabelecimento na cidade serve nos dois casos
+        na_cidade = [x for x in todos if amplo and sa(x['municipio']) == amplo]
+        na_uf = [x for x in todos if u and (x['uf'] or '').upper() == u]
+        e = (um(na_cidade) or (([x for x in na_cidade if x['cnpj'] in com_nome] or na_cidade)[0] if na_cidade else None) or um(na_uf) or um(ests)
+             or next((x for x in todos if x['matriz']), None) or ests[0])
         return dict(status='🟢', cnpj=e['cnpj'], razao_social=e['razao'], nome_fantasia=e['fantasia'], municipio=e['municipio'], uf=e['uf'],
                     fonte='base da Receita (dados abertos)', candidatos=[], motivo=criterio)
     fortes = [k for k, v in por_raiz.items() if v['forca'] == 2]
@@ -391,6 +424,11 @@ async def cnpj_do_empregador(br, api, nome, cidade=None, uf=None, site=None, ctx
             if r.get('status') == '🟢':
                 with db.conectar() as c:
                     c.execute('INSERT OR REPLACE INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)', (chave, row['consultado_em'], json.dumps(r, ensure_ascii=False)))
+        elif r.get('status') == '🟢' and UNICA_ANTIGA in (r.get('motivo') or '') and '; sede em ' in r['motivo'] and 'razão social' not in r['motivo']:
+            # confirmada pela regra de 08/10/2026 (bastava ser a única com o nome, mesmo fantasia): conferida de novo com a regra do lugar
+            r = conferir_local(dict(r, motivo=r['motivo'].split('; sede em ')[0]), cidade, uf, nome)
+            with db.conectar() as c:
+                c.execute('INSERT OR REPLACE INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)', (chave, row['consultado_em'], json.dumps(r, ensure_ascii=False)))
         elif r.get('status') == '🟡' and '; base da Receita: mais ' in (r.get('motivo') or '') and r.get('cnpj'):
             # dúvida guardada por haver homônimas: conferida de novo com a regra da cidade (sem consultar a internet)
             r2 = conferir_homonimos(dict(r, status='🟢', motivo=r['motivo'].split('; base da Receita: mais ')[0]), nome, cidade)

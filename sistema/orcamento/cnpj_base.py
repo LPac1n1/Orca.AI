@@ -197,6 +197,19 @@ def buscar(nome, limite=2000, db_path=None):
     return [dict(cnpj=r[0], matriz=bool(r[1]), fantasia=r[2], razao=r[3], uf=r[4], municipio=r[5], cnae=r[6]) for r in rows]
 
 
+def estabelecimentos(raiz, db_path=None):
+    """TODOS os estabelecimentos ATIVOS de uma empresa (pelos 8 primeiros dígitos do CNPJ), e não só os que levam o nome procurado:
+    é com eles que se sabe se a empresa existe no estado ou na cidade da vaga."""
+    arq = db_path or BASE
+    d = re.sub(r'\D', '', raiz or '')[:8]
+    if len(d) != 8 or not os.path.exists(arq):
+        return []
+    with sqlite3.connect(arq) as c:
+        rows = c.execute("""SELECT e.cnpj, e.matriz, e.fantasia, m.razao, e.uf, mu.nome, e.cnae FROM estab e LEFT JOIN empresa m ON m.basico = e.basico
+                            LEFT JOIN municipio mu ON mu.codigo = e.municipio WHERE e.basico=? ORDER BY e.cnpj LIMIT 5000""", (d,)).fetchall()
+    return [dict(cnpj=r[0], matriz=bool(r[1]), fantasia=r[2], razao=r[3], uf=r[4], municipio=r[5], cnae=r[6]) for r in rows]
+
+
 def por_cnpj(cnpj, db_path=None):
     arq = db_path or BASE
     d = re.sub(r'\D', '', cnpj or '')

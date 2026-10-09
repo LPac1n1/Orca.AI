@@ -235,6 +235,52 @@ def test_empresa_descrita_em_vez_de_nomeada_nao_e_empresa_identificada():
         assert avaliar(dict(base, empresa=nome), 'Auxiliar administrativo') is None, nome
 
 
+def test_cnpj_de_outro_estado_so_e_confirmado_com_estabelecimento_no_estado_ou_razao_social(dados, monkeypatch):
+    """Pesquisa completa de 09/10/2026: de 6 empresas confirmadas sozinhas com CNPJ de outro estado, 2 eram OUTRA empresa — um anúncio de São Paulo
+    recebeu o CNPJ de uma gráfica do interior da Bahia, a única do Brasil com aquele nome fantasia. O nome sozinho não basta: o CNPJ de outro
+    estado só vale quando a empresa tem estabelecimento no estado da vaga ou quando o anúncio traz a razão social dela."""
+    import asyncio, sqlite3
+    from orcamento import cnpj_base, cnpj_busca, db
+    arq = os.path.join(dados, 'cnpj_teste.sqlite'); _base_exemplo(arq)
+    c = sqlite3.connect(arq)
+    c.executescript("""INSERT INTO municipio VALUES ('3849','SALVADOR');
+        INSERT INTO empresa VALUES ('77777777','MARIA TESTE DE SOUZA'),('88888888','AGENCIA NORTE SUL DE MODELOS LTDA');
+        INSERT INTO estab VALUES ('77777777000177','77777777',1,'ZETAPLAK COMUNICACAO VISUAL','BA','3849','1813001'),
+                                 ('88888888000188','88888888',1,'NORTE SUL','SP','7107','7490105'),('88888888000269','88888888',0,'OMEGA MODEL','BA','3849','7490105');
+        INSERT INTO nomes(nome, cnpj) VALUES ('ZETAPLAK COMUNICACAO VISUAL | MARIA TESTE DE SOUZA','77777777000177'),
+            ('NORTE SUL | AGENCIA NORTE SUL DE MODELOS LTDA','88888888000188'),('OMEGA MODEL | AGENCIA NORTE SUL DE MODELOS LTDA','88888888000269');""")
+    c.commit(); c.close()
+    monkeypatch.setattr(cnpj_base, 'BASE', arq)
+
+    def pela_base(nome, cidade, uf):
+        return cnpj_busca.conferir_local(cnpj_busca.cnpj_pela_base(nome, cidade, uf), cidade, uf, nome)
+    # só o nome fantasia confere e a empresa não existe no estado da vaga: em dúvida, com a empresa indicada para a OSC confirmar
+    r = pela_base('Zetaplak', 'São Paulo', 'SP')
+    assert (r['status'], r['cnpj']) == ('🟡', '77777777000177') and cnpj_busca.SEM_ESTABELECIMENTO in r['motivo'] and 'CNPJ em BA, vaga em SP' in r['motivo']
+    # o nome do anúncio é o nome fantasia da filial da Bahia, mas a matriz fica na cidade da vaga: é ela, com o CNPJ da cidade da vaga
+    r = pela_base('Omega Model', 'São Paulo', 'SP')
+    assert (r['status'], r['cnpj'], r['municipio']) == ('🟢', '88888888000188', 'SAO PAULO')
+    assert pela_base('Omega Model', 'Salvador', 'BA')['cnpj'] == '88888888000269'                        # na Bahia, a filial que leva o nome
+    assert pela_base('Omega Model', 'Niterói', 'RJ')['status'] == '🟡'                                    # no Rio a empresa não tem nada
+    # CNPJ achado na internet, de outro estado: vale se a empresa tem estabelecimento ativo no estado da vaga
+    da_bahia = dict(status='🟢', cnpj='88888888000269', municipio='SALVADOR', uf='BA', motivo='nome confere', fonte='Yahoo')
+    r = cnpj_busca.conferir_local(da_bahia, 'Campinas', 'SP', 'Omega Model')
+    assert r['status'] == '🟢' and 'a empresa tem estabelecimento em SP' in r['motivo']
+    # o anúncio traz a razão social (2 palavras ou mais que a distinguem) da única empresa ativa com o nome: é ela, onde quer que fique
+    assert cnpj_busca.nome_formal('DNA Facilities', 'DNA FACILITIES LTDA') and cnpj_busca.nome_formal('Agência Norte Sul de Modelos', 'AGENCIA NORTE SUL DE MODELOS LTDA')
+    assert not cnpj_busca.nome_formal('Zetaplak', 'MARIA TESTE DE SOUZA') and not cnpj_busca.nome_formal('Zetaplak', 'ZETAPLAK LTDA')   # uma palavra só não basta
+    r = pela_base('DNA Facilities', 'Fortaleza', 'CE')
+    assert r['status'] == '🟢' and 'o anúncio traz a razão social da única empresa ativa com esse nome' in r['motivo']
+    # o que a regra de 08/10 tinha confirmado e guardado (memória de 30 dias) é conferido de novo, sem internet
+    with db.conectar() as cx:
+        cx.execute('INSERT OR REPLACE INTO empresa_cnpj (chave, consultado_em, json) VALUES (?,?,?)',
+                   ('zetaplak|sao paulo|sp', db.agora(), '{"status": "🟢", "cnpj": "77777777000177", "uf": "BA", "municipio": "SALVADOR", "razao_social": "MARIA TESTE DE SOUZA", '
+                    '"fonte": "base da Receita (dados abertos)", "motivo": "base da Receita: única empresa ativa com esse nome no Brasil; sede em BA, vaga em SP: '
+                    'é a única empresa ativa com esse nome na base da Receita"}'))
+    r = asyncio.run(cnpj_busca.cnpj_do_empregador(None, None, 'Zetaplak', 'São Paulo', 'SP'))
+    assert r['status'] == '🟡' and cnpj_busca.SEM_ESTABELECIMENTO in r['motivo']
+
+
 def test_empresa_achada_na_internet_e_a_unica_com_o_nome_na_cidade_da_vaga(dados, monkeypatch):
     """Pesquisa completa de 09/10/2026: de 11 empresas de um cargo, 1 teve o CNPJ confirmado; várias paravam em homônimas de OUTRAS cidades. A base
     da Receita já confirmava sozinha "N empresas com esse nome no Brasil, uma só na cidade da vaga"; agora o CNPJ achado na internet também."""

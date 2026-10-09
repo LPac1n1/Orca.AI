@@ -156,7 +156,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 269 ao todo. Num clone limpo, 267 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 270 ao todo. Num clone limpo, 268 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -200,6 +200,7 @@ O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.m
   - **O modo de espera do computador não derruba mais a pesquisa.** Numa pesquisa completa de teste, o notebook entrou em espera três vezes (até 30 minutos parado) e as consultas em andamento viravam erro. Agora a tela fica acesa enquanto uma tarefa roda, o sistema percebe quando o computador parou, refaz a consulta interrompida e avisa no fim da tarefa. Fechar a tampa continua pondo o computador em espera.
   - **Vagas: primeiro as empresas que a base da Receita resolve na hora.** A consulta online de CNPJ leva minutos por empresa; ela só é feita para as vagas que ainda podem mudar o resultado. As 3 escolhidas continuam sendo as de menor salário entre as válidas.
   - **Conferência de CNPJ na internet cerca de 5 vezes mais rápida** (média de 31 segundos por empresa, contra 2 a 4 minutos): cada CNPJ achado nos buscadores é conferido na base da Receita do próprio computador, e as buscas correm ao mesmo tempo. "Empresa localizada no bairro…" e "Empresa do ramo…" passam a contar como empresa não identificada.
+  - **CNPJ de outro estado: o nome sozinho não confirma mais a empresa.** Numa pesquisa completa de teste, um anúncio de São Paulo recebeu o CNPJ de uma gráfica do interior da Bahia, a única do Brasil com aquele nome fantasia. Agora o CNPJ de outro estado só é confirmado sozinho quando a empresa tem estabelecimento no estado da vaga, quando o anúncio traz a razão social dela ou quando o CNPJ está no site oficial ou no texto da vaga. Fora disso a vaga fica "em dúvida", com a empresa indicada para você confirmar com um clique. O CNPJ gravado passa a ser o do estabelecimento da cidade da vaga, quando ele existe.
   - **Faixa pretendida dentro do máximo de horas.** Com o limite de 90 h, as 3 vagas de menor salário podiam não chegar na faixa: numa pesquisa completa de teste, um cargo com faixa de R$ 1.000 ficou em R$ 684,90. Agora as vagas são procuradas e escolhidas pela média que elas precisam ter para o valor chegar na faixa sem passar do máximo de horas (faixa × horas do mês ÷ máximo de horas). A tela do cargo mostra essa média.
   - **Mais empresas confirmadas sozinhas.** O CNPJ achado na internet vale quando a empresa é a única com aquele nome na cidade da vaga (a base da Receita já usava esse critério). Em cada volta da busca, o sistema lê no máximo 25 vagas por site.
   - **Usar 2 lojas e completar a 3ª à mão.** Quando o produto pedido existe em só 2 lojas, a tela do item mostra as duas e o botão "Usar estas 2 lojas e completar a 3ª à mão": o sistema guarda os 2 comprovantes e grava as 2 pesquisas; a terceira você preenche com o mesmo produto em outra loja (inclusive numa que o sistema não consegue ler). O item só fica pronto com as 3.
