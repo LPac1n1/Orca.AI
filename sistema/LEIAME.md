@@ -19,6 +19,8 @@ Na tela do item, as opções vêm nessa ordem. O teste real mostrou "Lápis de O
 
 **IA à vista.** `ia.estado()` (sem consultar a internet): `sem_chave`, `pronta`, `parcial` (um modelo esgotou a cota de hoje; o seguinte assume) ou `esgotada`; respostas de hoje por tipo de uso; perguntas sem resposta desde que o sistema abriu, com o motivo da última. `ia.marca()`/`ia.desde()` medem o uso numa tarefa. Telas: indicador no topo (`base.html`), `/ia` (`ia.html`), linha "IA nesta pesquisa" na proposta, aviso e resumo no "Pesquisar tudo", estado na configuração do projeto. O sistema não afirma números de cota: mostra o que aconteceu.
 
+**Mais um site de vagas (pedido: "é possível melhorar essa busca?").** Sondados em 08/10/2026, com o cargo "auxiliar administrativo": Empregos.com.br (20 vagas na busca, dados estruturados do anúncio, salário em parte delas — ENTROU), Indeed e Glassdoor (a página da vaga não traz os dados de forma legível), Jooble (recusa o acesso: HTTP 403), Trabalha Brasil, Gupy e Sólides (a busca não devolveu links reconhecíveis nesta sondagem: ficam para uma nova tentativa). No Empregos.com.br o link só diz "Mais detalhes" e o título está no endereço (`vagas.titulo_do_endereco`); o salário de R$ 2.200 vem como `2.2` nos dados e como "R$2,200.00" na página — `vagas.milhar_com_ponto` só aceita o milhar quando a página mostra o valor, e `salario_no_texto` reconhece o formato americano. `PISO_PLAUSIVEL`: salário mensal de menos de R$ 100 é erro de leitura (com o fim do mínimo de R$ 1.000, um erro assim viraria a vaga "mais barata"). `db.conectar` ganhou uma trava na criação das tabelas (um teste falhava raramente por duas tarefas abrirem um banco novo ao mesmo tempo).
+
 **"Pesquisar tudo".** Segue as mesmas etapas, porque chama as mesmas funções: vagas por título (grupos), produtos por etapas, comprovante pela página. O resumo ganhou a linha da IA.
 
 ## Comprovante dos produtos: a página, não o carrinho (08/10/2026) — testes em `tests/test_comprovante.py`
@@ -327,7 +329,7 @@ As telas foram refeitas para que qualquer pessoa consiga usar sem treinamento. D
 | **Comprovante conferido antes de valer** | Cada PDF é conferido: página de erro da loja, produto indisponível ou preço que não aparece = nova tentativa. Se continuar, entra uma **loja reserva** com o mesmo produto; se nenhuma servir, a **próxima opção** do item (sem piorar o item e dentro do teto, com IA nos casos 🟡). Tudo fica na justificativa do subitem |
 | **Estoque do Tenda no CEP** | O Tenda tem estoque por filial: o sistema descobre a filial que atende o CEP e só usa produto com estoque nela |
 | **Loja que pede CAPTCHA** | Se uma loja pedir verificação humana, o sistema **não tenta resolver**: a loja sai daquela tarefa, com aviso, e os itens vão para as lojas reserva. Um bloqueio nunca é confundido com "produto não existe". Há intervalo mínimo entre acessos à mesma loja |
-| **Vagas do Brasil inteiro, título exato** | InfoJobs, Catho, Vagas.com, BNE e LinkedIn. Só entra título igual ao cargo (variações de gênero e número); sem empresa confidencial nem agregador; menor valor da faixa; fica de fora a vaga cujo texto diz um salário diferente do informado no anúncio |
+| **Vagas do Brasil inteiro, título exato** | InfoJobs, Catho, Vagas.com, BNE, Empregos.com.br e LinkedIn. Só entra título igual ao cargo (variações de gênero e número); sem empresa confidencial nem agregador; menor valor da faixa; fica de fora a vaga cujo texto diz um salário diferente do informado no anúncio |
 | **CNPJ do empregador automático** | Primeiro a **base oficial da Receita** (nome único no Brasil ou no município da vaga); depois internet + site oficial. Travas: empresa estrangeira, outra UF e homônimos. Na dúvida, o sistema não escolhe e passa para a próxima vaga |
 | **Banco de vagas** | Cada vaga boa fica guardada, com PDF, por 180 dias. Coleta diária automática para os cargos com menos de 3 vagas |
 | **Base da Receita local** | Atualização mensal automática (~6,4 GB de download), fora do OneDrive, em `%LOCALAPPDATA%\OrcamentoOSC\receita` |
@@ -353,7 +355,7 @@ Os dados ficam em `sistema/dados/`, com cópia na nuvem pelo OneDrive. Base da R
 - Item sem nenhum produto igual em 3 lojas, nem parecido, nem da categoria da rubrica: fica com pendência para a sua decisão.
 
 ## Testes
-`python -m pytest -q tests`: 263 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
+`python -m pytest -q tests`: 264 testes (os da 0.5 em `tests/test_v05.py` e `tests/test_catho_empresa.py`), entre eles:
 - o caso real do Parecer 8;
 - os casos-armadilha de identidade de produto;
 - o título exato das vagas;

@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import sqlite3
+import threading
 
 from .modelo import Projeto
 
@@ -41,27 +42,40 @@ def agora():
     return dt.datetime.now().astimezone().isoformat(timespec='seconds')
 
 
+_TRAVA_BANCO = threading.Lock()
+
+
 def conectar():
     os.makedirs(PASTA_DADOS, exist_ok=True)
-    c = sqlite3.connect(os.path.join(PASTA_DADOS, 'orcamento.db'), timeout=30)  # tarefas em segundo plano também gravam
+    arq = os.path.join(PASTA_DADOS, 'orcamento.db')
+    c = sqlite3.connect(arq, timeout=30)  # tarefas em segundo plano também gravam
     c.row_factory = sqlite3.Row
-    c.executescript(ESQUEMA)
-    _migrar(c)
+    with _TRAVA_BANCO:   # a criação das tabelas e das colunas novas é feita por uma tarefa de cada vez (a tela e as tarefas em segundo plano abrem o banco juntas)
+        c.executescript(ESQUEMA)
+        _migrar(c, arq)
     return c
 
 
 _MIGRADO = set()
 
 
-def _migrar(c):
-    """Colunas acrescentadas depois da 1ª versão do banco (uma vez por arquivo de dados)."""
-    if PASTA_DADOS in _MIGRADO:
+def _migrar(c, arq=None):
+    """Colunas acrescentadas depois da 1ª versão do banco (uma vez por ARQUIVO de dados: o mesmo caminho com um arquivo novo é conferido de novo)."""
+    try:
+        chave = (arq or PASTA_DADOS, os.path.getctime(arq) if arq else None)
+    except OSError:
+        chave = (arq or PASTA_DADOS, None)
+    if chave in _MIGRADO:
         return
-    if 'removido_em' not in [r[1] for r in c.execute('PRAGMA table_info(projeto)')]:
-        c.execute('ALTER TABLE projeto ADD COLUMN removido_em TEXT')   # projeto removido da lista (nada é apagado; dá para restaurar)
-    if 'descartada_em' not in [r[1] for r in c.execute('PRAGMA table_info(vaga_banco)')]:
-        c.execute('ALTER TABLE vaga_banco ADD COLUMN descartada_em TEXT')   # vaga que a OSC descartou (não aparece nem entra; dá para mostrar de novo)
-    _MIGRADO.add(PASTA_DADOS)
+    for tabela, coluna in (('projeto', 'removido_em'),       # projeto removido da lista (nada é apagado; dá para restaurar)
+                           ('vaga_banco', 'descartada_em')):   # vaga que a OSC descartou (não aparece nem entra; dá para mostrar de novo)
+        if coluna not in [r[1] for r in c.execute(f'PRAGMA table_info({tabela})')]:
+            try:
+                c.execute(f'ALTER TABLE {tabela} ADD COLUMN {coluna} TEXT')
+            except sqlite3.OperationalError as e:   # outra conexão acabou de criar a coluna
+                if 'duplicate column' not in str(e).lower():
+                    raise
+    _MIGRADO.add(chave)
 
 
 def evento(c, projeto_id, tipo, autor='usuário', **detalhe):

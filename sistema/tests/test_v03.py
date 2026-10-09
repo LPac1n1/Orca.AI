@@ -129,6 +129,32 @@ def test_sede_em_outro_estado_so_e_duvida_quando_ha_homonima(dados, monkeypatch)
     assert cnpj_busca.candidatos_da_base('Empresa Que Não Existe', 'Niterói', 'RJ') == []
 
 
+def test_nova_fonte_de_vagas_titulo_no_endereco_e_milhar_escrito_com_ponto():
+    """Pedido da OSC (08/10/2026): melhorar a busca de vagas. Sondados 8 sites; entrou o Empregos.com.br (título, empresa e salário legíveis, sem
+    verificação humana). Nele o link da vaga só diz "Mais detalhes" (o título está no endereço) e o salário de R$ 2.200 vem como "2.2"."""
+    from orcamento import vagas as V
+    nomes = [f[0] for f in V.fontes('Auxiliar Administrativo')]
+    assert 'Empregos.com.br' in nomes and 'https://www.empregos.com.br/vagas/auxiliar-administrativo' in [f[1] for f in V.fontes('Auxiliar Administrativo')]
+    assert 'Empregos.com.br' not in [f[0] for f in V.fontes('Auxiliar Administrativo', profundo=True)]
+    assert V.titulo_do_endereco('https://www.empregos.com.br/vaga/11891982/auxiliar-administrativo-em-atibaia-sp') == 'auxiliar administrativo em atibaia sp'
+    assert V.titulo_confere(V.titulo_do_endereco('https://www.empregos.com.br/vaga/11891982/auxiliar-administrativo-em-atibaia-sp'), 'Auxiliar Administrativo')
+    assert not V.titulo_confere(V.titulo_do_endereco('https://www.empregos.com.br/vaga/11891982/motorista-em-atibaia-sp'), 'Auxiliar Administrativo')
+    # o valor escrito do jeito americano também confirma o salário na página guardada
+    assert V.salario_no_texto('Remuneração R$2,295.00 Publicado há 1 dia', 229500) and V.salario_no_texto('Remuneração R$ 2.295,00', 229500)
+    assert not V.salario_no_texto('R$2,295.50', 229500) and not V.salario_no_texto('R$ 12,295.00', 229500)
+    # "2.295" nos dados da vaga: é R$ 2.295,00 SÓ se a página mostrar esse valor; senão, a vaga fica sem salário
+    v = dict(titulo='Auxiliar Administrativo', empresa='Empresa Exemplo', faixa_min=230, faixa_max=230, unidade='MONTH', faixa_bruta=[2.295, 2.295])
+    V.milhar_com_ponto(v, 'Nº de vagas 1 Remuneração R$2,295.00 Publicado há 1 dia')
+    assert (v['faixa_min'], v['faixa_max'], v['salario_da']) == (229500, 229500, 'página (milhar)') and avaliar(v, 'Auxiliar administrativo') is None
+    v = dict(titulo='Auxiliar Administrativo', empresa='Empresa Exemplo', faixa_min=220, faixa_max=220, unidade='MONTH', faixa_bruta=[2.2, 2.2])
+    V.milhar_com_ponto(v, 'Página sem o valor por extenso')
+    assert v['faixa_min'] is None and avaliar(v, 'Auxiliar administrativo') == 'sem salário informado'
+    # salário mensal de menos de R$ 100 nunca passa (com o fim do mínimo de R$ 1.000, um erro de leitura viraria a vaga "mais barata")
+    assert 'menos de R$ 100' in avaliar(dict(titulo='Auxiliar Administrativo', empresa='Empresa Exemplo', faixa_min=220, faixa_max=220, unidade='MONTH'), 'Auxiliar administrativo')
+    v = dict(titulo='Auxiliar Administrativo', empresa='Empresa Exemplo', faixa_min=180000, faixa_max=180000, unidade='MONTH', faixa_bruta=[1800, 1800])
+    assert V.milhar_com_ponto(v, 'qualquer texto')['faixa_min'] == 180000                                 # salário normal: nada muda
+
+
 def test_grade_com_fornecedor_por_item(dados, tmp_path):
     from openpyxl import load_workbook
     from orcamento.modelo import Projeto, RubricaMaterial, Subitem, Fonte

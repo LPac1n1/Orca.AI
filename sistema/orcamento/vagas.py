@@ -1,6 +1,6 @@
 """Pesquisa salarial por vagas publicadas (v0.3), seguindo as regras da SEJC e as decisões da OSC.
 
-- Vagas de QUALQUER região do Brasil (decisão de 25/09): InfoJobs, Catho, Vagas.com, BNE e LinkedIn (páginas públicas).
+- Vagas de QUALQUER região do Brasil (decisão de 25/09): InfoJobs, Catho, Vagas.com, BNE, Empregos.com.br e LinkedIn (páginas públicas).
 - Título EXATO: só variações das mesmas palavras do cargo (gênero, número, "(a)"); "Coordenador de Projetos de TI" não vale.
 - Dados do bloco estruturado JobPosting (JSON-LD) da página: título, empresa, faixa salarial, data, cidade/UF, site da empresa.
 - Filtros: empresa identificada (sem confidencial, sem agregador — R15), salário mensal ≥ R$ 1.000; valor considerado = MENOR da faixa (R11).
@@ -22,7 +22,7 @@ from .regras import norm
 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36'
 PARADAS = {'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'a', 'o', 'para', 'recibo', 'ou', 'mei', 'pj', 'clt'}
 CONFIDENCIAL = ('confidencial', 'sigilos', 'nao divulgad', 'não divulgad', '****')
-AGREGADORES = ('oemprego', 'vagas brasil', 'emprego ligado', 'trabalha brasil', 'jooble', 'talent.com', 'indeed', 'catho', 'infojobs', 'bne ', 'vagas.com')
+AGREGADORES = ('oemprego', 'vagas brasil', 'emprego ligado', 'trabalha brasil', 'jooble', 'talent.com', 'indeed', 'catho', 'infojobs', 'bne ', 'vagas.com', 'empregos.com')
 VALIDADE_DIAS = 180
 
 
@@ -398,7 +398,11 @@ def salario_no_texto(texto, centavos):
     r, c = divmod(int(centavos), 100)
     milhar = f'{r:,}'.replace(',', '.')
     pad = r'(?<![\d.,])(?:' + re.escape(milhar) + '|' + str(r) + ')' + (r'(?:,00)?' if c == 0 else f',{c:02d}') + r'(?!\d|,\d|\.\d{3})'   # 2.300 não é 2.300,50
-    return re.search(pad, (texto or '').replace('\xa0', ' ')) is not None
+    t = (texto or '').replace('\xa0', ' ')
+    if re.search(pad, t) is not None:
+        return True
+    # há site que escreve o valor do jeito americano: "R$2,295.00" (vírgula no milhar, ponto nos centavos) — Empregos.com.br, 08/10/2026
+    return r >= 1000 and re.search(r'(?<![\d.,])' + re.escape(f'{r:,}') + rf'\.{c:02d}(?!\d)', t) is not None
 
 
 def _extrai(jp):
@@ -417,7 +421,7 @@ def _extrai(jp):
                 cidade=addr.get('addressLocality') if isinstance(addr, dict) else None,
                 uf=addr.get('addressRegion') if isinstance(addr, dict) else None,
                 site_empresa=(site[0] if isinstance(site, list) and site else site) or None,
-                faixa_min=_cent(vmin), faixa_max=_cent(vmax), unidade=(unid or '').upper() or None,
+                faixa_min=_cent(vmin), faixa_max=_cent(vmax), unidade=(unid or '').upper() or None, faixa_bruta=[vmin, vmax],
                 data=(jp.get('datePosted') or '')[:10] or None, tipo=jp.get('employmentType'),
                 salarios_texto=salarios_no_texto(jp.get('description')), a_combinar=a_combinar(jp.get('description')),
                 cnpjs_texto=cnpjs_no_texto(jp.get('description')))
@@ -427,6 +431,29 @@ def cnpjs_no_texto(descricao):
     """CNPJs escritos no texto da vaga (a empresa às vezes se identifica ali): só números, sem repetir."""
     txt = H.unescape(re.sub(r'<[^>]+>', ' ', descricao or ''))
     return list(dict.fromkeys(re.sub(r'\D', '', x) for x in re.findall(r'\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b', txt)))
+
+
+PISO_PLAUSIVEL = 10000   # R$ 100,00: abaixo disso não é salário mensal — é erro de leitura do anúncio
+
+
+def milhar_com_ponto(v, texto_da_pagina):
+    """Há site que põe nos dados da vaga "2.2" para R$ 2.200 (o ponto do milhar virou vírgula decimal — Empregos.com.br, 08/10/2026). Um salário
+    mensal de menos de R$ 100 é lido de novo como milhar SÓ se a página mostrar esse valor por extenso (R$ 2.200,00 ou R$2,200.00); senão, a
+    vaga fica sem salário (não entra)."""
+    if not v.get('faixa_min') or v['faixa_min'] >= PISO_PLAUSIVEL or v.get('salario_da') or (v.get('unidade') or 'MONTH') not in ('MONTH', 'MES', 'MÊS'):
+        return v
+    def mil(bruto, cent):   # 2.295 (o valor como veio) → 229500 centavos; sem o valor como veio, o que foi lido × 1000
+        try:
+            return round(float(str(bruto).replace(',', '.')) * 100000)
+        except (TypeError, ValueError):
+            return cent * 1000
+    bruta = v.get('faixa_bruta') or [None, None]
+    mn, mx = mil(bruta[0], v['faixa_min']), mil(bruta[1], v.get('faixa_max') or v['faixa_min'])
+    if salario_no_texto(texto_da_pagina, mn):
+        v['faixa_min'], v['faixa_max'], v['salario_da'] = mn, mx if salario_no_texto(texto_da_pagina, mx) else mn, 'página (milhar)'
+    else:
+        v['faixa_min'] = v['faixa_max'] = None
+    return v
 
 
 def avaliar(v, cargo):
@@ -447,6 +474,8 @@ def avaliar(v, cargo):
         return f'faixa salarial genérica (R$ {v["faixa_min"] // 100} a R$ {v["faixa_max"] // 100}): provável "a combinar"'
     if v['unidade'] and v['unidade'] not in ('MONTH', 'MES', 'MÊS'):
         return f'salário por {v["unidade"]}, não mensal'
+    if v['faixa_min'] < PISO_PLAUSIVEL:
+        return 'salário mensal de menos de R$ 100: erro de leitura do anúncio'
     return None   # qualquer salário mensal vale (decisão da OSC, 06/10/2026: não há mais o mínimo de R$ 1.000); o salário do texto já foi aplicado
 
 
@@ -473,10 +502,19 @@ def fontes(cargo, profundo=False):
         L.append(('Vagas.com', f'https://www.vagas.com.br/vagas-de-{s}' + (f'?pagina={pg}' if pg > 1 else ''), r'vagas\.com\.br/vagas/v\d+'))
     if not profundo:
         L.append(('BNE', f'https://www.bne.com.br/vagas-de-emprego-para-{s}', r'bne\.com\.br/vaga-de-emprego-na-area-[^?#]+/\d+'))
+        # incluído em 08/10/2026 (pedido da OSC: melhorar a busca): a página da vaga traz título, empresa e salário, e abre sem verificação humana.
+        # Sondados e deixados de fora: Indeed e Glassdoor (a página não traz os dados da vaga de forma legível) e Jooble (recusa o acesso)
+        L.append(('Empregos.com.br', f'https://www.empregos.com.br/vagas/{s}', r'empregos\.com\.br/vaga/\d+'))
     for st in ((75, 100, 125) if profundo else (0, 25, 50)):
         L.append(('LinkedIn', f'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={q}&location={quote("Brasil")}&start={st}',
                   r'linkedin\.com/jobs/view/[^?#]+'))
     return L
+
+
+def titulo_do_endereco(url):
+    """O último trecho do endereço de uma vaga, com espaços no lugar dos traços ('.../vaga/123/auxiliar-administrativo-em-atibaia-sp')."""
+    trecho = [x for x in re.split(r'[/?#]', url or '') if re.search(r'[a-z]{4,}-[a-z]', x)]
+    return re.sub(r'[-_]+', ' ', trecho[-1]) if trecho else ''
 
 
 INTERVALO_PLATAFORMA = 3.0   # segundos entre acessos à mesma plataforma de vagas
@@ -525,7 +563,9 @@ async def buscar_brasil(br, cargo, ctx=None, profundo=False, ignorar=(), pct=(0,
     vistos = {}
     for plat, u, t in brutos:
         vistos.setdefault(u, (plat, t))
-    cands = [(p, u) for u, (p, t) in vistos.items() if u not in ignorar and (not t or titulo_confere(t.split('\n')[0], cargo) or titulo_confere(t, cargo))]
+    # o título costuma estar no texto do link; há site em que o link só diz "Mais detalhes" e o título está no próprio endereço
+    # (empregos.com.br/vaga/123/auxiliar-administrativo-em-atibaia-sp): vale o que conferir
+    cands = [(p, u) for u, (p, t) in vistos.items() if u not in ignorar and (not t or titulo_confere(t.split('\n')[0], cargo) or titulo_confere(t, cargo) or titulo_confere(titulo_do_endereco(u), cargo))]
     feitas, total = 0, len(cands)
 
     async def detalhe(plat, u):
@@ -552,6 +592,7 @@ async def buscar_brasil(br, cargo, ctx=None, profundo=False, ignorar=(), pct=(0,
             v['faixa_min'] = None
         elif exib:
             v['faixa_min'], v['faixa_max'], v['salario_da'] = exib[0], exib[1], 'página'
+        milhar_com_ponto(v, re.sub(r'<[^>]+>', ' ', html))
         v['motivo'] = avaliar(v, cargo); v['apta'] = v['motivo'] is None
         return v
     res = [v for v in await asyncio.gather(*[detalhe(p, u) for p, u in cands]) if v]
