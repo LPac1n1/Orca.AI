@@ -235,6 +235,19 @@ def test_coleta_consulta_primeiro_quem_a_base_resolve_e_refaz_o_que_o_modo_de_es
     # o vigia e o pedido de tela acesa
     assert tarefas.esperas(time.time() + 10) == [] and len(tarefas.esperas()) == 1 and round(tarefas.esperas()[0][1]) == 1500
     assert asyncio.run(sem_pausa(time.time() + 10)) is False
+    # Com faixa pretendida (pesquisa completa de 09/10/2026): a busca só para quando 3 vagas chegam na média pedida...
+    chega = lambda f: (lambda: V.alcanca_a_faixa(V.tres_do_titulo('Psicólogo', f), f))
+    consultas.clear()
+    asyncio.run(V.coletar('Psicólogo', parar=chega(185000), faixa=185000))
+    assert consultas == ['Fox', 'Delta', 'Charlie', 'Bravo', 'Eco']                   # as mais perto da faixa primeiro; com Fox e Eco confirmadas a média chega: a busca para e a Alfa fica sem consulta
+    assert [v['empresa'] for v in V.tres_do_titulo('Psicólogo', 185000)] == ['Charlie', 'Eco', 'Fox']   # as de menor salário cuja média chega (1.866,67)
+    # ...e, quando nem as 3 de MAIOR salário chegam nela (aqui dão 1.900 e a média pedida é 3.000), não adianta conferir empresa por empresa:
+    # volta a valer a regra sem faixa — só é conferida a vaga que ainda pode entrar entre as 3 de menor salário
+    assert V.da_para_chegar('Psicólogo', aptas, 190000) and not V.da_para_chegar('Psicólogo', aptas, 190001) and not V.da_para_chegar('Psicólogo', [], 300000)
+    consultas.clear()
+    asyncio.run(V.coletar('Psicólogo', parar=chega(300000), faixa=300000))
+    assert list(dict.fromkeys(consultas)) == ['Bravo', 'Alfa']                       # antes: as 6, uma por uma (a Alfa aparece 2 vezes: a consulta que o modo de espera interrompeu é refeita)
+    assert [v['empresa'] for v in V.tres_do_titulo('Psicólogo', 300000)] == ['Alfa', 'Bravo', 'Charlie']   # fora do alcance: ficam as 3 de menor salário (quem chama avisa)
     # mais fontes de vagas: a busca do Trabalha Brasil é por cidade (4 cidades na 1ª volta, outras 4 na volta mais funda)
     tb = [f for f in V.fontes('Auxiliar Administrativo') if f[0] == 'Trabalha Brasil']
     assert len(tb) == 4 and tb[0][1] == 'https://www.trabalhabrasil.com.br/vagas-de-emprego-em-sao-paulo-sp/auxiliar-administrativo'

@@ -1052,6 +1052,20 @@ async def confirmar_vaga(url, cnpj, ctx=None):
     return dict(empresa=v['empresa'], cnpj=cnpj_formatar(num), razao=razao, salario=faixa_min)
 
 
+def da_para_chegar(cargo, a_conferir, faixa):
+    """Ainda dá para 3 vagas de empresas diferentes terem média igual ou maior que `faixa`? Conta as já confirmadas no banco e as que faltam
+    conferir como se TODAS fossem confirmadas: se nem assim as 3 de maior salário chegam, a faixa está fora do alcance das vagas achadas, e
+    conferir o CNPJ das que sobram só para tentar chegar nela é tempo perdido. Na pesquisa completa de 09/10/2026, um cargo que precisava de
+    média de R$ 2.444,45 teve as 63 empresas conferidas (17 minutos) quando as 3 vagas de maior salário davam R$ 2.297."""
+    from .regras import media
+    sal = {}   # uma vaga por empresa (pelo nome do anúncio, como a coleta faz): a vaga guardada que vai ser lida de novo não conta duas vezes
+    for v in list(vagas_do_banco(cargo)) + list(a_conferir):
+        k = norm(v['empresa'])
+        sal[k] = max(sal.get(k, 0), v['faixa_min'] or 0)
+    tres = sorted(sal.values(), reverse=True)[:3]
+    return len(tres) == 3 and media(tres) >= faixa
+
+
 async def coletar(cargo, ctx=None, alvo=3, parar=None, faixa=None):
     """Busca no Brasil + CNPJ + PDF das vagas aptas com CNPJ 🟢, guardando tudo no banco de vagas.
     Para quando o banco tiver `alvo` vagas válidas de empresas diferentes; se faltar, lê as páginas seguintes das plataformas.
@@ -1088,9 +1102,13 @@ async def coletar(cargo, ctx=None, alvo=3, parar=None, faixa=None):
                     except Exception:
                         na_hora = False
                     (rapidas if na_hora else lentas).append(v)
-                for i, v in enumerate(rapidas + lentas):
+                fila = rapidas + lentas
+                for i, v in enumerate(fila):
                     tres = tres_do_banco(cargo)
-                    if parar:
+                    # com faixa pretendida: se nem com todas as vagas que faltam a média chega nela, a busca volta à regra sem faixa (as 3 de
+                    # menor salário) — só é conferida a vaga que ainda pode entrar entre elas
+                    fora_do_alcance = bool(faixa and parar) and not da_para_chegar(cargo, fila[i:], faixa)
+                    if parar and not fora_do_alcance:
                         if parar():
                             break
                     elif len(tres) >= alvo and (v['faixa_min'] or 0) >= max(t['faixa_min'] or 0 for t in tres):
