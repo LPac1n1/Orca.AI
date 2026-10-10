@@ -196,6 +196,8 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 
 O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.md](sistema/LEIAME.md).
 
+- **10/10/2026 — botões de salvar na tela do cargo**
+  - **"Salvar e continuar aqui" e "Salvar e voltar para…" voltaram a funcionar** nos cargos que têm vagas de outro título. O quadro "Títulos com vagas" tinha um formulário dentro do formulário do cargo; o navegador fechava o de fora antes da hora, e as pesquisas e os botões de salvar ficavam soltos — clicar não fazia nada. Os testes agora conferem todas as páginas contra esse erro.
 - **09/10/2026 — pesquisa completa mais resistente e mais um site de vagas**
   - **O modo de espera do computador não derruba mais a pesquisa.** Numa pesquisa completa de teste, o notebook entrou em espera três vezes (até 30 minutos parado) e as consultas em andamento viravam erro. Agora a tela fica acesa enquanto uma tarefa roda, o sistema percebe quando o computador parou, refaz a consulta interrompida e avisa no fim da tarefa. Fechar a tampa continua pondo o computador em espera.
   - **Vagas: primeiro as empresas que a base da Receita resolve na hora.** A consulta online de CNPJ leva minutos por empresa; ela só é feita para as vagas que ainda podem mudar o resultado. As 3 escolhidas continuam sendo as de menor salário entre as válidas.

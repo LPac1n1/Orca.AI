@@ -37,6 +37,59 @@ def _fotos_sem_internet(request, monkeypatch):
     monkeypatch.setattr(ia, 'baixar_foto', lambda url: None)
 
 
+def formularios_soltos(html):
+    """O que está errado nos formulários de uma página: (1) <form> aberto DENTRO de outro — o navegador ignora a abertura do de dentro, e o
+    </form> dele fecha o de fora antes da hora; (2) botão de enviar que ficou fora de qualquer formulário (sem o atributo form) — clicar nele não
+    faz nada. Devolve a lista dos problemas (vazia = página certa)."""
+    from html.parser import HTMLParser
+
+    class Leitor(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.abertos, self.problemas, self.botao = [], [], None
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == 'form':
+                quem = a.get('id') or a.get('action') or '?'
+                if self.abertos:
+                    self.problemas.append(f'<form {quem}> dentro de <form {self.abertos[-1]}>')
+                self.abertos.append(quem)
+            elif tag == 'button' and a.get('type', 'submit') == 'submit' and not self.abertos and 'form' not in a and 'data-sem-formulario' not in a:
+                self.botao = ''
+
+        def handle_data(self, data):
+            if self.botao is not None:
+                self.botao += data
+
+        def handle_endtag(self, tag):
+            if tag == 'form' and self.abertos:
+                self.abertos.pop()
+            elif tag == 'button' and self.botao is not None:
+                self.problemas.append('botão de enviar fora de formulário: "' + ' '.join(self.botao.split())[:50] + '"')
+                self.botao = None
+    leitor = Leitor()
+    leitor.feed(html)
+    return leitor.problemas
+
+
+@pytest.fixture(autouse=True)
+def _formularios_inteiros(monkeypatch):
+    """Toda página que um teste abre é conferida: nenhum formulário dentro de outro, nenhum botão de enviar solto. Em 10/10/2026 os botões
+    "Salvar e continuar aqui" e "Salvar e voltar para…" deixaram de funcionar nos cargos com vagas de outro título: o quadro "Títulos com vagas"
+    tinha um <form> dentro do formulário do cargo, que fechava o de fora — e tudo que vinha depois (pesquisas e botões de salvar) ficava solto."""
+    from starlette.testclient import TestClient
+    original = TestClient.request
+
+    def conferido(self, method, url, *a, **k):
+        r = original(self, method, url, *a, **k)
+        if r.status_code == 200 and 'text/html' in r.headers.get('content-type', ''):
+            problemas = formularios_soltos(r.text)
+            assert not problemas, f'{method} {url}: ' + '; '.join(problemas[:5])
+        return r
+    monkeypatch.setattr(TestClient, 'request', conferido)
+
+
 @pytest.fixture(autouse=True)
 def _na_tomada(monkeypatch):
     """As tarefas longas avisam quando o notebook está fora da tomada. Nos testes o computador está sempre "na tomada": o resultado não pode

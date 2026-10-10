@@ -2,6 +2,18 @@
 
 Monta e confere a **Grade Comparativa** e o **Plano de Aplicação** de projetos sociais para o órgão que vai analisá-los. Já vem com as regras estabelecidas pela Secretaria da Justiça e Cidadania de SP (SEJC) (o levantamento está em [../FASE0_SEJC.md](../FASE0_SEJC.md)); as de qualquer outro órgão são cadastradas pela tela "Órgãos". As decisões da OSC e os testes que justificam cada regra estão em [../FASE1B_RESULTADOS.md](../FASE1B_RESULTADOS.md).
 
+## Botões de salvar que não faziam nada na tela do cargo (10/10/2026) — `tests/conftest.py`
+
+A OSC avisou: "os botões de 'Salvar e continuar aqui' e 'Salvar e voltar para [local]' não estão funcionando". Reproduzido numa cópia nova dos dados:
+na tela de um cargo com vagas de outro título, o clique não enviava nada, sem erro e sem aviso.
+
+| Causa | Correção |
+|---|---|
+| O quadro "Títulos com vagas" (08/10) punha um `<form … usar-titulo>` DENTRO do formulário do cargo (`f-cargo`). HTML não aceita formulário dentro de formulário: o navegador ignora a abertura do de dentro, e o `</form>` dele fecha o de fora. Tudo que vinha depois — as 3 pesquisas, "Buscar outra vaga", "Guardar a página de novo" e os botões de salvar — ficava fora de qualquer formulário. Só aparecia nos cargos com vagas de outro título (por isso passou nos testes de tela) | `templates/rh.html`: o botão do quadro passa a ser `<button form="f-titulo" name="titulo" value="…">`, e o formulário `f-titulo` fica vazio, FORA do do cargo, ao lado de `f-banco` — o padrão que a tela dos itens já usava (`trocar…`, `duas…`, `desfazer…`) |
+| Nada nos testes olhava a estrutura do HTML | `tests/conftest.py`: `formularios_soltos(html)` aponta formulário dentro de formulário e botão de enviar fora de qualquer formulário; a fixture automática `_formularios_inteiros` confere TODA página HTML que qualquer teste abre (279 testes, centenas de páginas) |
+
+**Regra para telas novas:** dentro de um formulário, nunca abrir outro. Ação secundária = botão com `form="id"` apontando para um formulário vazio fora do principal; o valor vai no próprio botão (`name`/`value`).
+
 ## Pesquisa completa de ponta a ponta: modo de espera, ordem das consultas e Trabalha Brasil (09/10/2026) — teste em `tests/test_v03.py`
 
 A OSC pediu: "rode o pesquisar tudo e resolva o que tiver para resolver". A pesquisa completa foi rodada do zero numa CÓPIA dos dados (cache, bloqueios e sessão numa pasta temporária; base da Receita só para leitura).

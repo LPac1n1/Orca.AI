@@ -133,7 +133,16 @@ def test_titulos_similares_sao_grupos_que_nao_se_misturam(cliente):
     assert 'título similar' in pag and 'value="Educador social" checked' in pag
     # o quadro "Títulos com vagas": o título do cargo (1 de 3, em uso), a opção com 3 vagas e, à parte, o título que ainda não tem 3
     quadro = pag.split('id="t-titulos"')[1].split('id="lista-pesquisas"')[0]
-    assert 'Usar as 3 vagas deste título' in quadro and quadro.count('action="/p/%d/rh/1/usar-titulo"' % pid) == 1 and 'value="Educador social"' in quadro
+    # o botão do quadro manda para o formulário f-titulo, que fica FORA do formulário do cargo (um <form> dentro de outro fechava o do cargo
+    # antes da hora, e os botões de salvar ficavam soltos — defeito de 10/10/2026)
+    assert 'Usar as 3 vagas deste título' in quadro and quadro.count('form="f-titulo" name="titulo" value="Educador social"') == 1 and '<form' not in quadro
+    assert pag.count('<form id="f-titulo" method="post" action="/p/%d/rh/1/usar-titulo"></form>' % pid) == 1
+    from conftest import formularios_soltos
+    assert formularios_soltos(pag) == []
+    cargo = pag.split('id="f-cargo"')[1]                                                        # do formulário do cargo em diante
+    assert cargo.index('Salvar e continuar aqui') < cargo.index('Salvar e voltar para') < cargo.index('</form>')   # os botões de salvar vêm ANTES de ele fechar
+    ruim = '<form id="a"><form action="/x"><button>Usar</button></form><button name="depois">Salvar</button></form><button>Solto</button>'
+    assert formularios_soltos(ruim) == ['<form /x> dentro de <form a>', 'botão de enviar fora de formulário: "Solto"']
     assert 'Ainda sem 3 vagas (não podem ser usados): Agente social (1)' in quadro and 'value="Agente social"' not in quadro
     # "usar as vagas do banco": só a vaga do título do cargo entra; as outras duas ficam em branco (nada de completar com o título similar)
     cliente.post(f'/p/{pid}/rh/1/vagas/banco')

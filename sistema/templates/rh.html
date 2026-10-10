@@ -100,8 +100,9 @@
           <span class="texto-apoio">· {{ g.vagas|length }} de 3 {{ 'vaga' if g.vagas|length == 1 else 'vagas' }}{% if g.media %} · média {{ g.media|brl }}{% endif %}{% if r.faixa_pretendida and g.completo and not g.chega %} · não chega na faixa pretendida{% endif %}</span>
           {% for x in g.vagas %}<div class="texto-apoio">{{ x.empresa }} — {{ x.faixa_min|brl }} · {{ x.plataforma }}{% if x.titulo %} · "{{ x.titulo }}"{% endif %}</div>{% endfor %}
           {% if not g.vagas %}<div class="texto-apoio">Nenhuma vaga confirmada com este título.</div>{% endif %}</span>
-          {% if not g.em_uso or titulos_misturados %}<form method="post" action="/p/{{ pid }}/rh/{{ r.item }}/usar-titulo"><input type="hidden" name="titulo" value="{{ g.titulo }}">
-            <button class="btn btn--secundario" data-aguarde="Trocando…">{{ ('Usar as 3 vagas deste título' if g.completo else ('Usar ' ~ ('a vaga' if g.vagas|length == 1 else 'as ' ~ g.vagas|length ~ ' vagas') ~ ' deste título') if g.vagas else 'Voltar ao título do cargo') if g.similar or g.vagas else 'Voltar ao título do cargo' }}</button></form>{% endif %}</li>
+          {# o botão manda para o formulário f-titulo, que fica FORA do formulário do cargo: um <form> dentro de outro fecha o de fora antes da hora, e os
+             botões de salvar ficavam soltos, sem fazer nada (defeito de 10/10/2026, nos cargos com vagas de outro título) #}
+          {% if not g.em_uso or titulos_misturados %}<button class="btn btn--secundario" type="submit" form="f-titulo" name="titulo" value="{{ g.titulo }}" data-aguarde="Trocando…">{{ ('Usar as 3 vagas deste título' if g.completo else ('Usar ' ~ ('a vaga' if g.vagas|length == 1 else 'as ' ~ g.vagas|length ~ ' vagas') ~ ' deste título') if g.vagas else 'Voltar ao título do cargo') if g.similar or g.vagas else 'Voltar ao título do cargo' }}</button>{% endif %}</li>
       {% endif %}{% endfor %}
       </ul>
       {% set incompletos = outros_grupos|selectattr('similar')|rejectattr('completo')|selectattr('vagas')|list %}
@@ -219,6 +220,7 @@
 {% if (ns.n or catho.ok or banco|selectattr('oculta')|list) and not removido_em %}{{ catho_quadro(pid, catho, ns.n) }}{% endif %}
 
 <form id="f-banco" method="post" action="/p/{{ pid }}/rh/{{ r.item }}/vagas/banco"></form>
+<form id="f-titulo" method="post" action="/p/{{ pid }}/rh/{{ r.item }}/usar-titulo"></form>
 {% for k in range(3) %}<form id="vpdf{{ k }}" method="post" action="/p/{{ pid }}/rh/{{ r.item }}/pesquisa/{{ k }}/pdf" enctype="multipart/form-data"></form>{% endfor %}
 
 {% set bc = namespace(completas=0, usaveis=0) %}
