@@ -119,7 +119,7 @@ Remover um órgão só o tira da lista: os projetos ligados a ele continuam com 
 │   │   ├── regras.py, calculo.py  regras, médias, verificação
 │   │   ├── orgaos.py, regras_dinamicas.py  cadastro de órgãos e as regras próprias de cada um
 │   │   ├── zerar.py             apagar as pesquisas de um projeto para refazer do zero
-│   │   ├── otimizador.py        "Fechar no teto" (OR-Tools)
+│   │   ├── otimizador.py        "Fechar no teto" (OR-Tools ou, se ele não carregar, o otimizador próprio)
 │   │   ├── vagas.py             busca e leitura de vagas, títulos, banco de vagas
 │   │   ├── produtos/            lojas, identidade de produto, cesta, comprovantes, texto dos itens
 │   │   ├── sistemas.py          cotação de sistemas pelas ferramentas de referência
@@ -156,7 +156,7 @@ cd sistema
 
 O ambiente Python fica fora da pasta do projeto de propósito, para não ser sincronizado por serviços de nuvem.
 
-**Testes:** 273 ao todo. Num clone limpo, 271 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
+**Testes:** 278 ao todo. Num clone limpo, 276 passam e 2 são pulados (leem documentos que não fazem parte do repositório). Cada teste usa uma pasta temporária: nenhum mexe nos dados reais.
 
 **Variáveis de ambiente**
 
@@ -168,7 +168,7 @@ O ambiente Python fica fora da pasta do projeto de propósito, para não ser sin
 | `ORCAMENTO_COMPROVANTES` | Outra pasta para os comprovantes de CNPJ emitidos (padrão: `Documentos\Orça.AI`) |
 | `ORCAMENTO_SEM_ROTINAS` | `1` desliga as rotinas automáticas ao abrir (usado nos testes) |
 
-**Tecnologias:** Python 3.12, FastAPI, Jinja2, SQLite, Playwright (Chromium), OR-Tools, PyMuPDF e openpyxl.
+**Tecnologias:** Python 3.12, FastAPI, Jinja2, SQLite, Playwright (Chromium), OR-Tools (opcional: o sistema tem otimizadores próprios em Python puro para quando ele não pode ser carregado), PyMuPDF e openpyxl.
 
 ## Limites conhecidos
 
@@ -203,9 +203,11 @@ O histórico completo, com o motivo de cada decisão, está em [sistema/LEIAME.m
   - **Loja que limita os acessos: o sistema desacelera antes de desistir dela.** Quando a loja responde "muitos acessos" (429), o sistema fica 90 segundos sem acessá-la, passa a espaçar os acessos 3 vezes mais e tenta de novo. Só se o limite voltar é que ela fica de fora até o dia seguinte. Na pesquisa de teste, uma papelaria saiu aos 2 minutos e fez falta.
   - **"Apagar e refazer" não deixa mais para trás a pesquisa automática sem comprovante.** A pesquisa automática cujo comprovante não pôde ser guardado ficava registrada como "feita à mão", e o item inteiro sobrevivia ao apagar (na pesquisa de teste, dois itens ficaram assim, um deles com um preço claramente errado). Agora o histórico diz quem pôs cada pesquisa no projeto; o que você digitou ou anexou continua preservado.
   - **Vagas guardadas são conferidas de novo com a regra do lugar.** A vaga que estava confirmada só pelo nome, com o CNPJ em outro estado, volta para "em dúvida" (com a empresa indicada); o que você confirmou à mão não é tocado.
+  - **O sistema funciona sem o OR-Tools.** O Controle de Aplicativo do Windows bloqueou as bibliotecas do OR-Tools num computador em uso, e o sistema inteiro deixou de abrir. Agora, quando o OR-Tools não carrega, entram os otimizadores próprios do sistema, em Python puro: o do teto da rubrica (na pesquisa de produtos) e o do "Fechar no teto", que fecha o plano no centavo com as mesmas regras. Numa versão real de projeto, ele chegou às mesmas horas que o OR-Tools tinha dado. Quando ele diz que não existe combinação que feche, é porque não existe: a busca é completa. Nenhuma configuração do Windows é alterada.
   - **Aviso de notebook fora da tomada.** Uma pesquisa completa de teste parou no meio porque a bateria acabou e o computador hibernou por 8 horas. Isso o sistema não tem como impedir; agora ele avisa no começo de toda pesquisa longa quando o notebook está na bateria, com a carga que resta.
   - **CNPJ de outro estado: o nome sozinho não confirma mais a empresa.** Numa pesquisa completa de teste, um anúncio de São Paulo recebeu o CNPJ de uma gráfica do interior da Bahia, a única do Brasil com aquele nome fantasia. Agora o CNPJ de outro estado só é confirmado sozinho quando a empresa tem estabelecimento no estado da vaga, quando o anúncio traz a razão social dela ou quando o CNPJ está no site oficial ou no texto da vaga. Fora disso a vaga fica "em dúvida", com a empresa indicada para você confirmar com um clique. O CNPJ gravado passa a ser o do estabelecimento da cidade da vaga, quando ele existe.
   - **Homônimas só em outros estados deixam de ser dúvida.** Quando existem empresas com o mesmo nome, mas no estado da vaga só há uma, é ela (antes isso só valia para a cidade). Na pesquisa de teste, 4 empresas saíram de "em dúvida" assim, todas certas — entre elas uma construtora de São Paulo com duas homônimas em Minas Gerais. Nome comum demais (mais de 2.000 estabelecimentos) nunca é confirmado sozinho.
+  - **O aviso diz quando um título similar chega na faixa.** Se as vagas do título do cargo não chegam na faixa pretendida, mas um título similar tem 3 vagas que chegam, o aviso da pesquisa aponta esse título e os salários. O sistema não mistura títulos nem troca sozinho: a escolha é sua, em "Títulos com vagas".
   - **Faixa fora do alcance: a busca percebe logo.** Quando nem as 3 vagas de maior salário chegam na média necessária, o sistema para de conferir o CNPJ empresa por empresa só para tentar chegar nela (num cargo de teste foram 63 empresas e mais de 20 minutos) e avisa que a faixa não é alcançável com as vagas do mercado.
   - **Faixa pretendida dentro do máximo de horas.** Com o limite de 90 h, as 3 vagas de menor salário podiam não chegar na faixa: numa pesquisa completa de teste, um cargo com faixa de R$ 1.000 ficou em R$ 684,90. Agora as vagas são procuradas e escolhidas pela média que elas precisam ter para o valor chegar na faixa sem passar do máximo de horas (faixa × horas do mês ÷ máximo de horas). A tela do cargo mostra essa média.
   - **Mais empresas confirmadas sozinhas.** O CNPJ achado na internet vale quando a empresa é a única com aquele nome na cidade da vaga (a base da Receita já usava esse critério). Em cada volta da busca, o sistema lê no máximo 25 vagas por site.

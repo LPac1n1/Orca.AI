@@ -78,6 +78,11 @@
         computador desliga e a pesquisa fica parada até ele voltar: isso o sistema não tem como impedir.</p>
       <p>A pesquisa de vagas é a parte mais demorada: conferir o CNPJ de uma empresa na internet leva alguns minutos. As empresas que a base da Receita
         resolve na hora são conferidas primeiro.</p></div></details>
+    <details class="detalhe"><summary>O "Fechar no teto" diz que usou o otimizador próprio. O que é isso?</summary><div class="detalhe__corpo">
+      <p>O sistema usa uma biblioteca de otimização (OR-Tools) para fechar o plano no teto e para encaixar os itens no teto de cada rubrica. Em alguns
+        computadores o Windows não deixa essa biblioteca ser carregada. Quando isso acontece, o sistema faz a conta com o otimizador próprio dele: as regras
+        são as mesmas, o plano fecha no centavo e nenhuma configuração do Windows é alterada. A combinação escolhida é boa, mas pode não ser a que muda
+        menos itens.</p></div></details>
     <details class="detalhe"><summary>Como sei se a IA está sendo usada?</summary><div class="detalhe__corpo">
       <p>Pelo indicador <b>"IA"</b>, no alto de todas as telas: "ligada", "parte da cota", "sem cota hoje" ou "sem chave". A tela dele mostra quantas respostas a IA
         deu hoje, para quê, e quantas perguntas ficaram sem resposta. A IA do Google é gratuita, mas tem um limite de perguntas por minuto e por dia: quando o

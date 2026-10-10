@@ -37,6 +37,14 @@ def _fotos_sem_internet(request, monkeypatch):
     monkeypatch.setattr(ia, 'baixar_foto', lambda url: None)
 
 
+@pytest.fixture(autouse=True)
+def _na_tomada(monkeypatch):
+    """As tarefas longas avisam quando o notebook está fora da tomada. Nos testes o computador está sempre "na tomada": o resultado não pode
+    depender de onde a suíte roda (em 09/10/2026 dois testes falharam só porque o notebook estava na bateria). O teste do aviso põe o dele."""
+    from orcamento import tarefas
+    monkeypatch.setattr(tarefas, 'na_bateria', lambda: None)
+
+
 PT8 = os.path.join(os.path.dirname(__file__), '..', '..', 'fase0', 'sejc', 'pt8_dados.json')
 
 

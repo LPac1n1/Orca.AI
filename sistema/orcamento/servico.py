@@ -2087,7 +2087,11 @@ async def vagas_do_cargo(pid, item, ctx):
         if media_rh(r) is not None and h and media_rh(r) < media_para_a_faixa(r, p.config):
             ctx.aviso(f'As vagas confirmadas de "{r.cargo}" não chegam na faixa pretendida de {brl(r.faixa_pretendida)}: a média das 3 é {brl(media_rh(r))} e, '
                       f'com o máximo de {h[0]} h por mês, o valor fica em {brl(h[1])} (para chegar na faixa, a média precisaria ser de {brl(media_para_a_faixa(r, p.config))}). '
-                      f'Use vagas de salário maior (ou de outro título, em "Títulos com vagas"), reduza a faixa ou aumente o máximo de horas na configuração do projeto.')
+                      f'Use vagas de salário maior (ou de outro título, em "Títulos com vagas"), reduza a faixa ou aumente o máximo de horas na configuração do projeto.'
+                      # título similar cujas 3 vagas chegam na faixa: é a saída mais direta, e quem decide é a OSC (títulos diferentes não se misturam)
+                      + (' Título similar com 3 vagas que CHEGAM na faixa: '
+                         + '; '.join(f'{g["titulo"]} (salários de {_reais(g["vagas"][0]["faixa_min"])} a {_reais(g["vagas"][-1]["faixa_min"])})' for g in opcoes if g['chega'])
+                         + ' — se o título servir para o cargo, escolha-o em "Títulos com vagas", na tela do cargo.' if any(g['chega'] for g in opcoes) else ''))
         elif h:
             ctx.aviso(f'"{r.cargo}": faixa pretendida de {brl(r.faixa_pretendida)} → {h[0]} h por mês, {brl(h[1])} (média das 3 vagas: {brl(media_rh(r))}).')
     res['no_banco'] = len(novas)

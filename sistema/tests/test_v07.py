@@ -541,3 +541,34 @@ def test_com_o_limite_de_horas_as_vagas_sao_escolhidas_pela_media_que_chega_na_f
     assert [q.nome for q in r.pesquisas] == ['DELTA', 'EPSILON', 'ZETA'] and media_rh(r) == 270000
     assert r.horas_mes <= 90 and abs(r.valor_mensal_plano - 100000) <= 1227                                              # chega na faixa (a menos de uma hora de diferença), dentro das 90 h
     assert not [a for a in verificar(p) if a.regra in ('S09', 'S12') and a.gravidade != 'info']
+
+
+def test_aviso_diz_quando_um_titulo_similar_chega_na_faixa(cliente, monkeypatch):
+    """Pesquisa completa de 09/10/2026: "Auxiliar Administrativo", faixa de R$ 1.200 — nenhuma combinação de vagas do título chegava na média
+    necessária (R$ 2.933,34), mas o título similar "Assistente administrativo" tinha 3 vagas que chegavam, e o aviso não dizia. As vagas de
+    títulos diferentes não se misturam (decisão da OSC): o sistema mantém as do título do cargo e aponta o similar como opção."""
+    import asyncio
+    from orcamento import db, servico, vagas as V
+    pid = _novo(cliente)
+    cliente.post(f'/p/{pid}/rubrica', data={'tipo': 'rh', 'nome': 'Auxiliar Administrativo', 'faixa_pretendida': '1.200,00', 'meses': '10'})
+    for cargo, empresa, cnpj, sal in (('Auxiliar Administrativo', 'Alfa', '11111111000111', 120000), ('Auxiliar Administrativo', 'Beta', '22222222000122', 141200),
+                                      ('Auxiliar Administrativo', 'Gama', '33333333000133', 151800), ('Assistente administrativo', 'Delta', '44444444000144', 300000),
+                                      ('Assistente administrativo', 'Epsilon', '55555555000155', 308800), ('Assistente administrativo', 'Zeta', '66666666000166', 310000)):
+        _vaga_no_banco(V, cargo, empresa, cnpj, sal)
+
+    async def sem_busca(cargo, ctx=None, alvo=3, parar=None, faixa=None):
+        return dict(cargo=cargo, lidas=0, cnpj_consultados=0, cnpj_verdes=0, no_banco=len(V.tres_do_banco(cargo)), vagas=V.tres_do_banco(cargo))
+    monkeypatch.setattr(V, 'coletar', sem_busca)
+
+    class Ctx:
+        id, avisos = None, []
+        def aviso(self, m): self.avisos.append(m)
+        def etapa(self, m): pass
+        def progresso(self, *a): pass
+    ctx = Ctx()
+    asyncio.run(servico.vagas_do_cargo(pid, 1, ctx))
+    r = db.carregar(pid)[0].rubricas[0]
+    assert [q.nome for q in r.pesquisas] == ['ALFA', 'BETA', 'GAMA'] and r.horas_mes == 90          # ficam as do título do cargo (as mais baratas), no máximo de horas
+    aviso = next(a for a in ctx.avisos if 'não chegam na faixa pretendida' in a)
+    assert 'a média precisaria ser de R$ 2.933,34' in aviso
+    assert 'Título similar com 3 vagas que CHEGAM na faixa: Assistente administrativo (salários de R$ 3.000,00 a R$ 3.100,00)' in aviso and 'Títulos com vagas' in aviso

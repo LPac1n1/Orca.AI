@@ -14,6 +14,10 @@
 {% if resultado.status == 'OK' %}
 <div class="aviso aviso--ok" role="status">{{ icone('certo') }}<div class="aviso__corpo"><b>Solução exata encontrada.</b> O plano fecha em {{ p.teto|brl }}, com todos os valores
   dentro das regras. Nada foi gravado ainda: confira as mudanças abaixo e aplique.</div></div>
+{% if resultado.solver and 'próprio' in resultado.solver %}
+<p class="texto-apoio">Conta feita pelo otimizador próprio do sistema: o Windows não deixou carregar a biblioteca de otimização (OR-Tools) neste computador. As regras
+  são as mesmas e o plano fecha no centavo; a combinação escolhida é boa, mas pode não ser a que muda menos itens.</p>
+{% endif %}
 {% if resultado.faixas %}
 {% set sf = resultado.sobra_das_faixas %}
 <section class="cartao" aria-labelledby="t-faixas">
