@@ -905,8 +905,10 @@ def alcanca_a_faixa(vagas, faixa):
 
 def tres_do_titulo(titulo, faixa=None):
     """As (até) 3 vagas de UM título — o cargo ou um título similar —, de empresas diferentes: as de menor salário. Com faixa pretendida
-    (decisão da OSC, 05/10/2026): as de menor salário cuja média ainda chega na faixa; se nenhuma combinação chega, as 3 de menor salário
-    (quem chama avisa). Vagas de títulos diferentes NUNCA entram juntas (decisão da OSC, 06/10/2026)."""
+    (decisão da OSC, 05/10/2026): as de menor salário cuja média ainda chega na faixa. Se NENHUMA combinação chega, as 3 que chegam MAIS PERTO
+    dela, isto é, as de maior salário (decisão da OSC, 09/10/2026: "se a faixa existir, o foco deve ser sempre igualar/chegar perto dela" —
+    antes ficavam as 3 de menor salário, e com o limite de 90 h um cargo com faixa de R$ 1.200 ficou em R$ 563,40). Quem chama avisa.
+    Vagas de títulos diferentes NUNCA entram juntas (decisão da OSC, 06/10/2026)."""
     import itertools
     from .regras import media
     padrao = tres_do_banco(titulo)
@@ -922,7 +924,15 @@ def tres_do_titulo(titulo, faixa=None):
         chave = (sum(sal), sal)
         if melhor is None or chave < melhor[0]:
             melhor = (chave, trio)
-    return sorted(melhor[1], key=lambda v: v['faixa_min']) if melhor else padrao
+    if melhor:
+        return sorted(melhor[1], key=lambda v: v['faixa_min'])
+    perto, raizes = [], set()   # nenhuma combinação chega na faixa: as 3 de MAIOR salário, de empresas diferentes
+    for v in sorted(cands, key=lambda v: -v['faixa_min']):
+        if _raiz(v['cnpj']) not in raizes:
+            raizes.add(_raiz(v['cnpj'])); perto.append(v)
+        if len(perto) == 3:
+            break
+    return sorted(perto, key=lambda v: v['faixa_min']) if len(perto) == len(padrao) else padrao
 
 
 def tres_na_faixa(cargo, similares=(), faixa=None):
@@ -1055,7 +1065,7 @@ async def confirmar_vaga(url, cnpj, ctx=None):
 def da_para_chegar(cargo, a_conferir, faixa):
     """Ainda dá para 3 vagas de empresas diferentes terem média igual ou maior que `faixa`? Conta as já confirmadas no banco e as que faltam
     conferir como se TODAS fossem confirmadas: se nem assim as 3 de maior salário chegam, a faixa está fora do alcance das vagas achadas, e
-    conferir o CNPJ das que sobram só para tentar chegar nela é tempo perdido. Na pesquisa completa de 09/10/2026, um cargo que precisava de
+    conferir o CNPJ de todas elas é tempo perdido: bastam as de maior salário, que são as que ficam. Na pesquisa completa de 09/10/2026, um cargo que precisava de
     média de R$ 2.444,45 teve as 63 empresas conferidas (17 minutos) quando as 3 vagas de maior salário davam R$ 2.297."""
     from .regras import media
     sal = {}   # uma vaga por empresa (pelo nome do anúncio, como a coleta faz): a vaga guardada que vai ser lida de novo não conta duas vezes
@@ -1105,10 +1115,14 @@ async def coletar(cargo, ctx=None, alvo=3, parar=None, faixa=None):
                 fila = rapidas + lentas
                 for i, v in enumerate(fila):
                     tres = tres_do_banco(cargo)
-                    # com faixa pretendida: se nem com todas as vagas que faltam a média chega nela, a busca volta à regra sem faixa (as 3 de
-                    # menor salário) — só é conferida a vaga que ainda pode entrar entre elas
+                    # com faixa pretendida: se nem com todas as vagas que faltam a média chega nela, valem as 3 que chegam MAIS PERTO da faixa
+                    # (as de maior salário; decisão da OSC, 09/10/2026) — só é conferida a vaga que ainda pode entrar entre elas
                     fora_do_alcance = bool(faixa and parar) and not da_para_chegar(cargo, fila[i:], faixa)
-                    if parar and not fora_do_alcance:
+                    if fora_do_alcance:
+                        topo = tres_do_titulo(cargo, faixa)
+                        if len(topo) >= alvo and (v['faixa_min'] or 0) <= min(t['faixa_min'] or 0 for t in topo):
+                            continue   # não entra entre as 3 de maior salário: fica sem consulta
+                    elif parar:
                         if parar():
                             break
                     elif len(tres) >= alvo and (v['faixa_min'] or 0) >= max(t['faixa_min'] or 0 for t in tres):

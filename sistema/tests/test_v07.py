@@ -410,7 +410,8 @@ def test_faixa_pretendida_escolhe_as_vagas_e_ajusta_as_horas(cliente):
     assert [v['empresa'] for v in V.tres_do_titulo('Psicólogo')] == ['Alfa', 'Beta', 'Gama']              # sem faixa: as 3 de menor salário (média 1.600)
     tres = V.tres_na_faixa('Psicólogo', (), 200000)
     assert [v['empresa'] for v in tres] == ['Alfa', 'Delta', 'Epsilon'] and V.alcanca_a_faixa(tres, 200000)   # a menor média que chega em 2.000: 2.066,67
-    assert [v['empresa'] for v in V.tres_na_faixa('Psicólogo', (), 300000)] == ['Alfa', 'Beta', 'Gama']    # nenhuma combinação chega em 3.000: as mais baratas
+    # nenhuma combinação chega em 3.000: as 3 que chegam MAIS PERTO (as de maior salário) — decisão da OSC, 09/10/2026
+    assert [v['empresa'] for v in V.tres_na_faixa('Psicólogo', (), 300000)] == ['Gama', 'Delta', 'Epsilon']
     pag = cliente.get(f'/p/{pid}/rh/1').text
     assert 'name="faixa_pretendida"' in pag and 'value="2.000,00"' in pag and 'de menor salário que chegam na faixa' in pag
     cliente.post(f'/p/{pid}/rh/1/vagas/banco')
@@ -568,7 +569,36 @@ def test_aviso_diz_quando_um_titulo_similar_chega_na_faixa(cliente, monkeypatch)
     ctx = Ctx()
     asyncio.run(servico.vagas_do_cargo(pid, 1, ctx))
     r = db.carregar(pid)[0].rubricas[0]
-    assert [q.nome for q in r.pesquisas] == ['ALFA', 'BETA', 'GAMA'] and r.horas_mes == 90          # ficam as do título do cargo (as mais baratas), no máximo de horas
+    assert [q.nome for q in r.pesquisas] == ['ALFA', 'BETA', 'GAMA'] and r.horas_mes == 90          # ficam as do título do cargo (só há estas 3), no máximo de horas
     aviso = next(a for a in ctx.avisos if 'não chegam na faixa pretendida' in a)
     assert 'a média precisaria ser de R$ 2.933,34' in aviso
     assert 'Título similar com 3 vagas que CHEGAM na faixa: Assistente administrativo (salários de R$ 3.000,00 a R$ 3.100,00)' in aviso and 'Títulos com vagas' in aviso
+
+
+def test_sem_combinacao_que_chegue_ficam_as_vagas_mais_perto_da_faixa(cliente):
+    """Decisão da OSC (09/10/2026): "se a faixa existir, o foco deve ser sempre igualar/chegar perto dela". A regra de 05/10 deixava as 3 vagas de
+    MENOR salário quando nenhuma combinação chegava na faixa — e, com o limite de 90 h, um cargo com faixa de R$ 1.200 ficou em R$ 563,40 (as 3 de
+    maior salário do mesmo título davam R$ 895). Agora ficam as 3 que chegam mais perto: as de maior salário, de empresas diferentes."""
+    from orcamento import db, servico, vagas as V
+    from orcamento.calculo import media_para_a_faixa, media_rh, verificar
+    pid = _novo(cliente)
+    cliente.post(f'/p/{pid}/rubrica', data={'tipo': 'rh', 'nome': 'Auxiliar Administrativo', 'faixa_pretendida': '1.200,00', 'meses': '10'})
+    for empresa, cnpj, sal in (('Alfa', '11111111000111', 120000), ('Beta', '22222222000122', 141200), ('Gama', '33333333000133', 151800),
+                               ('Delta', '44444444000144', 200000), ('Epsilon', '55555555000155', 220000), ('Zeta', '66666666000166', 236700),
+                               ('Zeta Filial', '66666666000247', 250000)):                       # mesma empresa da Zeta (outra unidade): não conta duas vezes
+        _vaga_no_banco(V, 'Auxiliar Administrativo', empresa, cnpj, sal)
+    p = db.carregar(pid)[0]
+    alvo = media_para_a_faixa(p.rubricas[0], p.config)
+    assert alvo == 293334                                                                        # 1.200 × 220 ÷ 90: nenhuma combinação chega
+    assert [v['empresa'] for v in V.tres_do_titulo('Auxiliar Administrativo')] == ['Alfa', 'Beta', 'Gama']              # sem faixa: as 3 de menor salário
+    assert [v['empresa'] for v in V.tres_do_titulo('Auxiliar Administrativo', alvo)] == ['Delta', 'Epsilon', 'Zeta Filial']   # com faixa: as mais perto dela
+    pag = cliente.get(f'/p/{pid}/rh/1').text
+    assert 'Usar as 3 vagas que chegam mais perto da faixa' in pag and 'ficam as 3 que chegam mais perto dela' in pag
+    cliente.post(f'/p/{pid}/rh/1/vagas/banco')
+    p = db.carregar(pid)[0]
+    r = p.rubricas[0]
+    assert [q.nome for q in r.pesquisas] == ['DELTA', 'EPSILON', 'ZETA FILIAL'] and media_rh(r) == 223333
+    assert r.horas_mes == 90 and r.valor_mensal_plano == 91350                                   # 2.233,33 ÷ 220 = 10,15 por hora × 90 h = 913,50 (com as mais baratas: 563,40)
+    assert [a.regra for a in verificar(p) if a.regra == 'S09' and a.gravidade == 'atencao'] == ['S09']   # e a verificação continua avisando que a faixa não foi alcançada
+    # trocar uma das pesquisas: entra a vaga que deixa a média mais perto da faixa (a de maior salário entre as que sobram)
+    assert servico._proxima_vaga(r, 0, [r.pesquisas[0].evidencia.url], alvo)['empresa'] == 'Gama'

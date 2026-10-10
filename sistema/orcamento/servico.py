@@ -1926,7 +1926,8 @@ def aplicar_vagas(p, pid, r):
 
 def _proxima_vaga(r, k, fora=(), alvo=None):
     """A próxima vaga válida do banco para a pesquisa k, do TÍTULO EM USO, da de menor salário para a maior; de empresa diferente das
-    outras duas pesquisas e que não seja uma das vagas em `fora`."""
+    outras duas pesquisas e que não seja uma das vagas em `fora`. Com faixa pretendida: a de menor salário que faz a média das 3 chegar na
+    faixa; se nenhuma faz, a de MAIOR salário — a que deixa a média mais perto dela (decisão da OSC, 09/10/2026)."""
     from . import vagas as V
     usadas = {q.evidencia.url for j, q in enumerate(r.pesquisas) if j != k and q.evidencia and q.evidencia.url} | set(fora)
     raizes = {_raiz(q.cnpj) for j, q in enumerate(r.pesquisas) if j != k and q.cnpj}
@@ -1938,6 +1939,7 @@ def _proxima_vaga(r, k, fora=(), alvo=None):
             chegam = [v for v in validas if v.get('faixa_min') and media(outras + [v['faixa_min']]) >= (alvo or r.faixa_pretendida)]
             if chegam:
                 return chegam[0]
+            return max(validas, key=lambda v: v.get('faixa_min') or 0)   # nenhuma chega: a que fica mais perto da faixa
     return validas[0] if validas else None
 
 
@@ -2085,7 +2087,8 @@ async def vagas_do_cargo(pid, item, ctx):
         from .regras import brl
         h = horas_pela_faixa(r, p.config)
         if media_rh(r) is not None and h and media_rh(r) < media_para_a_faixa(r, p.config):
-            ctx.aviso(f'As vagas confirmadas de "{r.cargo}" não chegam na faixa pretendida de {brl(r.faixa_pretendida)}: a média das 3 é {brl(media_rh(r))} e, '
+            ctx.aviso(f'As vagas confirmadas de "{r.cargo}" não chegam na faixa pretendida de {brl(r.faixa_pretendida)}: ficaram as 3 que chegam mais perto '
+                      f'dela (as de maior salário), a média das 3 é {brl(media_rh(r))} e, '
                       f'com o máximo de {h[0]} h por mês, o valor fica em {brl(h[1])} (para chegar na faixa, a média precisaria ser de {brl(media_para_a_faixa(r, p.config))}). '
                       f'Use vagas de salário maior (ou de outro título, em "Títulos com vagas"), reduza a faixa ou aumente o máximo de horas na configuração do projeto.'
                       # título similar cujas 3 vagas chegam na faixa: é a saída mais direta, e quem decide é a OSC (títulos diferentes não se misturam)
